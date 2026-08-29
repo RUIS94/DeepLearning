@@ -28,6 +28,7 @@ namespace DeepLearning.UnitTests.Api
                 Name = "API Test Exam Type",
                 SubjectCategory = SubjectCategory.translation,
             });
+            examTypeResponse.EnsureSuccessStatusCode();
             var examType = await examTypeResponse.Content.ReadFromJsonAsync<CreateExamTypeResult>();
             var baseUrl = ApiRoutes.ErrorTaxonomies.Base.Replace("{examTypeId:guid}", examType!.Id.ToString());
 

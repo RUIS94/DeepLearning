@@ -10,10 +10,21 @@ namespace DeepLearning.Infrastructure.Persistence
     /// </summary>
     public static class NpgsqlEnumConfiguration
     {
+        // Shared, stateless translators reused across every call to MapEnums.
+        // AddDbContext re-invokes its configure action once per scope (i.e. once
+        // per request), so `new`-ing these per call made every resulting
+        // DbContextOptions fingerprint distinct in EF's internal service-provider
+        // cache (name translators don't have value equality) — EF built a brand
+        // new internal service provider on every single request instead of
+        // reusing one, tripping ManyServiceProvidersCreatedWarning after ~20
+        // requests in one process. Static singletons keep the fingerprint stable.
+        private static readonly NpgsqlNullNameTranslator NullTranslator = new();
+        private static readonly NpgsqlSnakeCaseNameTranslator SnakeCaseTranslator = new();
+
         public static void MapEnums(NpgsqlDbContextOptionsBuilder o)
         {
-            var t = new NpgsqlNullNameTranslator();
-            var snake = new NpgsqlSnakeCaseNameTranslator();
+            var t = NullTranslator;
+            var snake = SnakeCaseTranslator;
 
             o.MapEnum<TaskType>("task_type_enum", nameTranslator: t);
             o.MapEnum<Difficulty>("difficulty_enum", nameTranslator: t);

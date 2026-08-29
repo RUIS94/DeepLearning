@@ -26,6 +26,7 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<IErrorTaxonomyRepository, ErrorTaxonomyRepository>();
             services.AddScoped<IPromptTemplateRepository, PromptTemplateRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
+            services.AddScoped<IQuestionRepository, QuestionRepository>();
 
             services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 

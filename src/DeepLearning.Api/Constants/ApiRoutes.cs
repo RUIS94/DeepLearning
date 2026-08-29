@@ -28,5 +28,10 @@ namespace DeepLearning.Api.Constants
         {
             public const string Base = $"{Prefix}/users";
         }
+
+        public static class Questions
+        {
+            public const string Base = $"{Prefix}/questions";
+        }
     }
 }
