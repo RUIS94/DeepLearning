@@ -39,21 +39,36 @@ This isn't code that got deleted or something that's broken — the project was 
 | `Api/Controllers/{ExamTypes,AssessmentDimensions,ErrorTaxonomies,PromptTemplates,Users,Questions}Controller.cs` | Real, routed under `api/v1/...` |
 | `Application/Interfaces/IQuestionRepository.cs` + `Infrastructure/Persistence/Repositories/QuestionRepository.cs` | Real, registered in DI — `Question` is the aggregate root; `MeaningCheckpoint`/`TaskBSeededError` are FK-only child rows fetched via separate repository methods, no EF collection nav properties (matches the existing FK-only convention on `ExamType`/`AssessmentDimension` etc.) |
 | `Application/Features/Questions/Commands/ImportUserQuestion/**` + `Queries/{GetQuestionById,ListQuestions}/**` | Real — manual/scripted question entry (no AI yet, that's `GenerateQuestion`/Step 3), Create+GetById+List. The validator enforces TaskA/TaskB shape consistency and TaskB seeded-error position bounds/no-overlap — this is the one validator worth reading before writing a similar one elsewhere |
+| `Application/Interfaces/{ILlmClient,IExamConfigLoader,IAiCallLogRepository}.cs` | Real — see the "AI integration (Step 3)" section below for the full design |
+| `Infrastructure/Ai/{ClaudeLlmClient,ClaudeResiliencePipeline,ExamConfigLoader,PromptRenderer,Options/ClaudeApiOptions}.cs` + `Infrastructure/Persistence/Repositories/AiCallLogRepository.cs` | Real. `ClaudeLlmClient.cs` is a **rename** of the old empty `LlmClient.cs` stub (provider-specific name now that a second provider is a real possibility) |
+| `Application/Features/Questions/Commands/GenerateQuestion/**` | Real — the AI-driven sibling of `ImportUserQuestion`. Reuses `IQuestionRepository`/`IExamTypeRepository` from Steps 1-2 unchanged |
+| `Api/Controllers/QuestionsController.cs` `POST .../generate` action | Real |
 | `tests/DeepLearning.UnitTests/TestInfrastructure/*.cs` | Real: `PostgresContainerFixture` (Testcontainers Postgres for repository tests) + `ApiWebApplicationFactory` (same, wired to a real ASP.NET Core host via `WebApplicationFactory<Program>`) |
-| `tests/DeepLearning.UnitTests/{Api,Integration,Application/Features/ExamConfig,Application/Features/Questions}/**` | Real: unit tests for validator rules, integration tests hitting a real throwaway Postgres, API tests hitting a real HTTP host — see "Running the tests" below |
+| `tests/DeepLearning.UnitTests/{Api,Integration,Application/Features/ExamConfig,Application/Features/Questions,Infrastructure/Ai}/**` | Real: unit tests for validator rules, integration tests hitting a real throwaway Postgres, API tests hitting a real HTTP host — see "Running the tests" below. `Api/ClaudeLlmClientLiveTests.cs` makes a real Claude call and is excluded from the default run — see "AI integration (Step 3)" below |
 
 ### Parts that are still empty shells, waiting to be filled in
 
 - `src/DeepLearning.Domain/Common/{Result,Guard,ErrorCodes}.cs`
 - `src/DeepLearning.Domain/Events/*.cs` (the domain event classes themselves are empty too; `AggregateRoot` doesn't yet have a mechanism for collecting events) — still open, needed starting the Step 6 domain-events work
 - `src/DeepLearning.Domain/Exceptions/{InvalidSubmissionStateException,RubricVersionNotFoundException}.cs` — belong to the Submissions/grading work (Step 4/5), left stubbed on purpose
-- `ISubmissionRepository`, `IWeakPointRepository`, `ILlmClient`, `IExamConfigLoader`, `IGradingResultInterpreter`, `IProgressRepository`, `IStandardOverrideRepository` under `Application/Interfaces/`
+- `ISubmissionRepository`, `IWeakPointRepository`, `IGradingResultInterpreter`, `IProgressRepository`, `IStandardOverrideRepository` under `Application/Interfaces/`
 - `src/DeepLearning.Application/Common/{PagedRequest,PagedResult}.cs`
-- **All** business code under `Features/{Submissions,FollowUps,WeakPoints,Progress,ReviewLibrary,QuestionBank}/**` except the `EventHandlers` stubs, plus `Features/Questions/Commands/GenerateQuestion/` (still an empty-class stub — that's the AI-driven Step 3 sibling of `ImportUserQuestion`, folder shape can be copied, contents can't)
+- **All** business code under `Features/{Submissions,FollowUps,WeakPoints,Progress,ReviewLibrary,QuestionBank}/**` except the `EventHandlers` stubs
 - `src/DeepLearning.Infrastructure/Persistence/Repositories/{Submission,WeakPoint}Repository.cs`
-- `src/DeepLearning.Infrastructure/Ai/*.cs` (`LlmClient`, `ExamConfigLoader`, `PromptRenderer`, `GradingResultInterpreters/*`) and `src/DeepLearning.Infrastructure/BackgroundJobs/*.cs`
+- `src/DeepLearning.Infrastructure/Ai/GradingResultInterpreters/*.cs` (grading, Step 4 — `ExamConfigLoader`/`PromptRenderer`/`ClaudeLlmClient` are now real, but the grading-specific interpreter strategies aren't) and `src/DeepLearning.Infrastructure/BackgroundJobs/*.cs`
 - `src/DeepLearning.Api/Controllers/{Submissions,FollowUps,WeakPoints,Progress}Controller.cs` (aside from the auto-generated `WeatherForecastController`, these 4 are still empty classes)
 - Everything under `tests/DeepLearning.UnitTests/{Domain,Application/Features/Submissions}/**` (e.g. `SubmissionTests.cs`, `GradeSubmissionCommandHandlerTests.cs`) and the leftover template `UnitTest1.cs`
+
+## AI integration (Step 3): provider abstraction, config, and gotchas hit for real
+
+- **Provider-neutral by design, only Claude implemented for real.** `ILlmClient` (Application) knows nothing about Claude — `ClaudeLlmClient` (Infrastructure/Ai) is registered as a **keyed** service (`AddKeyedScoped<ILlmClient, ClaudeLlmClient>("claude")` — actually `AddKeyedTransient`, see `DependencyInjection.cs`), and a thin resolver picks the active one from `Llm:Provider` config (defaults to `"claude"`). Adding a second provider (OpenAI, DeepSeek, ...) means one more adapter class shaped like `ClaudeLlmClient` + one more `AddKeyedTransient` line — no handler ever changes.
+- **Raw `HttpClient`, not the official Anthropic SDK — deliberate.** Matches the design doc's own "HttpClient+Polly" architecture, and a uniform raw-HTTP adapter shape is what actually makes swapping/adding providers cheap; the resilience pipeline (`ClaudeResiliencePipeline.cs`, via `Microsoft.Extensions.Http.Resilience` — Polly v8 under the hood) attaches to `HttpClient`, not to an SDK client.
+- **Config**: `Llm:Provider` + `Llm:Claude:{ApiKey,BaseUrl,Model,ApiVersion,WorkspaceId}` in `appsettings.Development.json` (gitignored — the real key lives only there, never commit it). `WorkspaceId` is required for an "identity-linked" API key (hit for real on 2026-08-29: Claude rejected the request with `anthropic-workspace-id is required...`) — grab it from the Console by picking one specific workspace from the workspace dropdown (not "All workspaces", which shows no ID at all).
+- **Two more real bugs found only by an actual live call, both fixed in `ClaudeLlmClient.cs`/`ClaudeResiliencePipeline.cs`**:
+  1. Sending `"system": null` in the request body (instead of omitting the key) got a real 400 from Claude ("system: Input should be a valid array") — fixed with `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]` on that property.
+  2. `AddStandardResilienceHandler`'s library defaults (10s per-attempt / 30s total timeout) are tuned for ordinary REST calls, not an LLM completion — a real question-generation call with Claude's default adaptive thinking took longer than that and tripped `Polly.Timeout.TimeoutRejectedException`, which `ClaudeLlmClient`'s catch clause didn't originally catch (only `HttpRequestException`), surfacing as a raw 500 instead of a clean `AiCallFailedException`→503. Fixed by widening the catch clause and raising `AttemptTimeout`/`TotalRequestTimeout` to 60s/180s in `ClaudeResiliencePipeline.Configure` — note the circuit breaker's `SamplingDuration` must stay ≥ 2× `AttemptTimeout` or `AddStandardResilienceHandler` fails **at startup** with an `OptionsValidationException`, not at call time.
+- **`prompt_templates` needed a new row for Step 3 to work at all**: the exam_specific/question_gen row seeded back in Step 1 only specifies content requirements (topic, difficulty), not an output contract — because the code that would consume it didn't exist yet. Added one new `shared_methodology`/`question_gen` row (subject_category=`translation`) via the real `POST /api/v1/prompt-templates` endpoint instructing the model to output *only* the JSON shape `GenerateQuestionCommandHandler` parses. If question generation ever starts failing to parse, check this row (`prompt_templates` where `template_type='question_gen' AND layer='shared_methodology'`) hasn't been deactivated or superseded incompatibly.
+- **Live-call tests are excluded from the default run** — see "Running the tests" below.
 
 ## Directory structure and dependency direction
 
@@ -133,8 +148,14 @@ DeepLearning.Api             <- depends on Infrastructure + Application
 Requires Docker Desktop running (Testcontainers spins up real, throwaway Postgres containers — no mocked DbContext anywhere in the suite).
 
 ```bash
-dotnet test DeepLearning.slnx
+# Default / CI: excludes the real Claude call (costs money, needs network + a live key)
+dotnet test DeepLearning.slnx --filter "Category!=LlmIntegration"
+
+# Run the live Claude call explicitly (needs Llm:Claude:ApiKey/WorkspaceId in appsettings.Development.json)
+dotnet test DeepLearning.slnx --filter "Category=LlmIntegration"
 ```
+
+Plain `dotnet test` with no filter runs everything including the live Claude call — don't do that in CI or on a loop. `.github/workflows/ci.yml` already uses the filtered form.
 
 A `NU1903` warning about `SSH.NET` having a known high-severity advisory is expected and currently unresolved — it's a transitive dependency of `Testcontainers.PostgreSql` (used to talk to remote Docker contexts), not something this project calls directly, and it never ships in the Api project's output.
 

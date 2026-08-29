@@ -27,9 +27,9 @@ jobs:
 
       # Testcontainers needs a Docker daemon, which GitHub-hosted Ubuntu
       # runners already provide — no separate service container needed.
-      # This runs the full pyramid (unit + Testcontainers-backed integration
-      # and API tests) in one pass; there's no [Trait("Category","LlmIntegration")]
-      # test yet (that lands with the ILlmClient work), so there's nothing to
-      # exclude here or move to a separate nightly job for now.
+      # Excludes [Trait("Category","LlmIntegration")] tests: those make a real
+      # Claude API call (cost + needs a live key in secrets, which CI doesn't
+      # have configured) and belong in a nightly job per the design doc's own
+      # test strategy, not on every push/PR.
       - name: Test
-        run: dotnet test DeepLearning.slnx --no-build --configuration Release --logger "console;verbosity=normal"
+        run: dotnet test DeepLearning.slnx --no-build --configuration Release --filter "Category!=LlmIntegration" --logger "console;verbosity=normal"

@@ -1,4 +1,5 @@
 using DeepLearning.Api.Constants;
+using DeepLearning.Application.Features.Questions.Commands.GenerateQuestion;
 using DeepLearning.Application.Features.Questions.Commands.ImportUserQuestion;
 using DeepLearning.Application.Features.Questions.Queries.GetQuestionById;
 using DeepLearning.Application.Features.Questions.Queries.ListQuestions;
@@ -40,6 +41,18 @@ namespace DeepLearning.Api.Controllers
                     request.TaskType, request.Difficulty, request.Title, request.Brief, request.SourceText,
                     request.FlawedTranslationText, request.WordCount, request.CreatedBy, request.Visibility,
                     request.MeaningCheckpoints, request.SeededErrors),
+                cancellationToken);
+
+            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        }
+
+        public record GenerateQuestionRequest(Guid ExamTypeId, TaskType TaskType, Difficulty Difficulty, Guid? CreatedBy);
+
+        [HttpPost("generate")]
+        public async Task<ActionResult<GenerateQuestionResult>> Generate(GenerateQuestionRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(
+                new GenerateQuestionCommand(request.ExamTypeId, request.TaskType, request.Difficulty, request.CreatedBy),
                 cancellationToken);
 
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);

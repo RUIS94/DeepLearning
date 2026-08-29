@@ -1,10 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using DeepLearning.Domain.Enums;
+using MediatR;
 
 namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
 {
-    internal class GenerateQuestionCommand
-    {
-    }
+    public record GenerateQuestionCommand(
+        Guid ExamTypeId,
+        TaskType TaskType,
+        Difficulty Difficulty,
+        Guid? CreatedBy) : IRequest<GenerateQuestionResult>;
 }

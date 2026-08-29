@@ -1,4 +1,6 @@
 using DeepLearning.Application.Interfaces;
+using DeepLearning.Infrastructure.Ai;
+using DeepLearning.Infrastructure.Ai.Options;
 using DeepLearning.Infrastructure.Common;
 using DeepLearning.Infrastructure.Persistence;
 using DeepLearning.Infrastructure.Persistence.Repositories;
@@ -27,8 +29,37 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<IPromptTemplateRepository, PromptTemplateRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IQuestionRepository, QuestionRepository>();
+            services.AddScoped<IAiCallLogRepository, AiCallLogRepository>();
 
             services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
+
+            // --- AI / LLM: provider-neutral ILlmClient resolved via keyed DI --------------
+            // Adding a new provider later = one more AddKeyedScoped<ILlmClient, XxxLlmClient>
+            // line + its adapter class. No handler ever depends on a concrete provider.
+            services.AddOptions<ClaudeApiOptions>().Bind(configuration.GetSection(ClaudeApiOptions.SectionName));
+
+            services.AddHttpClient<ClaudeLlmClient>((sp, client) =>
+            {
+                var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ClaudeApiOptions>>().Value;
+                client.BaseAddress = new Uri(options.BaseUrl);
+                client.DefaultRequestHeaders.Add("x-api-key", options.ApiKey);
+                client.DefaultRequestHeaders.Add("anthropic-version", options.ApiVersion);
+                if (!string.IsNullOrEmpty(options.WorkspaceId))
+                {
+                    client.DefaultRequestHeaders.Add("anthropic-workspace-id", options.WorkspaceId);
+                }
+            }).AddStandardResilienceHandler(ClaudeResiliencePipeline.Configure);
+
+            services.AddKeyedTransient<ILlmClient>("claude", (sp, _) => sp.GetRequiredService<ClaudeLlmClient>());
+
+            services.AddScoped<ILlmClient>(sp =>
+            {
+                var provider = configuration["Llm:Provider"] ?? "claude";
+                return sp.GetRequiredKeyedService<ILlmClient>(provider);
+            });
+
+            services.AddSingleton<PromptRenderer>();
+            services.AddScoped<IExamConfigLoader, ExamConfigLoader>();
 
             return services;
         }

@@ -33,6 +33,7 @@ namespace DeepLearning.Api.Middleware
                         .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray())),
                 NotFoundException notFoundException => (StatusCodes.Status404NotFound, notFoundException.Message, null),
                 ConflictException conflictException => (StatusCodes.Status409Conflict, conflictException.Message, null),
+                AiCallFailedException aiCallFailedException => (StatusCodes.Status503ServiceUnavailable, aiCallFailedException.Message, null),
                 DomainException domainException => (StatusCodes.Status400BadRequest, domainException.Message, null),
                 _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.", null),
             };
