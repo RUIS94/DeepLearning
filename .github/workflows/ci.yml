@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore DeepLearning.slnx
+
+      - name: Build
+        run: dotnet build DeepLearning.slnx --no-restore --configuration Release
+
+      # Testcontainers needs a Docker daemon, which GitHub-hosted Ubuntu
+      # runners already provide — no separate service container needed.
+      # This runs the full pyramid (unit + Testcontainers-backed integration
+      # and API tests) in one pass; there's no [Trait("Category","LlmIntegration")]
+      # test yet (that lands with the ILlmClient work), so there's nothing to
+      # exclude here or move to a separate nightly job for now.
+      - name: Test
+        run: dotnet test DeepLearning.slnx --no-build --configuration Release --logger "console;verbosity=normal"

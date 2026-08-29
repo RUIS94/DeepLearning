@@ -3,20 +3,25 @@
 # (see appsettings.Development.json, gitignored) — this compose file is an
 # alternative for offline work or CI, not a replacement for that.
 #
+# Host port is 5433, not 5432: several dev machines already run a native
+# Postgres service on 5432 (confirmed on this one — Docker's port-proxy
+# silently loses that collision, so `psql`/`dotnet ef` end up talking to the
+# native install instead of this container, with baffling auth failures).
+#
 # Usage:
 #   docker compose up -d
-#   ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=deeplearning;Username=postgres;Password=postgres"
+#   ConnectionStrings__DefaultConnection="Host=localhost;Port=5433;Database=deeplearning;Username=postgres;Password=postgres"
 #   dotnet ef database update --project src/DeepLearning.Infrastructure --startup-project src/DeepLearning.Api
 
 services:
   postgres:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: deeplearning
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
