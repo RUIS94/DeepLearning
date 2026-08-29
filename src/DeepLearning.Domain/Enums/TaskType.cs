@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace DeepLearning.Domain.Enums
 {
-    internal class TaskType
+    public enum TaskType
     {
+        A,
+        B
     }
 }

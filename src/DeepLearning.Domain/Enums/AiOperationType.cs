@@ -1,10 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace DeepLearning.Domain.Enums
 {
-    internal class AiOperationType
+    public enum AiOperationType
     {
+        question_gen,
+        grading,
+        followup,
+        standard_revision
     }
 }

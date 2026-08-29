@@ -1,10 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace DeepLearning.Domain.Enums
 {
-    internal class KnowledgeItemType
+    public enum KnowledgeItemType
     {
+        sentence_pattern,
+        vocab_expression,
+        formula,
+        concept,
+        theorem,
+        other
     }
 }

@@ -1,10 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using DeepLearning.Domain.Common;
 
 namespace DeepLearning.Domain.Entities
 {
-    internal class QuestionCategoryMap
+    public class QuestionCategoryMap : Entity
     {
+        public Guid QuestionId { get; set; }
+        public Guid CategoryId { get; set; }
+
+        public Question? Question { get; set; }
+        public QuestionBankCategory? Category { get; set; }
     }
 }

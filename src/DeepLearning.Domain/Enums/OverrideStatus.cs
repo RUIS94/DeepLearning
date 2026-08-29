@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace DeepLearning.Domain.Enums
 {
-    internal class OverrideStatus
+    public enum OverrideStatus
     {
+        observing,
+        active,
+        deprecated
     }
 }

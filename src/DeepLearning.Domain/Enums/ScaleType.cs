@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace DeepLearning.Domain.Enums
 {
-    internal class ScaleType
+    public enum ScaleType
     {
+        band_1_5,
+        score_0_100,
+        rubric_level
     }
 }

@@ -445,3 +445,10 @@ CREATE INDEX idx_follow_up_questions_sub      ON follow_up_questions(submission_
 CREATE INDEX idx_progress_snapshots_user      ON progress_snapshots(user_id, period_start);
 
 COMMIT;
+
+-- =====================================================================
+-- 增量迁移(第七节"数据库迁移纪律":只做加法,不改类型/删列)
+-- 对应 EF Core 迁移: AddApplicableTaskTypeToAssessmentDimensions
+-- =====================================================================
+ALTER TABLE assessment_dimensions
+    ADD COLUMN IF NOT EXISTS applicable_task_type task_type_enum;

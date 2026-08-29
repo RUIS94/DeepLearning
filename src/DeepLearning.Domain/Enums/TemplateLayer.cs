@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace DeepLearning.Domain.Enums
 {
-    internal class TemplateLayer
+    public enum TemplateLayer
     {
+        shared_methodology,
+        exam_specific
     }
 }

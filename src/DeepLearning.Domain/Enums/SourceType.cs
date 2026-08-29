@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace DeepLearning.Domain.Enums
 {
-    internal class SourceType
+    public enum SourceType
     {
+        real_exam,
+        ai_generated,
+        user_generated
     }
 }

@@ -1,10 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace DeepLearning.Domain.Enums
 {
-    internal class SubmissionStatus
+    public enum SubmissionStatus
     {
+        draft,
+        submitted,
+        grading,
+        grading_failed,
+        graded,
+        under_dispute,
+        standard_revised,
+        archived,
+        grading_abandoned
     }
 }

@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace DeepLearning.Domain.Enums
 {
-    internal class QuestionOrigin
+    public enum QuestionOrigin
     {
+        ai_generated,
+        user_uploaded,
+        real_exam_seed
     }
 }

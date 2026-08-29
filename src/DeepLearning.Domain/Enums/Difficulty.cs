@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace DeepLearning.Domain.Enums
 {
-    internal class Difficulty
+    public enum Difficulty
     {
+        easy,
+        medium,
+        hard
     }
 }
