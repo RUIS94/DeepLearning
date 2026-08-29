@@ -26,12 +26,12 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Generate_persists_the_llm_response_fields_and_returns_them()
         {
-            // ILlmClient is swapped for a fixed-JSON fake scoped to this test only —
+            // ILlmClientResolver is swapped for a fixed-JSON fake scoped to this test only —
             // the shared ApiWebApplicationFactory (and every other Api test) keeps using
             // the real, keyed Claude-backed registration from DependencyInjection.cs.
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClient, FakeLlmClient>()))
+                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -66,7 +66,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClient, FakeLlmClient>()))
+                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
                 .CreateClient();
 
             var response = await client.PostAsJsonAsync(

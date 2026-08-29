@@ -40,6 +40,7 @@ namespace DeepLearning.Infrastructure.Persistence
         public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
         public DbSet<KnowledgePoint> KnowledgePoints => Set<KnowledgePoint>();
         public DbSet<UserKnowledgePointReview> UserKnowledgePointReview => Set<UserKnowledgePointReview>();
+        public DbSet<LlmProviderSettings> LlmProviderSettings => Set<LlmProviderSettings>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

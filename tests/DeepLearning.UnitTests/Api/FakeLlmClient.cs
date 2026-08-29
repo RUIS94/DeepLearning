@@ -29,4 +29,14 @@ namespace DeepLearning.UnitTests.Api
             return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
         }
     }
+
+    /// <summary>
+    /// Hands back FakeLlmClient directly, bypassing the real llm_provider_settings DB lookup —
+    /// swapped in for ILlmClientResolver the same way FakeLlmClient is swapped in for ILlmClient.
+    /// </summary>
+    public class FakeLlmClientResolver : ILlmClientResolver
+    {
+        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<ILlmClient>(new FakeLlmClient());
+    }
 }

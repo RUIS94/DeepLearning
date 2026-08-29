@@ -17,7 +17,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
         private readonly IQuestionRepository _questionRepository;
         private readonly IAiCallLogRepository _aiCallLogRepository;
         private readonly IExamConfigLoader _examConfigLoader;
-        private readonly ILlmClient _llmClient;
+        private readonly ILlmClientResolver _llmClientResolver;
         private readonly IUnitOfWork _unitOfWork;
 
         public GenerateQuestionCommandHandler(
@@ -26,7 +26,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             IQuestionRepository questionRepository,
             IAiCallLogRepository aiCallLogRepository,
             IExamConfigLoader examConfigLoader,
-            ILlmClient llmClient,
+            ILlmClientResolver llmClientResolver,
             IUnitOfWork unitOfWork)
         {
             _examTypeRepository = examTypeRepository;
@@ -34,7 +34,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             _questionRepository = questionRepository;
             _aiCallLogRepository = aiCallLogRepository;
             _examConfigLoader = examConfigLoader;
-            _llmClient = llmClient;
+            _llmClientResolver = llmClientResolver;
             _unitOfWork = unitOfWork;
         }
 
@@ -69,7 +69,8 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                 var prompt = await _examConfigLoader.BuildPromptAsync(
                     request.ExamTypeId, AiOperationType.question_gen, templateModel, cancellationToken);
 
-                completion = await _llmClient.CompleteAsync(
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                completion = await llmClient.CompleteAsync(
                     new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 4096),
                     cancellationToken);
             }

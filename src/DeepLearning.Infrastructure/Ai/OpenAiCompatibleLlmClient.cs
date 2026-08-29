@@ -42,10 +42,26 @@ namespace DeepLearning.Infrastructure.Ai
 
             var body = new Dictionary<string, object?>
             {
-                ["model"] = _options.Model,
+                ["model"] = request.Model ?? _options.Model,
                 ["messages"] = messages,
                 [_options.MaxTokensFieldName] = request.MaxTokens,
             };
+
+            // "Thinking" isn't a universal boolean toggle across OpenAI-shaped providers —
+            // OpenAI's reasoning models use separate model ids or a Responses-API-only
+            // reasoning_effort field, DeepSeek's reasoning is a distinct model name
+            // ("deepseek-reasoner"), and Mimo's equivalent isn't confirmed. Rather than guess
+            // a field name, provider-specific reasoning controls go through ExtraSettings
+            // below (e.g. {"reasoning_effort":"high"}) once each provider's actual mechanism
+            // is confirmed against its docs — ThinkingEnabled/Effort are intentionally unused
+            // here (Claude-specific, see ClaudeLlmClient).
+            if (request.ExtraSettings is not null)
+            {
+                foreach (var (key, value) in request.ExtraSettings)
+                {
+                    body[key] = value;
+                }
+            }
 
             using var httpRequest = new HttpRequestMessage(HttpMethod.Post, _options.BaseUrl)
             {

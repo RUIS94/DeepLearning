@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Exceptions;
@@ -15,6 +16,9 @@ namespace DeepLearning.Infrastructure.Ai
     /// provider later a same-shaped adapter class, and the retry/circuit-breaker pipeline
     /// registered in DependencyInjection.cs attaches to HttpClient, not to an SDK client).
     /// Registered as a keyed service ("claude") — see DependencyInjection.AddInfrastructure.
+    /// Model/ThinkingEnabled/Effort/ExtraSettings on the request come from the database via
+    /// ILlmClientResolver, not from ClaudeApiOptions — _options.Model is only the fallback
+    /// used when a caller builds a request directly (e.g. the live tests).
     /// </summary>
     public class ClaudeLlmClient : ILlmClient
     {
@@ -29,13 +33,38 @@ namespace DeepLearning.Infrastructure.Ai
 
         public async Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
         {
-            var body = new ClaudeMessageRequest
+            var body = new Dictionary<string, object?>
             {
-                Model = _options.Model,
-                MaxTokens = request.MaxTokens,
-                System = request.SystemPrompt,
-                Messages = [new ClaudeMessage { Role = "user", Content = request.UserPrompt }],
+                ["model"] = request.Model ?? _options.Model,
+                ["max_tokens"] = request.MaxTokens,
+                ["messages"] = new[] { new { role = "user", content = request.UserPrompt } },
             };
+
+            if (!string.IsNullOrEmpty(request.SystemPrompt))
+            {
+                body["system"] = request.SystemPrompt;
+            }
+
+            // Opus 5 runs adaptive thinking by default when the param is omitted entirely;
+            // only send it to explicitly disable (accepted at effort <= high — see the
+            // Claude API skill's disabled-thinking caveats before relying on this at xhigh/max).
+            if (request.ThinkingEnabled == false)
+            {
+                body["thinking"] = new { type = "disabled" };
+            }
+
+            if (!string.IsNullOrEmpty(request.Effort))
+            {
+                body["output_config"] = new { effort = request.Effort };
+            }
+
+            if (request.ExtraSettings is not null)
+            {
+                foreach (var (key, value) in request.ExtraSettings)
+                {
+                    body[key] = value;
+                }
+            }
 
             var stopwatch = Stopwatch.StartNew();
             HttpResponseMessage response;
@@ -72,33 +101,8 @@ namespace DeepLearning.Infrastructure.Ai
                 text,
                 parsed.Usage?.InputTokens ?? 0,
                 parsed.Usage?.OutputTokens ?? 0,
-                parsed.Model ?? _options.Model,
+                parsed.Model ?? request.Model ?? _options.Model,
                 (int)stopwatch.ElapsedMilliseconds);
-        }
-
-        private class ClaudeMessageRequest
-        {
-            [JsonPropertyName("model")]
-            public string Model { get; set; } = string.Empty;
-
-            [JsonPropertyName("max_tokens")]
-            public int MaxTokens { get; set; }
-
-            [JsonPropertyName("system")]
-            [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-            public string? System { get; set; }
-
-            [JsonPropertyName("messages")]
-            public List<ClaudeMessage> Messages { get; set; } = [];
-        }
-
-        private class ClaudeMessage
-        {
-            [JsonPropertyName("role")]
-            public string Role { get; set; } = string.Empty;
-
-            [JsonPropertyName("content")]
-            public string Content { get; set; } = string.Empty;
         }
 
         private class ClaudeMessageResponse

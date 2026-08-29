@@ -30,6 +30,7 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IQuestionRepository, QuestionRepository>();
             services.AddScoped<IAiCallLogRepository, AiCallLogRepository>();
+            services.AddScoped<ILlmProviderSettingsRepository, LlmProviderSettingsRepository>();
 
             services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 
@@ -74,11 +75,11 @@ namespace DeepLearning.Infrastructure
                 sp.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<OpenAiCompatibleOptions>>().Get("mimo"),
                 "Mimo"));
 
-            services.AddScoped<ILlmClient>(sp =>
-            {
-                var provider = configuration["Llm:Provider"] ?? "claude";
-                return sp.GetRequiredKeyedService<ILlmClient>(provider);
-            });
+            // Which provider is active lives in the database (llm_provider_settings.is_active),
+            // not config — switching providers/models is a data change, not a redeploy.
+            // Callers ask ILlmClientResolver for the active client instead of injecting
+            // ILlmClient directly.
+            services.AddScoped<ILlmClientResolver, LlmClientResolver>();
 
             services.AddSingleton<PromptRenderer>();
             services.AddScoped<IExamConfigLoader, ExamConfigLoader>();
