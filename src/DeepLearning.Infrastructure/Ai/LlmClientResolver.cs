@@ -1,27 +1,49 @@
 using System.Text.Json;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
-using DeepLearning.Domain.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DeepLearning.Infrastructure.Ai
 {
     public class LlmClientResolver : ILlmClientResolver
     {
+        /// <summary>
+        /// Used when llm_provider_settings has no is_active=true row (missing seed data, or
+        /// the table hasn't been created against this environment's DB yet) — a broken/empty
+        /// config table shouldn't hard-fail the whole AI feature. The fallback client still
+        /// works correctly with no settings row: OpenAiCompatibleLlmClient/ClaudeLlmClient
+        /// both fall back to their own appsettings-configured Model when the request doesn't
+        /// specify one.
+        /// </summary>
+        public const string FallbackProviderKey = "mimo";
+
         private readonly ILlmProviderSettingsRepository _settingsRepository;
         private readonly IServiceProvider _serviceProvider;
+        private readonly ILogger<LlmClientResolver> _logger;
 
-        public LlmClientResolver(ILlmProviderSettingsRepository settingsRepository, IServiceProvider serviceProvider)
+        public LlmClientResolver(
+            ILlmProviderSettingsRepository settingsRepository,
+            IServiceProvider serviceProvider,
+            ILogger<LlmClientResolver> logger)
         {
             _settingsRepository = settingsRepository;
             _serviceProvider = serviceProvider;
+            _logger = logger;
         }
 
         public async Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
         {
-            var settings = await _settingsRepository.GetActiveAsync(cancellationToken)
-                ?? throw new AiCallFailedException(
-                    "No active LLM provider is configured (llm_provider_settings has no is_active=true row).");
+            var settings = await _settingsRepository.GetActiveAsync(cancellationToken);
+
+            if (settings is null)
+            {
+                _logger.LogWarning(
+                    "No active LLM provider is configured (llm_provider_settings has no is_active=true row) — falling back to {FallbackProvider}.",
+                    FallbackProviderKey);
+
+                return _serviceProvider.GetRequiredKeyedService<ILlmClient>(FallbackProviderKey);
+            }
 
             var innerClient = _serviceProvider.GetRequiredKeyedService<ILlmClient>(settings.ProviderKey);
             return new ConfiguredLlmClient(innerClient, settings);

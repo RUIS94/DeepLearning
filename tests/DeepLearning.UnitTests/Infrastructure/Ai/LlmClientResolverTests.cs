@@ -1,8 +1,8 @@
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
-using DeepLearning.Domain.Exceptions;
 using DeepLearning.Infrastructure.Ai;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DeepLearning.UnitTests.Infrastructure.Ai
 {
@@ -28,23 +28,29 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
             }
         }
 
-        private static (LlmClientResolver Resolver, StubSettingsRepository Repo, RecordingLlmClient Client) Build(string providerKey)
+        private static (LlmClientResolver Resolver, StubSettingsRepository Repo, RecordingLlmClient Client) Build(params string[] providerKeys)
         {
             var repo = new StubSettingsRepository();
             var client = new RecordingLlmClient();
             var services = new ServiceCollection();
-            services.AddKeyedSingleton<ILlmClient>(providerKey, client);
+            foreach (var key in providerKeys)
+            {
+                services.AddKeyedSingleton<ILlmClient>(key, client);
+            }
             var provider = services.BuildServiceProvider();
 
-            return (new LlmClientResolver(repo, provider), repo, client);
+            return (new LlmClientResolver(repo, provider, NullLogger<LlmClientResolver>.Instance), repo, client);
         }
 
         [Fact]
-        public async Task Throws_when_no_provider_is_active()
+        public async Task Falls_back_to_mimo_when_no_provider_is_active()
         {
-            var (resolver, _, _) = Build("claude");
+            var (resolver, _, client) = Build(LlmClientResolver.FallbackProviderKey);
 
-            await Assert.ThrowsAsync<AiCallFailedException>(() => resolver.GetActiveClientAsync());
+            var resolved = await resolver.GetActiveClientAsync();
+            await resolved.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10));
+
+            Assert.Same(client, resolved);
         }
 
         [Fact]

@@ -2,12 +2,18 @@
 -- llm_provider_settings 种子数据 —— 4个已接入的provider各一行
 -- 运行前提:先跑完 add_llm_provider_settings.sql 建好表。
 --
--- 只有 claude 一行 is_active = true(部分唯一索引
+-- 只有 mimo 一行 is_active = true(部分唯一索引
 -- ux_llm_provider_settings_single_active 保证至多一行is_active=true)。
+-- mimo是当前的默认/fallback provider——即使这张表被清空或还没建,
+-- LlmClientResolver.GetActiveClientAsync也会兜底选mimo(见LlmClientResolver.cs
+-- 的FallbackProviderKey常量),这里的种子数据只是让"默认"和"数据库里实际生效的
+-- 那一行"保持一致,不是fallback逻辑本身依赖这行数据存在。
+--
 -- 之后要切换provider,直接：
---   UPDATE llm_provider_settings SET is_active = false WHERE provider_key = 'claude';
---   UPDATE llm_provider_settings SET is_active = true  WHERE provider_key = 'openai';
--- 下一次AI调用立即生效,不需要重新部署。
+--   UPDATE llm_provider_settings SET is_active = false WHERE provider_key = 'mimo';
+--   UPDATE llm_provider_settings SET is_active = true  WHERE provider_key = 'claude';
+-- 下一次AI调用立即生效,不需要重新部署。也可以通过
+-- POST /api/v1/llm-provider-settings/{providerKey}/activate 走API切换。
 --
 -- effort/thinking_enabled目前只有Claude的adapter真正读取并发送给API
 -- (见ClaudeLlmClient.cs);其余provider的"思考模式"机制尚未逐一核实,
@@ -19,10 +25,10 @@ BEGIN;
 
 INSERT INTO llm_provider_settings (provider_key, is_active, model, thinking_enabled, effort, extra_settings)
 VALUES
-    ('claude',   true,  'claude-opus-5',      true, NULL, NULL),
+    ('mimo',     true,  'mimo-v2.5-pro',      true, NULL, NULL),
+    ('claude',   false, 'claude-opus-5',      true, NULL, NULL),
     ('openai',   false, 'gpt-4o-mini',        true, NULL, NULL),
-    ('deepseek', false, 'deepseek-v4-flash',  true, NULL, NULL),
-    ('mimo',     false, 'mimo-v2.5-pro',      true, NULL, NULL)
+    ('deepseek', false, 'deepseek-v4-flash',  true, NULL, NULL)
 ON CONFLICT (provider_key) DO NOTHING;
 
 COMMIT;
