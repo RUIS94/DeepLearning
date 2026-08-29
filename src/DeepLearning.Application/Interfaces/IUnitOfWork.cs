@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace DeepLearning.Application.Interfaces
+﻿namespace DeepLearning.Application.Interfaces
 {
-    internal interface IUnitOfWork
+    public interface IUnitOfWork
     {
+        Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }
 }

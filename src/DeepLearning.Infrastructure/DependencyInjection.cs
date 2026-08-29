@@ -1,3 +1,4 @@
+using DeepLearning.Application.Interfaces;
 using DeepLearning.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +16,8 @@ namespace DeepLearning.Infrastructure
             services.AddDbContext<AppDbContext>(options => options
                 .UseNpgsql(connectionString, NpgsqlEnumConfiguration.MapEnums)
                 .UseSnakeCaseNamingConvention());
+
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             return services;
         }

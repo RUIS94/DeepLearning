@@ -1,10 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using DeepLearning.Application.Interfaces;
 
 namespace DeepLearning.Infrastructure.Persistence
 {
-    internal class UnitOfWork
+    public class UnitOfWork : IUnitOfWork
     {
+        private readonly AppDbContext _context;
+
+        public UnitOfWork(AppDbContext context)
+        {
+            _context = context;
+        }
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+            => _context.SaveChangesAsync(cancellationToken);
     }
 }

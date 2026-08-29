@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DeepLearning.Domain\DeepLearning.Domain.csproj" />
+    <ProjectReference Include="..\DeepLearning.Application\DeepLearning.Application.csproj" />
   </ItemGroup>
 
 </Project>
