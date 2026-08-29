@@ -1,5 +1,7 @@
 using DeepLearning.Application.Interfaces;
+using DeepLearning.Infrastructure.Common;
 using DeepLearning.Infrastructure.Persistence;
+using DeepLearning.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +20,14 @@ namespace DeepLearning.Infrastructure
                 .UseSnakeCaseNamingConvention());
 
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+            services.AddScoped<IExamTypeRepository, ExamTypeRepository>();
+            services.AddScoped<IAssessmentDimensionRepository, AssessmentDimensionRepository>();
+            services.AddScoped<IErrorTaxonomyRepository, ErrorTaxonomyRepository>();
+            services.AddScoped<IPromptTemplateRepository, PromptTemplateRepository>();
+            services.AddScoped<IUserRepository, UserRepository>();
+
+            services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 
             return services;
         }

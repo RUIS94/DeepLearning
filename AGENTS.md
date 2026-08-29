@@ -26,19 +26,30 @@ This isn't code that got deleted or something that's broken — the project was 
 | `src/DeepLearning.Application/Behaviors/*.cs` | Real: the three MediatR pipeline behaviors — Logging / Validation / UnhandledException |
 | `src/DeepLearning.Application/DependencyInjection.cs` | Real: `AddApplication()` registers MediatR + FluentValidation + behaviors |
 | `src/DeepLearning.Application/Interfaces/IUnitOfWork.cs` | Real |
-| `src/DeepLearning.Api/Program.cs` | Real: `AddApplication()` + `AddInfrastructure()` are wired up |
+| `src/DeepLearning.Api/Program.cs` | Real: `AddApplication()` + `AddInfrastructure()` are wired up, plus health checks, the global exception handler, and correlation-id middleware |
+| `src/DeepLearning.Domain/Exceptions/{DomainException,NotFoundException,ConflictException}.cs` | Real: base type + the two cases the API layer maps to 404/409 |
+| `src/DeepLearning.Api/Middleware/{GlobalExceptionHandler,CorrelationIdMiddleware}.cs` | Real |
+| `src/DeepLearning.Api/Constants/{ApiRoutes,ApiErrorMessages}.cs` | Real |
+| `Application/Interfaces/I{ExamType,AssessmentDimension,ErrorTaxonomy,PromptTemplate,User}Repository.cs` + matching `Infrastructure/Persistence/Repositories/*.cs` | Real, registered in DI |
+| `Application/Interfaces/IPasswordHasher.cs` + `Infrastructure/Common/Pbkdf2PasswordHasher.cs` | Real: PBKDF2, no extra NuGet dependency |
+| `Application/Features/ExamConfig/**` (Create/Get/List for exam types, assessment dimensions, error taxonomies, prompt templates) | Real — Create+GetById+List only, no Update/Delete (see rationale in the CQRS section below) |
+| `Application/Features/Users/**` (`RegisterUser`, `GetUserById`) | Real — no login/JWT yet, that's still open |
+| `Api/Controllers/{ExamTypes,AssessmentDimensions,ErrorTaxonomies,PromptTemplates,Users}Controller.cs` | Real, routed under `api/v1/...` |
+| `tests/DeepLearning.UnitTests/TestInfrastructure/*.cs` | Real: `PostgresContainerFixture` (Testcontainers Postgres for repository tests) + `ApiWebApplicationFactory` (same, wired to a real ASP.NET Core host via `WebApplicationFactory<Program>`) |
+| `tests/DeepLearning.UnitTests/{Api,Integration,Application/Features/ExamConfig}/**` | Real: unit tests for validator rules, integration tests hitting a real throwaway Postgres, API tests hitting a real HTTP host — see "Running the tests" below |
 
 ### Parts that are still empty shells, waiting to be filled in
 
 - `src/DeepLearning.Domain/Common/{Result,Guard,ErrorCodes}.cs`
-- `src/DeepLearning.Domain/Events/*.cs` (the domain event classes themselves are empty too; `AggregateRoot` doesn't yet have a mechanism for collecting events)
-- Every interface under `src/DeepLearning.Application/Interfaces/` except `IUnitOfWork` (`IQuestionRepository`, `ISubmissionRepository`, `IWeakPointRepository`, `ILlmClient`, `IExamConfigLoader`, `IGradingResultInterpreter`, `IProgressRepository`, `IStandardOverrideRepository`)
+- `src/DeepLearning.Domain/Events/*.cs` (the domain event classes themselves are empty too; `AggregateRoot` doesn't yet have a mechanism for collecting events) — still open, needed starting the Step 6 domain-events work
+- `src/DeepLearning.Domain/Exceptions/{InvalidSubmissionStateException,RubricVersionNotFoundException}.cs` — belong to the Submissions/grading work (Step 4/5), left stubbed on purpose
+- `IQuestionRepository`, `ISubmissionRepository`, `IWeakPointRepository`, `ILlmClient`, `IExamConfigLoader`, `IGradingResultInterpreter`, `IProgressRepository`, `IStandardOverrideRepository` under `Application/Interfaces/`
 - `src/DeepLearning.Application/Common/{PagedRequest,PagedResult}.cs`
-- **All** business code under `src/DeepLearning.Application/Features/**/*` except `Behaviors`/`DependencyInjection.cs` — including `Features/Questions/Commands/GenerateQuestion/`, which looks like it already has a folder structure (the Command/Handler/Result/Validator files are all empty classes). **The shape of this folder can be copied, but there's no usable implementation inside it — don't copy the logic as reference code.**
-- `src/DeepLearning.Infrastructure/Persistence/Repositories/*.cs` (`QuestionRepository`, `SubmissionRepository`, `WeakPointRepository`)
-- `src/DeepLearning.Api/Controllers/*.cs` (aside from the auto-generated `WeatherForecastController`, the other 5 controllers including `QuestionsController` are all empty classes)
-- `src/DeepLearning.Api/Middleware/*.cs`, `src/DeepLearning.Api/Constants/*.cs`
-- Everything under `tests/DeepLearning.UnitTests/**` except the `.csproj` is an empty class (including `UnitTest1.cs`)
+- **All** business code under `Features/{Questions,Submissions,FollowUps,WeakPoints,Progress,ReviewLibrary,QuestionBank}/**` except the `EventHandlers` stubs and `Features/Questions/Commands/GenerateQuestion/` (still an empty-class stub — the folder shape can be copied, the contents can't)
+- `src/DeepLearning.Infrastructure/Persistence/Repositories/{Question,Submission,WeakPoint}Repository.cs`
+- `src/DeepLearning.Infrastructure/Ai/*.cs` (`LlmClient`, `ExamConfigLoader`, `PromptRenderer`, `GradingResultInterpreters/*`) and `src/DeepLearning.Infrastructure/BackgroundJobs/*.cs`
+- `src/DeepLearning.Api/Controllers/{Questions,Submissions,FollowUps,WeakPoints,Progress}Controller.cs` (aside from the auto-generated `WeatherForecastController`, these 5 are still empty classes)
+- Everything under `tests/DeepLearning.UnitTests/{Domain,Application/Features/Submissions}/**` (e.g. `SubmissionTests.cs`, `GradeSubmissionCommandHandlerTests.cs`) and the leftover template `UnitTest1.cs`
 
 ## Directory structure and dependency direction
 
@@ -95,7 +106,8 @@ DeepLearning.Api             <- depends on Infrastructure + Application
 | Adding/modifying an enum | `Domain/Enums/` + `AppDbContext.OnModelCreating` + `NpgsqlEnumConfiguration.cs` (both need to change) |
 | Adding a new repository method | `Application/Interfaces/I*Repository.cs` (interface) + `Infrastructure/Persistence/Repositories/*.cs` (implementation) |
 | Adding a new command/query | `Application/Features/<Area>/Commands|Queries/<UseCase>/` |
-| How to write a Controller | `Api/Controllers/`, inject `IMediator` — currently all empty shells |
+| How to write a Controller | `Api/Controllers/`, inject `IMediator` — see `ExamTypesController.cs` for a real example; the other 5 (`Questions`/`Submissions`/`FollowUps`/`WeakPoints`/`Progress`) are still empty shells |
+| An example of a fully-wired CQRS slice to copy | `Application/Features/ExamConfig/**` + `ExamTypesController.cs`/`AssessmentDimensionsController.cs` — repository → handler → validator → controller, end to end |
 | How to change the database schema | `dotnet ef migrations add` — don't hand-edit `schema.sql` or manually alter tables in Supabase |
 
 ## Known pitfalls
@@ -104,6 +116,20 @@ DeepLearning.Api             <- depends on Infrastructure + Application
 - Check the `.csproj` before adding a new project reference — when the project was first scaffolded, `Infrastructure` didn't reference `Application` and `Application` didn't reference `Domain`; this was only fixed on 2026-08-29. This means the skeleton's project references can't be fully trusted — verify for yourself before making changes.
 - Before running `dotnet ef migrations add/list/database update` locally, set the `ConnectionStrings__DefaultConnection` environment variable first (the design-time factory doesn't read `appsettings.json`).
 - There's no standalone design document file in the repo — the comment block at the top of `schema.sql` is currently the most complete written statement of the overall design intent, worth a look before changing the schema.
+- [seed_naati_ct_en_zh.sql](src/DeepLearning.Infrastructure/Persistence/Migrations/seed_naati_ct_en_zh.sql) contains the real, official NAATI CT English→Chinese rubric data (`exam_types`, `assessment_dimensions` with verbatim Band text, `error_taxonomies`, `generation_policy`, `prompt_templates`) and has already been run by hand against the Supabase dev DB. Like `schema.sql`, it is **not** auto-executed by the app or by migrations — it's checked in purely as the historical record of what production data already exists.
+- **Never point `ApiWebApplicationFactory`/Testcontainers-based tests at the real Supabase connection.** Its `InitializeAsync` overrides `ConnectionStrings__DefaultConnection` via `Environment.SetEnvironmentVariable` (not `WebApplicationFactory.ConfigureWebHost`'s `ConfigureAppConfiguration` — that hook applies too late for a minimal-hosting `Program.cs` where `AddInfrastructure(builder.Configuration)` reads and captures the connection string before `builder.Build()` even runs). If that override is ever broken again, the tests will silently write real HTTP-created exam types/users/prompt templates into the real dev Supabase DB, exactly like they did once already on 2026-08-29 before this was fixed (cleaned up by hand afterward — check `exam_types`/`users`/`prompt_templates` for stray `test_*`/`user_*`/`dup_*`/`api test content` rows if this regresses).
+- Repository/integration tests that build their own `DbContextOptions` (see `PostgresContainerFixture`) must build it **once and reuse it**, not per-call — EF Core spins up a new internal service provider per distinct `DbContextOptions` instance, and after ~20 of them in one process it trips `ManyServiceProvidersCreatedWarning` and starts throwing.
+- Testcontainers needs a Postgres image with the `vector` extension available (this schema's migrations enable pgvector) — use `pgvector/pgvector:pg16`, not plain `postgres:16-alpine`.
+
+## Running the tests
+
+Requires Docker Desktop running (Testcontainers spins up real, throwaway Postgres containers — no mocked DbContext anywhere in the suite).
+
+```bash
+dotnet test DeepLearning.slnx
+```
+
+A `NU1903` warning about `SSH.NET` having a known high-severity advisory is expected and currently unresolved — it's a transitive dependency of `Testcontainers.PostgreSql` (used to talk to remote Docker contexts), not something this project calls directly, and it never ships in the Api project's output.
 
 ## Common commands
 

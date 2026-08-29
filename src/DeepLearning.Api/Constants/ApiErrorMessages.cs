@@ -1,6 +1,7 @@
-﻿namespace DeepLearning.Api.Constants
+namespace DeepLearning.Api.Constants
 {
-    public class ApiErrorMessages
+    public static class ApiErrorMessages
     {
+        public const string UnexpectedError = "An unexpected error occurred.";
     }
 }
