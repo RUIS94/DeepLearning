@@ -1,5 +1,6 @@
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Infrastructure.Ai;
+using DeepLearning.Infrastructure.Ai.GradingResultInterpreters;
 using DeepLearning.Infrastructure.Ai.Options;
 using DeepLearning.Infrastructure.Common;
 using DeepLearning.Infrastructure.Persistence;
@@ -32,8 +33,15 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<IAiCallLogRepository, AiCallLogRepository>();
             services.AddScoped<ILlmProviderSettingsRepository, LlmProviderSettingsRepository>();
             services.AddScoped<ILlmProviderModelRepository, LlmProviderModelRepository>();
+            services.AddScoped<ISubmissionRepository, SubmissionRepository>();
 
             services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
+
+            // One IGradingResultInterpreter per assessment_dimensions.scale_type — GradeSubmissionCommandHandler
+            // picks the matching one via DI's IEnumerable<IGradingResultInterpreter>.
+            services.AddScoped<IGradingResultInterpreter, Band15Interpreter>();
+            services.AddScoped<IGradingResultInterpreter, Score100Interpreter>();
+            services.AddScoped<IGradingResultInterpreter, RubricLevelInterpreter>();
 
             // --- AI / LLM: provider-neutral ILlmClient resolved via keyed DI --------------
             // Adding a new provider later = one more AddKeyedScoped<ILlmClient, XxxLlmClient>

@@ -38,5 +38,10 @@ namespace DeepLearning.Api.Constants
         {
             public const string Base = $"{Prefix}/llm-provider-settings";
         }
+
+        public static class Submissions
+        {
+            public const string Base = $"{Prefix}/submissions";
+        }
     }
 }
