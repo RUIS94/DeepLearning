@@ -113,68 +113,86 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 throw;
             }
 
-            GradingPayload payload;
+            // Everything from here on — parsing, structured-output validation, entity
+            // construction, and the final persist — is one try/catch so that ANY failure
+            // (including a final SaveChangesAsync that trips a DB constraint the checks below
+            // didn't anticipate) still transitions the submission to GradingFailed. Without this,
+            // a failure here would leave the submission stuck in Grading forever — the state
+            // machine has no Grading->Grading transition, so a stuck submission could never be
+            // retried.
             try
             {
-                payload = ParsePayload(completion.Text);
+                var payload = ParsePayload(completion.Text);
                 ValidatePayload(payload, dimensions, errorTaxonomies);
-            }
-            catch (Exception ex)
-            {
-                await FailAsync(submission, aiCallLog, $"Failed to parse/validate LLM response: {ex.Message}", cancellationToken);
-                throw new AiCallFailedException($"Grading response could not be used: {ex.Message}", ex);
-            }
 
-            var dimensionsByKey = dimensions.ToDictionary(x => x.DimensionKey);
-            var taxonomiesByKey = errorTaxonomies.ToDictionary(x => x.CategoryKey);
+                var dimensionsByKey = dimensions.ToDictionary(x => x.DimensionKey);
+                var taxonomiesByKey = errorTaxonomies.ToDictionary(x => x.CategoryKey);
 
-            var gradingResults = payload.Dimensions.Select(d =>
-            {
-                var dimension = dimensionsByKey[d.DimensionKey];
-                var interpretation = _interpreters[dimension.ScaleType].Interpret(d.Band.ToString(), dimension.PassThreshold);
+                var gradingResults = payload.Dimensions.Select(d =>
+                {
+                    var dimension = dimensionsByKey[d.DimensionKey];
+                    var interpretation = _interpreters[dimension.ScaleType].Interpret(d.Band.ToString(), dimension.PassThreshold);
 
-                return new GradingResult
+                    return new GradingResult
+                    {
+                        Id = Guid.NewGuid(),
+                        SubmissionId = submission.Id,
+                        DimensionId = dimension.Id,
+                        RubricVersion = dimension.RubricVersion,
+                        Band = interpretation.Band,
+                        PassBool = interpretation.PassBool,
+                        Rationale = d.Rationale,
+                        CumulativeDensityFlag = d.CumulativeDensityFlag,
+                        CumulativeDensityNote = d.CumulativeDensityNote,
+                        EstimatedPassProbability = d.EstimatedPassProbability,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                    };
+                }).ToList();
+                await _submissionRepository.AddGradingResultsAsync(gradingResults, cancellationToken);
+
+                var errorItems = payload.Errors.Select(e => new ErrorListItem
                 {
                     Id = Guid.NewGuid(),
                     SubmissionId = submission.Id,
-                    DimensionId = dimension.Id,
-                    RubricVersion = dimension.RubricVersion,
-                    Band = interpretation.Band,
-                    PassBool = interpretation.PassBool,
-                    Rationale = d.Rationale,
-                    CumulativeDensityFlag = d.CumulativeDensityFlag,
-                    CumulativeDensityNote = d.CumulativeDensityNote,
-                    EstimatedPassProbability = d.EstimatedPassProbability,
+                    PositionRef = e.PositionRef,
+                    SourceTextSnippet = e.SourceTextSnippet,
+                    UserTextSnippet = e.UserTextSnippet,
+                    ErrorTaxonomyId = taxonomiesByKey[e.ErrorCategory].Id,
+                    DimensionId = dimensionsByKey[e.DimensionKey].Id,
+                    ImpactsCore = e.ImpactsCore,
+                    Explanation = e.Explanation,
+                    Suggestion = e.Suggestion,
                     CreatedAt = DateTimeOffset.UtcNow,
-                };
-            }).ToList();
-            await _submissionRepository.AddGradingResultsAsync(gradingResults, cancellationToken);
+                }).ToList();
+                await _submissionRepository.AddErrorListItemsAsync(errorItems, cancellationToken);
 
-            var errorItems = payload.Errors.Select(e => new ErrorListItem
+                submission.TransitionTo(SubmissionStatus.graded);
+
+                aiCallLog.Status = CallStatus.success;
+                aiCallLog.LatencyMs = completion.LatencyMs;
+                aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
+
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                return new GradeSubmissionResult(submission.Id, submission.Status, gradingResults.Count, errorItems.Count);
+            }
+            catch (Exception ex)
             {
-                Id = Guid.NewGuid(),
-                SubmissionId = submission.Id,
-                PositionRef = e.PositionRef,
-                SourceTextSnippet = e.SourceTextSnippet,
-                UserTextSnippet = e.UserTextSnippet,
-                ErrorTaxonomyId = taxonomiesByKey[e.ErrorCategory].Id,
-                DimensionId = dimensionsByKey[e.DimensionKey].Id,
-                ImpactsCore = e.ImpactsCore,
-                Explanation = e.Explanation,
-                Suggestion = e.Suggestion,
-                CreatedAt = DateTimeOffset.UtcNow,
-            }).ToList();
-            await _submissionRepository.AddErrorListItemsAsync(errorItems, cancellationToken);
+                // If TransitionTo(Graded) above already ran in-memory before the failure (e.g.
+                // the final SaveChangesAsync call itself is what threw), nothing from this
+                // try block was actually committed — one SaveChangesAsync call is one DB
+                // transaction, so the DB is still sitting at Grading. Reset the in-memory status
+                // to match before handing off to FailAsync, otherwise FailAsync's own
+                // TransitionTo(GradingFailed) would illegally see Graded as the "current" status
+                // and throw a second, more confusing exception on top of the real one.
+                if (submission.Status == SubmissionStatus.graded)
+                {
+                    submission.Status = SubmissionStatus.grading;
+                }
 
-            submission.TransitionTo(SubmissionStatus.graded);
-
-            aiCallLog.Status = CallStatus.success;
-            aiCallLog.LatencyMs = completion.LatencyMs;
-            aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
-
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            return new GradeSubmissionResult(submission.Id, submission.Status, gradingResults.Count, errorItems.Count);
+                await FailAsync(submission, aiCallLog, $"Failed to parse/validate/persist LLM response: {ex.Message}", cancellationToken);
+                throw new AiCallFailedException($"Grading response could not be used: {ex.Message}", ex);
+            }
         }
 
         private async Task FailAsync(Submission submission, AiCallLog aiCallLog, string errorMessage, CancellationToken cancellationToken)
@@ -251,6 +269,15 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 if (!dimensionKeys.Contains(dimension.DimensionKey))
                 {
                     throw new RubricVersionNotFoundException(dimension.DimensionKey);
+                }
+
+                // grading_results.band has a DB CHECK constraint (1-5) regardless of scale_type —
+                // catch an out-of-range value here (a clean, already-handled rejection) rather
+                // than letting it surface as a raw DbUpdateException from the final SaveChangesAsync.
+                if (dimension.Band is < 1 or > 5)
+                {
+                    throw new InvalidOperationException(
+                        $"band {dimension.Band} for dimension '{dimension.DimensionKey}' is outside the valid 1-5 range.");
                 }
             }
 

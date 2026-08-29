@@ -266,6 +266,36 @@ namespace DeepLearning.UnitTests.Api
         }
 
         [Fact]
+        public async Task Grade_rejects_an_out_of_range_band_and_marks_the_submission_grading_failed_instead_of_getting_stuck()
+        {
+            var client = _factory
+                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
+                    services => services.AddScoped<ILlmClientResolver, FakeGradingLlmClientResolverWithOutOfRangeBand>()))
+                .CreateClient();
+
+            var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
+
+            var createResponse = await client.PostAsJsonAsync(ApiRoutes.Submissions.Base, new
+            {
+                QuestionId = questionId,
+                UserId = userId,
+                TaskType = TaskType.A,
+                Content = "\"my translation of the text\"",
+            });
+            var submission = await createResponse.Content.ReadFromJsonAsync<CreateSubmissionResult>();
+
+            var gradeResponse = await client.PostAsJsonAsync($"{ApiRoutes.Submissions.Base}/{submission!.Id}/grade", new { ExamTypeId = examTypeId });
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, gradeResponse.StatusCode);
+
+            var getResponse = await client.GetAsync($"{ApiRoutes.Submissions.Base}/{submission.Id}");
+            var fetched = await getResponse.Content.ReadFromJsonAsync<GetSubmissionByIdResult>();
+            // GradingFailed, not stuck in Grading — proves the submission can still be retried
+            // (Grading is a dead end with no legal transition back out of it except GradingFailed).
+            Assert.Equal(SubmissionStatus.grading_failed, fetched!.Status);
+            Assert.Empty(fetched.GradingResults);
+        }
+
+        [Fact]
         public async Task Grade_for_task_b_includes_the_flawed_translation_text_in_the_prompt_sent_to_the_ai()
         {
             var capturingClient = new CapturingGradingLlmClient();
@@ -302,7 +332,7 @@ namespace DeepLearning.UnitTests.Api
                 QuestionId = questionId,
                 UserId = userId,
                 TaskType = TaskType.B,
-                Content = "[]",
+                Content = "[{\"positionStart\":9,\"positionEnd\":17,\"errorCategory\":\"distortion\",\"correctedText\":\"had\"}]",
             });
             Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
             var submission = await createResponse.Content.ReadFromJsonAsync<CreateSubmissionResult>();

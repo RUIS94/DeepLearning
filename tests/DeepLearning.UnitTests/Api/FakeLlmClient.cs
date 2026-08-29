@@ -41,6 +41,77 @@ namespace DeepLearning.UnitTests.Api
     }
 
     /// <summary>
+    /// Fixed-JSON stand-in for a TaskB question-generation call — includes
+    /// flawedTranslationText/seededErrors on top of FakeLlmClient's fields. ErrorCategoryKey
+    /// must be seeded as a real ErrorTaxonomy for the exam type under test, same convention as
+    /// FakeGradingLlmClient.
+    /// </summary>
+    public class FakeTaskBGenerationLlmClient : ILlmClient
+    {
+        public const string ErrorCategoryKey = "distortion";
+        public const string FlawedTranslationText = "This sentence has an error in it.";
+
+        public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
+        {
+            var json = $$"""
+                {
+                  "title": "{{FakeLlmClient.FixedTitle}}",
+                  "sourceText": "{{FakeLlmClient.FixedSourceText}}",
+                  "brief": {"domain": "test", "textType": "article"},
+                  "wordCount": 42,
+                  "meaningCheckpoints": [],
+                  "flawedTranslationText": "{{FlawedTranslationText}}",
+                  "seededErrors": [
+                    {"positionStart": 9, "positionEnd": 17, "errorCategory": "{{ErrorCategoryKey}}", "correctReferenceText": "had", "note": null}
+                  ]
+                }
+                """;
+
+            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
+        }
+    }
+
+    public class FakeTaskBGenerationLlmClientResolver : ILlmClientResolver
+    {
+        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<ILlmClient>(new FakeTaskBGenerationLlmClient());
+    }
+
+    /// <summary>
+    /// Same shape as FakeTaskBGenerationLlmClient but its one seededError's position range
+    /// falls outside flawedTranslationText — proves GenerateQuestionCommandHandler rejects a
+    /// structurally broken TaskB response instead of persisting a Question whose seeded-error
+    /// offsets don't actually fit its own FlawedTranslationText.
+    /// </summary>
+    public class FakeTaskBGenerationLlmClientWithOutOfBoundsPosition : ILlmClient
+    {
+        public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
+        {
+            var json = $$"""
+                {
+                  "title": "{{FakeLlmClient.FixedTitle}}",
+                  "sourceText": "{{FakeLlmClient.FixedSourceText}}",
+                  "brief": {"domain": "test", "textType": "article"},
+                  "wordCount": 42,
+                  "meaningCheckpoints": [],
+                  "flawedTranslationText": "{{FakeTaskBGenerationLlmClient.FlawedTranslationText}}",
+                  "seededErrors": [
+                    {"positionStart": 900, "positionEnd": 950, "errorCategory": "{{FakeTaskBGenerationLlmClient.ErrorCategoryKey}}", "correctReferenceText": "had", "note": null}
+                  ]
+                }
+                """;
+
+            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
+        }
+    }
+
+    public class FakeTaskBGenerationLlmClientResolverWithOutOfBoundsPosition : ILlmClientResolver
+    {
+        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<ILlmClient>(new FakeTaskBGenerationLlmClientWithOutOfBoundsPosition());
+    }
+
+    /// <summary>
     /// Fixed-JSON stand-in for a grading call — dimension_key/error_category are fixed
     /// constants rather than parameterized, matching FakeLlmClient's own fixed-value
     /// convention; tests seed an AssessmentDimension/ErrorTaxonomy using these same keys so
@@ -105,6 +176,35 @@ namespace DeepLearning.UnitTests.Api
     {
         public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<ILlmClient>(new FakeGradingLlmClientWithInvalidCategory());
+    }
+
+    /// <summary>
+    /// Same shape as FakeGradingLlmClient but reports a band outside grading_results' 1-5 CHECK
+    /// constraint — proves GradeSubmissionCommandHandler rejects this before ever reaching the
+    /// DB (ValidatePayload's band-range check) instead of leaving the submission stuck in
+    /// Grading when the constraint violation would otherwise surface from SaveChangesAsync.
+    /// </summary>
+    public class FakeGradingLlmClientWithOutOfRangeBand : ILlmClient
+    {
+        public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
+        {
+            var json = $$"""
+                {
+                  "dimensions": [
+                    {"dimensionKey": "{{FakeGradingLlmClient.DimensionKey}}", "band": 9, "rationale": "ok", "cumulativeDensityFlag": false, "cumulativeDensityNote": null, "estimatedPassProbability": 80}
+                  ],
+                  "errors": []
+                }
+                """;
+
+            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
+        }
+    }
+
+    public class FakeGradingLlmClientResolverWithOutOfRangeBand : ILlmClientResolver
+    {
+        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<ILlmClient>(new FakeGradingLlmClientWithOutOfRangeBand());
     }
 
     /// <summary>

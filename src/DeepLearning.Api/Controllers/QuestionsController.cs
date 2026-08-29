@@ -46,7 +46,7 @@ namespace DeepLearning.Api.Controllers
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
 
-        public record GenerateQuestionRequest(Guid ExamTypeId, TaskType TaskType, Difficulty Difficulty, Guid? CreatedBy);
+        public record GenerateQuestionRequest(Guid ExamTypeId, TaskType TaskType, Difficulty? Difficulty, Guid? CreatedBy);
 
         [HttpPost("generate")]
         public async Task<ActionResult<GenerateQuestionResult>> Generate(GenerateQuestionRequest request, CancellationToken cancellationToken)

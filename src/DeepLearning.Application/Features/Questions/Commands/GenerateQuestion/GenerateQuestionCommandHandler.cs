@@ -15,6 +15,8 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
         private readonly IExamTypeRepository _examTypeRepository;
         private readonly IUserRepository _userRepository;
         private readonly IQuestionRepository _questionRepository;
+        private readonly IErrorTaxonomyRepository _errorTaxonomyRepository;
+        private readonly IGenerationPolicyRepository _generationPolicyRepository;
         private readonly IAiCallLogRepository _aiCallLogRepository;
         private readonly IExamConfigLoader _examConfigLoader;
         private readonly ILlmClientResolver _llmClientResolver;
@@ -24,6 +26,8 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             IExamTypeRepository examTypeRepository,
             IUserRepository userRepository,
             IQuestionRepository questionRepository,
+            IErrorTaxonomyRepository errorTaxonomyRepository,
+            IGenerationPolicyRepository generationPolicyRepository,
             IAiCallLogRepository aiCallLogRepository,
             IExamConfigLoader examConfigLoader,
             ILlmClientResolver llmClientResolver,
@@ -32,6 +36,8 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             _examTypeRepository = examTypeRepository;
             _userRepository = userRepository;
             _questionRepository = questionRepository;
+            _errorTaxonomyRepository = errorTaxonomyRepository;
+            _generationPolicyRepository = generationPolicyRepository;
             _aiCallLogRepository = aiCallLogRepository;
             _examConfigLoader = examConfigLoader;
             _llmClientResolver = llmClientResolver;
@@ -49,6 +55,9 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                     ?? throw new NotFoundException(nameof(User), createdBy);
             }
 
+            var difficulty = request.Difficulty ?? await ResolveDifficultyAsync(request.ExamTypeId, cancellationToken);
+            var errorTaxonomies = await _errorTaxonomyRepository.ListByExamTypeAsync(request.ExamTypeId, cancellationToken);
+
             var aiCallLog = new AiCallLog
             {
                 Id = Guid.NewGuid(),
@@ -65,7 +74,17 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             LlmCompletionResult completion;
             try
             {
-                var templateModel = new { Difficulty = request.Difficulty.ToString(), TaskType = request.TaskType.ToString() };
+                var templateModel = new
+                {
+                    Difficulty = difficulty.ToString(),
+                    TaskType = request.TaskType.ToString(),
+                    ErrorTaxonomies = errorTaxonomies.Select(t => new
+                    {
+                        CategoryKey = t.CategoryKey,
+                        CategoryName = t.CategoryName,
+                        Description = t.Description,
+                    }),
+                };
                 var prompt = await _examConfigLoader.BuildPromptAsync(
                     request.ExamTypeId, AiOperationType.question_gen, templateModel, cancellationToken);
 
@@ -81,24 +100,32 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             }
 
             GeneratedQuestionPayload payload;
+            List<TaskBSeededError> seededErrors;
             try
             {
                 payload = ParsePayload(completion.Text);
+
+                seededErrors = request.TaskType == TaskType.B
+                    ? ValidateAndBuildTaskBSeededErrors(payload, errorTaxonomies)
+                    : [];
             }
             catch (Exception ex)
             {
-                await FailAsync(aiCallLog, $"Failed to parse LLM response as the expected JSON shape: {ex.Message}", cancellationToken);
-                throw new AiCallFailedException($"Claude response could not be parsed: {ex.Message}", ex);
+                await FailAsync(aiCallLog, $"Failed to parse/validate LLM response as the expected JSON shape: {ex.Message}", cancellationToken);
+                throw new AiCallFailedException($"Claude response could not be used: {ex.Message}", ex);
             }
 
             var question = new Question
             {
                 Id = Guid.NewGuid(),
                 TaskType = request.TaskType,
-                Difficulty = request.Difficulty,
+                Difficulty = difficulty,
                 Title = payload.Title,
                 Brief = payload.Brief.ValueKind == JsonValueKind.Undefined ? null : payload.Brief.GetRawText(),
                 SourceText = payload.SourceText,
+                // Only meaningful for TaskB — payload.FlawedTranslationText is validated
+                // non-empty by ValidateAndBuildTaskBSeededErrors above when TaskType==B.
+                FlawedTranslationText = request.TaskType == TaskType.B ? payload.FlawedTranslationText : null,
                 WordCount = payload.WordCount,
                 Origin = QuestionOrigin.ai_generated,
                 SourceType = SourceType.ai_generated,
@@ -122,6 +149,12 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             }).ToList();
             await _questionRepository.AddMeaningCheckpointsAsync(checkpoints, cancellationToken);
 
+            foreach (var seededError in seededErrors)
+            {
+                seededError.QuestionId = question.Id;
+            }
+            await _questionRepository.AddSeededErrorsAsync(seededErrors, cancellationToken);
+
             aiCallLog.Status = CallStatus.success;
             aiCallLog.RelatedId = question.Id;
             aiCallLog.LatencyMs = completion.LatencyMs;
@@ -130,6 +163,16 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return new GenerateQuestionResult(question.Id, question.TaskType, question.Difficulty, question.Title, question.CreatedAt);
+        }
+
+        private async Task<Difficulty> ResolveDifficultyAsync(Guid examTypeId, CancellationToken cancellationToken)
+        {
+            var policy = await _generationPolicyRepository.GetByKeyAsync(examTypeId, "difficulty_distribution", cancellationToken);
+            var weights = policy is not null
+                ? DifficultyDistributionSelector.ParseWeights(policy.PolicyValue)
+                : DifficultyDistributionSelector.DefaultWeights;
+
+            return DifficultyDistributionSelector.Select(weights, Random.Shared.NextDouble());
         }
 
         private async Task FailAsync(AiCallLog aiCallLog, string errorMessage, CancellationToken cancellationToken)
@@ -145,6 +188,65 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             var json = StripMarkdownFence(rawText.Trim());
             return JsonSerializer.Deserialize<GeneratedQuestionPayload>(json, PayloadJsonOptions)
                 ?? throw new InvalidOperationException("Deserialized to null.");
+        }
+
+        /// <summary>
+        /// Same structured-output-is-a-hard-constraint philosophy as GradeSubmissionCommandHandler's
+        /// ValidatePayload (design doc §10.3): a TaskB response must actually carry a
+        /// flawedTranslationText and at least one seededError, every seededError's errorCategory
+        /// must be a known taxonomy for this exam type, and positions must fit inside the flawed
+        /// text with no overlaps — the same rules ImportUserQuestionValidator enforces for
+        /// manually-entered TaskB questions, just applied to the AI's own output instead of a
+        /// human's.
+        /// </summary>
+        private static List<TaskBSeededError> ValidateAndBuildTaskBSeededErrors(GeneratedQuestionPayload payload, List<ErrorTaxonomy> errorTaxonomies)
+        {
+            if (string.IsNullOrEmpty(payload.FlawedTranslationText))
+            {
+                throw new InvalidOperationException("TaskB generation must include a non-empty flawedTranslationText.");
+            }
+
+            if (payload.SeededErrors is not { Count: > 0 })
+            {
+                throw new InvalidOperationException("TaskB generation must include at least one seededError.");
+            }
+
+            var taxonomiesByKey = errorTaxonomies.ToDictionary(x => x.CategoryKey);
+            var flawedLength = payload.FlawedTranslationText.Length;
+            var sorted = payload.SeededErrors.OrderBy(e => e.PositionStart).ToList();
+
+            for (var i = 0; i < sorted.Count; i++)
+            {
+                var error = sorted[i];
+
+                if (error.PositionStart < 0 || error.PositionEnd <= error.PositionStart || error.PositionEnd > flawedLength)
+                {
+                    throw new InvalidOperationException(
+                        $"seededError position [{error.PositionStart},{error.PositionEnd}) is out of bounds for the {flawedLength}-character flawedTranslationText.");
+                }
+
+                if (!taxonomiesByKey.ContainsKey(error.ErrorCategory))
+                {
+                    throw new InvalidOperationException($"seededError errorCategory '{error.ErrorCategory}' is not a known error taxonomy for this exam type.");
+                }
+
+                if (i > 0 && error.PositionStart < sorted[i - 1].PositionEnd)
+                {
+                    throw new InvalidOperationException("seededError position ranges must not overlap.");
+                }
+            }
+
+            // QuestionId is filled in by the caller once the Question's own Id is known.
+            return sorted.Select(e => new TaskBSeededError
+            {
+                Id = Guid.NewGuid(),
+                PositionStart = e.PositionStart,
+                PositionEnd = e.PositionEnd,
+                ErrorTaxonomyId = taxonomiesByKey[e.ErrorCategory].Id,
+                CorrectReferenceText = e.CorrectReferenceText,
+                Note = e.Note,
+                CreatedAt = DateTimeOffset.UtcNow,
+            }).ToList();
         }
 
         private static string StripMarkdownFence(string text)
@@ -171,6 +273,10 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             public int? WordCount { get; set; }
 
             public List<MeaningCheckpointPayload>? MeaningCheckpoints { get; set; }
+
+            public string? FlawedTranslationText { get; set; }
+
+            public List<SeededErrorPayload>? SeededErrors { get; set; }
         }
 
         private class MeaningCheckpointPayload
@@ -181,6 +287,19 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
 
             [JsonConverter(typeof(JsonStringEnumConverter))]
             public CheckpointImportance Importance { get; set; }
+        }
+
+        private class SeededErrorPayload
+        {
+            public int PositionStart { get; set; }
+
+            public int PositionEnd { get; set; }
+
+            public string ErrorCategory { get; set; } = string.Empty;
+
+            public string CorrectReferenceText { get; set; } = string.Empty;
+
+            public string? Note { get; set; }
         }
     }
 }

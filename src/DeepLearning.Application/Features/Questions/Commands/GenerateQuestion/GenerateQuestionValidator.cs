@@ -8,7 +8,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
         {
             RuleFor(x => x.ExamTypeId).NotEmpty();
             RuleFor(x => x.TaskType).IsInEnum();
-            RuleFor(x => x.Difficulty).IsInEnum();
+            When(x => x.Difficulty.HasValue, () => RuleFor(x => x.Difficulty!.Value).IsInEnum());
         }
     }
 }
