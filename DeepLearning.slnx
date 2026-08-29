@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/DeepLearning.Api/DeepLearning.Api.csproj" />
+  <Project Path="src/DeepLearning.Application/DeepLearning.Application.csproj" />
+  <Project Path="src/DeepLearning.Domain/DeepLearning.Domain.csproj" />
+  <Project Path="src/DeepLearning.Infrastructure/DeepLearning.Infrastructure.csproj" />
+  <Project Path="tests/DeepLearning.UnitTests/DeepLearning.UnitTests.csproj" />
+</Solution>
