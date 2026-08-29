@@ -8,7 +8,6 @@ namespace DeepLearning.Application.Features.LlmProviders.Commands.UpdateLlmProvi
         public UpdateLlmProviderSettingsValidator()
         {
             RuleFor(x => x.ProviderKey).NotEmpty();
-            RuleFor(x => x.Model).MaximumLength(100);
             RuleFor(x => x.Effort).MaximumLength(20);
 
             RuleFor(x => x.ExtraSettingsJson)

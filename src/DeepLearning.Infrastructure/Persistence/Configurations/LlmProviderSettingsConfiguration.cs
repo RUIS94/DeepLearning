@@ -14,7 +14,6 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
             builder.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
             builder.Property(x => x.ProviderKey).HasMaxLength(50).IsRequired();
             builder.Property(x => x.IsActive).HasDefaultValue(false);
-            builder.Property(x => x.Model).HasMaxLength(100).IsRequired();
             builder.Property(x => x.ThinkingEnabled).HasDefaultValue(true);
             builder.Property(x => x.Effort).HasMaxLength(20);
             builder.Property(x => x.ExtraSettings).HasColumnType("jsonb");

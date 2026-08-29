@@ -3,7 +3,9 @@ namespace DeepLearning.Application.Features.LlmProviders.Queries.ListLlmProvider
     public record LlmProviderResultItem(
         string ProviderKey,
         bool IsActive,
-        string Model,
+
+        /// <summary>The provider's current LlmProviderModel row's Model, or null if none is set — read-only here, switch via SelectLlmProviderModelCommand.</summary>
+        string? CurrentModel,
         bool ThinkingEnabled,
         string? Effort,
         string? ExtraSettings,

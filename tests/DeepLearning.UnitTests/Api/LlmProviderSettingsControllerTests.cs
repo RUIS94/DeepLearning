@@ -39,7 +39,7 @@ namespace DeepLearning.UnitTests.Api
 
             var response = await client.PatchAsync(
                 $"{ApiRoutes.LlmProviderSettings.Base}/does-not-exist-{Guid.NewGuid():N}",
-                JsonContent.Create(new { Model = "some-model", ThinkingEnabled = (bool?)null, Effort = (string?)null, ExtraSettingsJson = (string?)null }));
+                JsonContent.Create(new { ThinkingEnabled = (bool?)null, Effort = (string?)"high", ExtraSettingsJson = (string?)null }));
 
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
@@ -73,8 +73,8 @@ namespace DeepLearning.UnitTests.Api
             var first = $"test-a-{suffix}";
             var second = $"test-b-{suffix}";
             await context.LlmProviderSettings.AddRangeAsync(
-                new LlmProviderSettings { Id = Guid.NewGuid(), ProviderKey = first, IsActive = firstIsActive, Model = "model-a" },
-                new LlmProviderSettings { Id = Guid.NewGuid(), ProviderKey = second, IsActive = !firstIsActive, Model = "model-b" });
+                new LlmProviderSettings { Id = Guid.NewGuid(), ProviderKey = first, IsActive = firstIsActive },
+                new LlmProviderSettings { Id = Guid.NewGuid(), ProviderKey = second, IsActive = !firstIsActive });
             await context.SaveChangesAsync();
 
             return (first, second);
@@ -88,12 +88,11 @@ namespace DeepLearning.UnitTests.Api
 
             var response = await client.PatchAsJsonAsync(
                 $"{ApiRoutes.LlmProviderSettings.Base}/{providerKey}",
-                new { Model = "new-model", ThinkingEnabled = (bool?)null, Effort = "high", ExtraSettingsJson = (string?)null });
+                new { ThinkingEnabled = (bool?)null, Effort = "high", ExtraSettingsJson = (string?)null });
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             var updated = await response.Content.ReadFromJsonAsync<UpdateLlmProviderSettingsResult>();
-            Assert.Equal("new-model", updated!.Model);
-            Assert.Equal("high", updated.Effort);
+            Assert.Equal("high", updated!.Effort);
             Assert.True(updated.ThinkingEnabled); // untouched, entity default
         }
 

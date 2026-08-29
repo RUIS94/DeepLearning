@@ -6,15 +6,17 @@ namespace DeepLearning.Domain.Entities
     /// One row per known LLM provider ("claude"/"openai"/"deepseek"/"mimo"/...). Exactly one
     /// row may have IsActive=true at a time (enforced by a partial unique index) — that's the
     /// provider ILlmClientResolver hands out. Everything here is runtime-tunable without a
-    /// redeploy: which provider is active, which model each provider uses, and per-provider
-    /// generation controls. Secrets (API keys, Claude's WorkspaceId) deliberately do NOT live
-    /// here — those are environment variables (see AGENTS.md's "AI integration" section).
+    /// redeploy: which provider is active, and per-provider generation controls. Which model
+    /// that provider currently uses is NOT stored here — it lives on <see cref="LlmProviderModel"/>
+    /// (IsCurrent=true row for this ProviderKey), so a provider's model catalog and its
+    /// currently-selected model can never be two independently-editable, driftable values.
+    /// Secrets (API keys, Claude's WorkspaceId) deliberately do NOT live here either — those
+    /// are environment variables (see AGENTS.md's "AI integration" section).
     /// </summary>
     public class LlmProviderSettings : Entity
     {
         public string ProviderKey { get; set; } = string.Empty;
         public bool IsActive { get; set; }
-        public string Model { get; set; } = string.Empty;
 
         /// <summary>Claude: whether to send thinking:{type:"disabled"} vs. letting it run adaptive. Not yet wired for other providers — their "thinking" mechanism differs per provider (e.g. a distinct model name) and isn't verified.</summary>
         public bool ThinkingEnabled { get; set; } = true;

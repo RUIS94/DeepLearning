@@ -19,15 +19,18 @@ namespace DeepLearning.Infrastructure.Ai
         public const string FallbackProviderKey = "mimo";
 
         private readonly ILlmProviderSettingsRepository _settingsRepository;
+        private readonly ILlmProviderModelRepository _modelRepository;
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<LlmClientResolver> _logger;
 
         public LlmClientResolver(
             ILlmProviderSettingsRepository settingsRepository,
+            ILlmProviderModelRepository modelRepository,
             IServiceProvider serviceProvider,
             ILogger<LlmClientResolver> logger)
         {
             _settingsRepository = settingsRepository;
+            _modelRepository = modelRepository;
             _serviceProvider = serviceProvider;
             _logger = logger;
         }
@@ -45,31 +48,35 @@ namespace DeepLearning.Infrastructure.Ai
                 return _serviceProvider.GetRequiredKeyedService<ILlmClient>(FallbackProviderKey);
             }
 
+            var currentModel = await _modelRepository.GetCurrentAsync(settings.ProviderKey, cancellationToken);
             var innerClient = _serviceProvider.GetRequiredKeyedService<ILlmClient>(settings.ProviderKey);
-            return new ConfiguredLlmClient(innerClient, settings);
+            return new ConfiguredLlmClient(innerClient, settings, currentModel);
         }
 
         /// <summary>
         /// Decorates a keyed ILlmClient with the active LlmProviderSettings row's
-        /// Model/ThinkingEnabled/Effort/ExtraSettings as defaults — callers may still
-        /// override any of these per-call by setting them explicitly on the request.
+        /// ThinkingEnabled/Effort/ExtraSettings and the provider's current LlmProviderModel
+        /// (if any) as defaults — callers may still override any of these per-call by setting
+        /// them explicitly on the request.
         /// </summary>
         private class ConfiguredLlmClient : ILlmClient
         {
             private readonly ILlmClient _inner;
             private readonly LlmProviderSettings _settings;
+            private readonly LlmProviderModel? _currentModel;
 
-            public ConfiguredLlmClient(ILlmClient inner, LlmProviderSettings settings)
+            public ConfiguredLlmClient(ILlmClient inner, LlmProviderSettings settings, LlmProviderModel? currentModel)
             {
                 _inner = inner;
                 _settings = settings;
+                _currentModel = currentModel;
             }
 
             public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
             {
                 var merged = request with
                 {
-                    Model = request.Model ?? _settings.Model,
+                    Model = request.Model ?? _currentModel?.Model,
                     ThinkingEnabled = request.ThinkingEnabled ?? _settings.ThinkingEnabled,
                     Effort = request.Effort ?? _settings.Effort,
                     ExtraSettings = request.ExtraSettings ?? ParseExtraSettings(_settings.ExtraSettings),

@@ -23,11 +23,6 @@ namespace DeepLearning.Application.Features.LlmProviders.Commands.UpdateLlmProvi
             var settings = await _repository.GetByProviderKeyAsync(request.ProviderKey, cancellationToken)
                 ?? throw new NotFoundException(nameof(Domain.Entities.LlmProviderSettings), request.ProviderKey);
 
-            if (request.Model is not null)
-            {
-                settings.Model = request.Model;
-            }
-
             if (request.ThinkingEnabled is not null)
             {
                 settings.ThinkingEnabled = request.ThinkingEnabled.Value;
@@ -50,7 +45,6 @@ namespace DeepLearning.Application.Features.LlmProviders.Commands.UpdateLlmProvi
             return new UpdateLlmProviderSettingsResult(
                 settings.ProviderKey,
                 settings.IsActive,
-                settings.Model,
                 settings.ThinkingEnabled,
                 settings.Effort,
                 settings.ExtraSettings,

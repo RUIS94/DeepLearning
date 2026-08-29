@@ -30,9 +30,10 @@ namespace DeepLearning.UnitTests.Integration
             }
             await context.SaveChangesAsync();
 
+            var activeProviderKey = $"test-b-{Guid.NewGuid():N}";
             await context.LlmProviderSettings.AddRangeAsync(
-                new LlmProviderSettings { Id = Guid.NewGuid(), ProviderKey = $"test-a-{Guid.NewGuid():N}", IsActive = false, Model = "m1" },
-                new LlmProviderSettings { Id = Guid.NewGuid(), ProviderKey = $"test-b-{Guid.NewGuid():N}", IsActive = true, Model = "m2" });
+                new LlmProviderSettings { Id = Guid.NewGuid(), ProviderKey = $"test-a-{Guid.NewGuid():N}", IsActive = false },
+                new LlmProviderSettings { Id = Guid.NewGuid(), ProviderKey = activeProviderKey, IsActive = true });
             await context.SaveChangesAsync();
 
             await using var readContext = _fixture.CreateContext();
@@ -40,7 +41,7 @@ namespace DeepLearning.UnitTests.Integration
             var active = await repository.GetActiveAsync();
 
             Assert.NotNull(active);
-            Assert.Equal("m2", active!.Model);
+            Assert.Equal(activeProviderKey, active!.ProviderKey);
         }
 
         [Fact]
@@ -50,12 +51,12 @@ namespace DeepLearning.UnitTests.Integration
 
             await using var context = _fixture.CreateContext();
             await context.LlmProviderSettings.AddAsync(
-                new LlmProviderSettings { Id = Guid.NewGuid(), ProviderKey = $"test-first-{suffix}", IsActive = true, Model = "m1" });
+                new LlmProviderSettings { Id = Guid.NewGuid(), ProviderKey = $"test-first-{suffix}", IsActive = true });
             await context.SaveChangesAsync();
 
             await using var secondContext = _fixture.CreateContext();
             await secondContext.LlmProviderSettings.AddAsync(
-                new LlmProviderSettings { Id = Guid.NewGuid(), ProviderKey = $"test-second-{suffix}", IsActive = true, Model = "m2" });
+                new LlmProviderSettings { Id = Guid.NewGuid(), ProviderKey = $"test-second-{suffix}", IsActive = true });
 
             // The partial unique index on IsActive (WHERE is_active = true) is what makes
             // "at most one active provider" a database guarantee, not just app-level discipline.

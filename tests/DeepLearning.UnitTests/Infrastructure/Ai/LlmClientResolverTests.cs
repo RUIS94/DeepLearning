@@ -17,6 +17,17 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
             public Task<List<LlmProviderSettings>> ListAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         }
 
+        private class StubModelRepository : ILlmProviderModelRepository
+        {
+            public LlmProviderModel? Current { get; set; }
+
+            public Task AddAsync(LlmProviderModel model, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            public Task<LlmProviderModel?> GetByProviderKeyAndModelAsync(string providerKey, string model, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            public Task<LlmProviderModel?> GetCurrentAsync(string providerKey, CancellationToken cancellationToken = default) => Task.FromResult(Current);
+            public Task<List<LlmProviderModel>> ListByProviderKeyAsync(string providerKey, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            public Task<List<LlmProviderModel>> ListCurrentAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        }
+
         private class RecordingLlmClient : ILlmClient
         {
             public LlmCompletionRequest? LastRequest { get; private set; }
@@ -28,9 +39,10 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
             }
         }
 
-        private static (LlmClientResolver Resolver, StubSettingsRepository Repo, RecordingLlmClient Client) Build(params string[] providerKeys)
+        private static (LlmClientResolver Resolver, StubSettingsRepository SettingsRepo, StubModelRepository ModelRepo, RecordingLlmClient Client) Build(params string[] providerKeys)
         {
-            var repo = new StubSettingsRepository();
+            var settingsRepo = new StubSettingsRepository();
+            var modelRepo = new StubModelRepository();
             var client = new RecordingLlmClient();
             var services = new ServiceCollection();
             foreach (var key in providerKeys)
@@ -39,13 +51,13 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
             }
             var provider = services.BuildServiceProvider();
 
-            return (new LlmClientResolver(repo, provider, NullLogger<LlmClientResolver>.Instance), repo, client);
+            return (new LlmClientResolver(settingsRepo, modelRepo, provider, NullLogger<LlmClientResolver>.Instance), settingsRepo, modelRepo, client);
         }
 
         [Fact]
         public async Task Falls_back_to_mimo_when_no_provider_is_active()
         {
-            var (resolver, _, client) = Build(LlmClientResolver.FallbackProviderKey);
+            var (resolver, _, _, client) = Build(LlmClientResolver.FallbackProviderKey);
 
             var resolved = await resolver.GetActiveClientAsync();
             await resolved.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10));
@@ -56,8 +68,9 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
         [Fact]
         public async Task Resolves_the_keyed_client_matching_the_active_providers_key()
         {
-            var (resolver, repo, client) = Build("deepseek");
-            repo.Active = new LlmProviderSettings { ProviderKey = "deepseek", Model = "deepseek-v4-flash", IsActive = true };
+            var (resolver, settingsRepo, modelRepo, client) = Build("deepseek");
+            settingsRepo.Active = new LlmProviderSettings { ProviderKey = "deepseek", IsActive = true };
+            modelRepo.Current = new LlmProviderModel { ProviderKey = "deepseek", Model = "deepseek-v4-flash", IsCurrent = true };
 
             var resolved = await resolver.GetActiveClientAsync();
             await resolved.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10));
@@ -68,14 +81,14 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
         [Fact]
         public async Task Fills_in_model_thinking_and_effort_from_the_active_settings_row_when_the_request_does_not_specify_them()
         {
-            var (resolver, repo, client) = Build("claude");
-            repo.Active = new LlmProviderSettings
+            var (resolver, settingsRepo, modelRepo, client) = Build("claude");
+            settingsRepo.Active = new LlmProviderSettings
             {
                 ProviderKey = "claude",
-                Model = "claude-opus-5",
                 ThinkingEnabled = false,
                 Effort = "xhigh",
             };
+            modelRepo.Current = new LlmProviderModel { ProviderKey = "claude", Model = "claude-opus-5", IsCurrent = true };
 
             var resolved = await resolver.GetActiveClientAsync();
             await resolved.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10));
@@ -86,10 +99,23 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
         }
 
         [Fact]
+        public async Task No_current_model_leaves_model_null_so_the_adapters_own_configured_default_wins()
+        {
+            var (resolver, settingsRepo, _, client) = Build("claude");
+            settingsRepo.Active = new LlmProviderSettings { ProviderKey = "claude" };
+
+            var resolved = await resolver.GetActiveClientAsync();
+            await resolved.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10));
+
+            Assert.Null(client.LastRequest!.Model);
+        }
+
+        [Fact]
         public async Task A_per_call_override_wins_over_the_active_settings_row()
         {
-            var (resolver, repo, client) = Build("claude");
-            repo.Active = new LlmProviderSettings { ProviderKey = "claude", Model = "claude-opus-5", Effort = "low" };
+            var (resolver, settingsRepo, modelRepo, client) = Build("claude");
+            settingsRepo.Active = new LlmProviderSettings { ProviderKey = "claude", Effort = "low" };
+            modelRepo.Current = new LlmProviderModel { ProviderKey = "claude", Model = "claude-opus-5", IsCurrent = true };
 
             var resolved = await resolver.GetActiveClientAsync();
             await resolved.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10, Effort: "max"));
@@ -100,13 +126,13 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
         [Fact]
         public async Task Parses_extra_settings_json_into_the_request()
         {
-            var (resolver, repo, client) = Build("claude");
-            repo.Active = new LlmProviderSettings
+            var (resolver, settingsRepo, modelRepo, client) = Build("claude");
+            settingsRepo.Active = new LlmProviderSettings
             {
                 ProviderKey = "claude",
-                Model = "claude-opus-5",
                 ExtraSettings = "{\"reasoning_effort\":\"high\"}",
             };
+            modelRepo.Current = new LlmProviderModel { ProviderKey = "claude", Model = "claude-opus-5", IsCurrent = true };
 
             var resolved = await resolver.GetActiveClientAsync();
             await resolved.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10));

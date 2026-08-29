@@ -3,7 +3,6 @@ namespace DeepLearning.Application.Features.LlmProviders.Commands.UpdateLlmProvi
     public record UpdateLlmProviderSettingsResult(
         string ProviderKey,
         bool IsActive,
-        string Model,
         bool ThinkingEnabled,
         string? Effort,
         string? ExtraSettings,
