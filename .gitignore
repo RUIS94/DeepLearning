@@ -363,3 +363,6 @@ MigrationBackup/
 FodyWeavers.xsd
 # Local secrets - contains real Supabase connection string, never commit
 src/DeepLearning.Api/appsettings.Development.json
+
+# CodeGraph local index (machine-local, has its own nested .gitignore too)
+.codegraph/
