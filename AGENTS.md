@@ -1,116 +1,117 @@
-# AGENTS.md — 项目地图
+# AGENTS.md — Project Map
 
-给 AI 协作者看的导航文件：这个项目长什么样、东西该去哪儿找、该在哪儿改、新功能该加在哪儿、能从哪儿复用。
+A navigation file for AI collaborators: what this project looks like, where to find things, where to make changes, where new features should go, and what can be reused from where.
 
-## 项目是什么
+## What this project is
 
-NAATI CT 翻译练习软件的后端。.NET 10 + EF Core(Npgsql)+ Supabase(Postgres 托管)。
-架构是标准 Clean Architecture 四层 + CQRS(MediatR)+ Repository/UnitOfWork。
+Backend for the NAATI CT translation practice software. .NET 10 + EF Core (Npgsql) + Supabase (hosted Postgres).
+Standard four-layer Clean Architecture + CQRS (MediatR) + Repository/UnitOfWork.
 
-## ⚠️ 先读这一节：这是一个"骨架"项目，很多文件只有类名没有内容
+## ⚠️ Read this section first: this is a "skeleton" project — many files only have a class name, no content
 
-这不是代码被删了或者哪里坏了——项目最初是按 Clean Architecture 模板把整个目录结构和空类都建好了（`namespace X { internal class Y {} }` 这种），业务逻辑目前只填了一小部分。**在改动前，先确认目标文件是"真实实现"还是"空壳"，不要假设它已经工作。**
+This isn't code that got deleted or something that's broken — the project was originally scaffolded from a Clean Architecture template with the entire folder structure and empty classes already in place (things like `namespace X { internal class Y {} }`), and only a small portion of the business logic has been filled in so far. **Before changing anything, confirm whether the target file is a "real implementation" or an "empty shell" — don't assume it already works.**
 
-### 已经是真实实现的部分
+### Parts that are already real implementations
 
-| 位置 | 内容 |
+| Location | Content |
 |---|---|
-| `src/DeepLearning.Domain/Entities/*.cs` | 全部 29 个实体，字段已跟 Supabase 里的表逐一核对过（2026-08-29），可信 |
-| `src/DeepLearning.Domain/Enums/*.cs` | 全部真实，对应 Postgres 原生 enum |
-| `src/DeepLearning.Domain/Common/Entity.cs` | 真实（`Id` + 值相等） |
-| `src/DeepLearning.Infrastructure/Persistence/Configurations/*.cs` | 全部真实，EF Fluent API 映射 |
-| `src/DeepLearning.Infrastructure/Persistence/AppDbContext.cs` | 真实：DbSet、原生 enum 注册、`ApplyConfigurationsFromAssembly` |
-| `src/DeepLearning.Infrastructure/Persistence/{AppDbContextFactory,NpgsqlEnumConfiguration,UnitOfWork}.cs` | 真实 |
-| `src/DeepLearning.Infrastructure/DependencyInjection.cs` | 真实：注册 DbContext + `IUnitOfWork` |
-| `src/DeepLearning.Infrastructure/Persistence/Migrations/*` | 真实，反映当前 schema |
-| `src/DeepLearning.Application/Behaviors/*.cs` | 真实：Logging / Validation / UnhandledException 三个 MediatR pipeline behavior |
-| `src/DeepLearning.Application/DependencyInjection.cs` | 真实：`AddApplication()` 注册 MediatR + FluentValidation + behavior |
-| `src/DeepLearning.Application/Interfaces/IUnitOfWork.cs` | 真实 |
-| `src/DeepLearning.Api/Program.cs` | 真实：`AddApplication()` + `AddInfrastructure()` 已接线 |
+| `src/DeepLearning.Domain/Entities/*.cs` | All 29 entities, fields cross-checked one by one against the tables in Supabase (2026-08-29), trustworthy |
+| `src/DeepLearning.Domain/Enums/*.cs` | All real, correspond to native Postgres enums |
+| `src/DeepLearning.Domain/Common/Entity.cs` | Real (`Id` + value equality) |
+| `src/DeepLearning.Infrastructure/Persistence/Configurations/*.cs` | All real, EF Fluent API mappings |
+| `src/DeepLearning.Infrastructure/Persistence/AppDbContext.cs` | Real: DbSets, native enum registration, `ApplyConfigurationsFromAssembly` |
+| `src/DeepLearning.Infrastructure/Persistence/{AppDbContextFactory,NpgsqlEnumConfiguration,UnitOfWork}.cs` | Real |
+| `src/DeepLearning.Infrastructure/DependencyInjection.cs` | Real: registers DbContext + `IUnitOfWork` |
+| `src/DeepLearning.Infrastructure/Persistence/Migrations/*` | Real, reflects the current schema |
+| `src/DeepLearning.Application/Behaviors/*.cs` | Real: the three MediatR pipeline behaviors — Logging / Validation / UnhandledException |
+| `src/DeepLearning.Application/DependencyInjection.cs` | Real: `AddApplication()` registers MediatR + FluentValidation + behaviors |
+| `src/DeepLearning.Application/Interfaces/IUnitOfWork.cs` | Real |
+| `src/DeepLearning.Api/Program.cs` | Real: `AddApplication()` + `AddInfrastructure()` are wired up |
 
-### 还是空壳、等你填的部分
+### Parts that are still empty shells, waiting to be filled in
 
 - `src/DeepLearning.Domain/Common/{Result,Guard,ErrorCodes}.cs`
-- `src/DeepLearning.Domain/Events/*.cs`（领域事件类本身也是空的，`AggregateRoot` 也还没有收集事件的机制）
-- `src/DeepLearning.Application/Interfaces/` 下除 `IUnitOfWork` 外的所有接口（`IQuestionRepository`、`ISubmissionRepository`、`IWeakPointRepository`、`ILlmClient`、`IExamConfigLoader`、`IGradingResultInterpreter`、`IProgressRepository`、`IStandardOverrideRepository`）
+- `src/DeepLearning.Domain/Events/*.cs` (the domain event classes themselves are empty too; `AggregateRoot` doesn't yet have a mechanism for collecting events)
+- Every interface under `src/DeepLearning.Application/Interfaces/` except `IUnitOfWork` (`IQuestionRepository`, `ISubmissionRepository`, `IWeakPointRepository`, `ILlmClient`, `IExamConfigLoader`, `IGradingResultInterpreter`, `IProgressRepository`, `IStandardOverrideRepository`)
 - `src/DeepLearning.Application/Common/{PagedRequest,PagedResult}.cs`
-- `src/DeepLearning.Application/Features/**/*` 里除了 `Behaviors`/`DependencyInjection.cs` 之外的**所有**业务代码——包括看起来已经有目录结构的 `Features/Questions/Commands/GenerateQuestion/`（Command/Handler/Result/Validator 四个文件全是空类）。**这套目录形状可以照抄，但里面没有可用的实现，不要当参考代码抄逻辑。**
-- `src/DeepLearning.Infrastructure/Persistence/Repositories/*.cs`（`QuestionRepository`、`SubmissionRepository`、`WeakPointRepository`）
-- `src/DeepLearning.Api/Controllers/*.cs`（除自动生成的 `WeatherForecastController` 外，`QuestionsController` 等 5 个都是空类）
-- `src/DeepLearning.Api/Middleware/*.cs`、`src/DeepLearning.Api/Constants/*.cs`
-- `tests/DeepLearning.UnitTests/**` 里除 `.csproj` 外全部是空类（含 `UnitTest1.cs`）
+- **All** business code under `src/DeepLearning.Application/Features/**/*` except `Behaviors`/`DependencyInjection.cs` — including `Features/Questions/Commands/GenerateQuestion/`, which looks like it already has a folder structure (the Command/Handler/Result/Validator files are all empty classes). **The shape of this folder can be copied, but there's no usable implementation inside it — don't copy the logic as reference code.**
+- `src/DeepLearning.Infrastructure/Persistence/Repositories/*.cs` (`QuestionRepository`, `SubmissionRepository`, `WeakPointRepository`)
+- `src/DeepLearning.Api/Controllers/*.cs` (aside from the auto-generated `WeatherForecastController`, the other 5 controllers including `QuestionsController` are all empty classes)
+- `src/DeepLearning.Api/Middleware/*.cs`, `src/DeepLearning.Api/Constants/*.cs`
+- Everything under `tests/DeepLearning.UnitTests/**` except the `.csproj` is an empty class (including `UnitTest1.cs`)
 
-## 目录结构与依赖方向
+## Directory structure and dependency direction
 
 ```
-DeepLearning.Domain          <- 没有任何依赖，纯 C#
+DeepLearning.Domain          <- no dependencies at all, pure C#
     ↑
-DeepLearning.Application     <- 依赖 Domain
+DeepLearning.Application     <- depends on Domain
     ↑
-DeepLearning.Infrastructure  <- 依赖 Application + Domain
+DeepLearning.Infrastructure  <- depends on Application + Domain
     ↑
-DeepLearning.Api             <- 依赖 Infrastructure + Application
+DeepLearning.Api             <- depends on Infrastructure + Application
 ```
 
-- **Domain**：实体（`Entities/`）、枚举（`Enums/`）、领域事件（`Events/`）、领域异常（`Exceptions/`）、基类和共享值对象（`Common/`）。不引用任何其他项目，不引用 EF/MediatR 等框架。
-- **Application**：业务用例。`Features/<业务域>/Commands|Queries/<用例名>/` 放 CQRS 四件套；`Behaviors/` 放 MediatR pipeline；`Interfaces/` 放仓储和外部服务（LLM 等）的抽象；`Common/` 放跨用例的公共类型（分页等）。只依赖 Domain，不引用 EF Core、Npgsql 这些具体实现。
-- **Infrastructure**：Application 定义的接口在这里落地。`Persistence/` 是 EF Core + Npgsql（DbContext、Configurations、Migrations、Repositories、UnitOfWork）。以后如果接 LLM API、邮件等外部服务，也应该在这一层新建对应文件夹实现 Application 的接口。
-- **Api**：ASP.NET Core 入口。`Controllers/` 只做参数绑定和调 `IMediator.Send(...)`，不写业务逻辑。`Middleware/` 放全局异常处理等横切逻辑。
+- **Domain**: entities (`Entities/`), enums (`Enums/`), domain events (`Events/`), domain exceptions (`Exceptions/`), base classes and shared value objects (`Common/`). Doesn't reference any other project, and doesn't reference frameworks like EF/MediatR.
+- **Application**: business use cases. `Features/<BusinessDomain>/Commands|Queries/<UseCaseName>/` holds the CQRS four-piece set; `Behaviors/` holds the MediatR pipeline; `Interfaces/` holds abstractions for repositories and external services (LLM, etc.); `Common/` holds cross-use-case shared types (pagination, etc.). Only depends on Domain — doesn't reference concrete implementations like EF Core or Npgsql.
+- **Infrastructure**: where the interfaces defined by Application land. `Persistence/` is EF Core + Npgsql (DbContext, Configurations, Migrations, Repositories, UnitOfWork). If external services like an LLM API or email get added later, they should also get a new folder in this layer implementing Application's interfaces.
+- **Api**: the ASP.NET Core entry point. `Controllers/` only does parameter binding and calls `IMediator.Send(...)` — no business logic. `Middleware/` holds cross-cutting concerns like global exception handling.
 
-## 数据库：Supabase (Postgres) + EF Core
+## Database: Supabase (Postgres) + EF Core
 
-- 连接串键名统一是 `ConnectionStrings:DefaultConnection`。本地开发填在 [appsettings.Development.json](src/DeepLearning.Api/appsettings.Development.json)——**这个文件已被 `.gitignore`排除、不进 git**，所以换一台机器/新 clone 之后要重新手动填一份（里面有真实的 Supabase 密码）。生产环境走环境变量 `ConnectionStrings__DefaultConnection`。
-- 运行时读取入口：[DependencyInjection.cs](src/DeepLearning.Infrastructure/DependencyInjection.cs)。`dotnet ef` 设计期命令读取入口：[AppDbContextFactory.cs](src/DeepLearning.Infrastructure/Persistence/AppDbContextFactory.cs)（只认环境变量，不读 appsettings.json，本地跑 `dotnet ef` 系列命令前记得先 `export`/`$env:` 设置环境变量）。
-- 全局用了 `EFCore.NamingConventions` 的 snake_case 约定（见 [AppDbContext.cs](src/DeepLearning.Infrastructure/Persistence/AppDbContext.cs) 里的 `.UseSnakeCaseNamingConvention()`）。C# 属性 `CreatedAt` 会自动映射成列 `created_at`，Configuration 里不用手写列名，除非要覆盖默认规则。
-- **原生 Postgres enum**：每加一个新枚举，两处都要注册，缺一处会在运行时/设计时报错：
-  1. `AppDbContext.OnModelCreating` 里 `modelBuilder.HasPostgresEnum<T>(name: "..._enum", nameTranslator: ...)`
-  2. [NpgsqlEnumConfiguration.cs](src/DeepLearning.Infrastructure/Persistence/NpgsqlEnumConfiguration.cs) 里 `o.MapEnum<T>("..._enum", nameTranslator: ...)`
-  多数枚举用 `NpgsqlNullNameTranslator`（C# 成员名跟 SQL 里的 label 逐字一致）；`Visibility`/`MasteryLevel` 因为 label 里有 C# 保留字（`new`/`private`）改用 `NpgsqlSnakeCaseNameTranslator`，C# 成员名写成 PascalCase（`New`/`Private`），靠 snake_case 转换器换回 label。
-- [Migrations/schema.sql](src/DeepLearning.Infrastructure/Persistence/Migrations/schema.sql) 是项目最初手工在 Supabase SQL Editor 里跑的建库脚本，**不是**从 EF Migrations 导出的。它自己的注释也写明：以后 schema 变更一律走 `dotnet ef migrations add`，不要再手改这个文件或手动在 Supabase 里改表结构。
-- `__EFMigrationsHistory` 表是后来手动补建的（因为表是靠 schema.sql 建的，不是 `dotnet ef database update`），列名要按项目的 snake_case 约定写成 `migration_id`/`product_version`（不是 EF 默认的 PascalCase）。
-- 2026-08-29 处理过一次遗留问题：`schema.sql` 里的主键/外键/唯一/CHECK 约束都是内联写的、没有显式命名，Postgres 自动生成的名字和 EF 迁移快照里期望的名字（`pk_*`/`fk_*`/`ix_*`/`ck_*`）对不上，已经手动 `RENAME CONSTRAINT` 对齐过。**以后新迁移如果要按名字操作某个约束，以 [AppDbContextModelSnapshot.cs](src/DeepLearning.Infrastructure/Persistence/Migrations/AppDbContextModelSnapshot.cs) 里的名字为准。**
+- The connection string key is consistently `ConnectionStrings:DefaultConnection`. For local development it's filled in at [appsettings.Development.json](src/DeepLearning.Api/appsettings.Development.json) — **this file is excluded by `.gitignore` and isn't committed**, so after a fresh clone / on a new machine you need to fill it in by hand again (it contains the real Supabase password). Production goes through the `ConnectionStrings__DefaultConnection` environment variable.
+- Runtime read entry point: [DependencyInjection.cs](src/DeepLearning.Infrastructure/DependencyInjection.cs). Design-time entry point for `dotnet ef` commands: [AppDbContextFactory.cs](src/DeepLearning.Infrastructure/Persistence/AppDbContextFactory.cs) (only reads environment variables, not `appsettings.json` — remember to `export`/`$env:` the environment variable before running `dotnet ef` commands locally).
+- The project uses `EFCore.NamingConventions`'s snake_case convention globally (see `.UseSnakeCaseNamingConvention()` in [AppDbContext.cs](src/DeepLearning.Infrastructure/Persistence/AppDbContext.cs)). A C# property like `CreatedAt` is automatically mapped to the column `created_at` — no need to hardcode column names in Configurations unless overriding the default rule.
+- **Native Postgres enums**: every time a new enum is added, it needs to be registered in two places — missing either one causes runtime/design-time errors:
+  1. `modelBuilder.HasPostgresEnum<T>(name: "..._enum", nameTranslator: ...)` in `AppDbContext.OnModelCreating`
+  2. `o.MapEnum<T>("..._enum", nameTranslator: ...)` in [NpgsqlEnumConfiguration.cs](src/DeepLearning.Infrastructure/Persistence/NpgsqlEnumConfiguration.cs)
 
-## 开发一个新的 CQRS 功能，照这个顺序做
+  Most enums use `NpgsqlNullNameTranslator` (the C# member name matches the SQL label verbatim); `Visibility`/`MasteryLevel` use `NpgsqlSnakeCaseNameTranslator` instead because their labels contain C# reserved words (`new`/`private`) — the C# members are written in PascalCase (`New`/`Private`) and the snake_case translator converts them back to the label.
+- [Migrations/schema.sql](src/DeepLearning.Infrastructure/Persistence/Migrations/schema.sql) is the script originally run by hand in the Supabase SQL Editor to create the schema — it is **not** exported from EF Migrations. Its own comments state that all future schema changes must go through `dotnet ef migrations add`; don't hand-edit this file or manually alter tables in Supabase again.
+- The `__EFMigrationsHistory` table was manually created afterward (because the tables were created via schema.sql, not `dotnet ef database update`) — its column names follow the project's snake_case convention, written as `migration_id`/`product_version` (not EF's default PascalCase).
+- A legacy issue was resolved on 2026-08-29: the primary key/foreign key/unique/CHECK constraints in `schema.sql` were written inline without explicit names, so the names Postgres auto-generated didn't match what the EF migration snapshot expected (`pk_*`/`fk_*`/`ix_*`/`ck_*`) — these have been manually aligned with `RENAME CONSTRAINT`. **For any future migration that needs to operate on a constraint by name, treat the names in [AppDbContextModelSnapshot.cs](src/DeepLearning.Infrastructure/Persistence/Migrations/AppDbContextModelSnapshot.cs) as authoritative.**
 
-1. **仓储接口**：需要什么持久化操作，加到 `Application/Interfaces/I<Aggregate>Repository.cs`。一个聚合根一个仓储，别按表拆。接口要是 `public`（不能是 `internal`，Infrastructure 项目要跨程序集实现它）。
-2. **仓储实现**：`Infrastructure/Persistence/Repositories/<Aggregate>Repository.cs`，直接用 `AppDbContext` 实现。**仓储自己不调 `SaveChanges`**，只负责查询/标记变更，落库统一交给 `IUnitOfWork`。
-3. 在 `Infrastructure/DependencyInjection.cs` 里把新仓储注册成 `AddScoped`。
-4. 建 `Application/Features/<业务域>/Commands|Queries/<用例名>/` 四件套：
-   - `<用例>Command`/`Query`：`: IRequest<TResult>`，纯数据。
-   - `<用例>Validator`：`: AbstractValidator<TCommand>`，`AddValidatorsFromAssembly` 自动扫描到，`ValidationBehavior` 会在 handler 之前自动跑。
-   - `<用例>Result`：对外 DTO，不要把 Domain 实体直接跨边界返回。
-   - `<用例>CommandHandler`：`: IRequestHandler<TCommand, TResult>`，注入仓储 + `IUnitOfWork`，改完实体后调一次 `await _unitOfWork.SaveChangesAsync(ct)`，映射成 Result 返回。Query 一般不需要 `IUnitOfWork`。
-5. Api 里对应 Controller 注入 `IMediator`，`await _mediator.Send(command)`。
-6. 如果这个功能要在保存后触发领域事件（比如批改提交后要更新薄弱点/进度）：目前 `AggregateRoot` 还没有收集领域事件的机制，`UnitOfWork.SaveChangesAsync` 也没有 dispatch 逻辑，这部分要单独设计（往 `AggregateRoot` 加 `DomainEvents` 列表 + 在 `UnitOfWork.SaveChangesAsync` 里 publish），别假设它已经能用。
+## Order of steps for building a new CQRS feature
 
-## 遇到问题去哪儿找
+1. **Repository interface**: whatever persistence operations are needed, add them to `Application/Interfaces/I<Aggregate>Repository.cs`. One repository per aggregate root — don't split by table. The interface must be `public` (not `internal`), since the Infrastructure project implements it across assembly boundaries.
+2. **Repository implementation**: `Infrastructure/Persistence/Repositories/<Aggregate>Repository.cs`, implemented directly with `AppDbContext`. **The repository itself never calls `SaveChanges`** — it's only responsible for querying/marking changes; persisting is handled uniformly through `IUnitOfWork`.
+3. Register the new repository as `AddScoped` in `Infrastructure/DependencyInjection.cs`.
+4. Build the four-piece set under `Application/Features/<BusinessDomain>/Commands|Queries/<UseCaseName>/`:
+   - `<UseCase>Command`/`Query`: `: IRequest<TResult>`, pure data.
+   - `<UseCase>Validator`: `: AbstractValidator<TCommand>`, auto-discovered by `AddValidatorsFromAssembly`; `ValidationBehavior` runs it automatically before the handler.
+   - `<UseCase>Result`: the external DTO — don't return Domain entities across the boundary directly.
+   - `<UseCase>CommandHandler`: `: IRequestHandler<TCommand, TResult>`, injects the repository + `IUnitOfWork`; after modifying the entity, call `await _unitOfWork.SaveChangesAsync(ct)` once, then map to Result and return. Queries generally don't need `IUnitOfWork`.
+5. In the Api layer, the corresponding Controller injects `IMediator` and calls `await _mediator.Send(command)`.
+6. If this feature needs to trigger domain events after saving (e.g., updating weak points/progress after grading a submission): `AggregateRoot` doesn't yet have a mechanism for collecting domain events, and `UnitOfWork.SaveChangesAsync` has no dispatch logic either — this needs to be designed separately (add a `DomainEvents` list to `AggregateRoot` + publish inside `UnitOfWork.SaveChangesAsync`). Don't assume this already works.
 
-| 想知道/想做 | 去哪儿 |
+## Where to look when you have a question
+
+| What you want to know/do | Where to go |
 |---|---|
-| 有哪些实体、字段是什么 | `Domain/Entities/*.cs`（权威），`Migrations/schema.sql` 是数据库当前实际结构 |
-| 某个字段的列名/类型/约束/索引 | `Infrastructure/Persistence/Configurations/<Entity>Configuration.cs` |
-| 怎么连数据库、连接串怎么读 | `Infrastructure/DependencyInjection.cs`（运行时）、`AppDbContextFactory.cs`（设计期） |
-| MediatR pipeline 顺序/怎么注册 handler | `Application/DependencyInjection.cs` |
-| 新增/修改枚举 | `Domain/Enums/` + `AppDbContext.OnModelCreating` + `NpgsqlEnumConfiguration.cs`（两处都要改） |
-| 加新的仓储方法 | `Application/Interfaces/I*Repository.cs`（接口）+ `Infrastructure/Persistence/Repositories/*.cs`（实现） |
-| 加新的命令/查询 | `Application/Features/<Area>/Commands|Queries/<UseCase>/` |
-| Controller 怎么写 | `Api/Controllers/`，注入 `IMediator`，目前都是空壳 |
-| 数据库 schema 怎么变更 | `dotnet ef migrations add`，不要手改 `schema.sql` 或去 Supabase 里手动改表 |
+| What entities exist, what their fields are | `Domain/Entities/*.cs` (authoritative); `Migrations/schema.sql` is the database's actual current structure |
+| A field's column name/type/constraints/index | `Infrastructure/Persistence/Configurations/<Entity>Configuration.cs` |
+| How the database connection works, how the connection string is read | `Infrastructure/DependencyInjection.cs` (runtime), `AppDbContextFactory.cs` (design-time) |
+| MediatR pipeline order/how handlers are registered | `Application/DependencyInjection.cs` |
+| Adding/modifying an enum | `Domain/Enums/` + `AppDbContext.OnModelCreating` + `NpgsqlEnumConfiguration.cs` (both need to change) |
+| Adding a new repository method | `Application/Interfaces/I*Repository.cs` (interface) + `Infrastructure/Persistence/Repositories/*.cs` (implementation) |
+| Adding a new command/query | `Application/Features/<Area>/Commands|Queries/<UseCase>/` |
+| How to write a Controller | `Api/Controllers/`, inject `IMediator` — currently all empty shells |
+| How to change the database schema | `dotnet ef migrations add` — don't hand-edit `schema.sql` or manually alter tables in Supabase |
 
-## 已知的坑
+## Known pitfalls
 
-- `Application/Interfaces` 和 `Infrastructure/Persistence/Repositories` 里现有的空壳类型/接口默认是 `internal`。真正实现跨程序集接口时记得改成 `public`，否则编译不过（`IUnitOfWork` 已经改过，可以参考）。
-- 新加一个项目引用前先看 `.csproj`——项目刚建的时候 `Infrastructure` 没引用 `Application`、`Application` 没引用 `Domain`，2026-08-29 才补上，说明这个骨架的项目引用关系不能完全信任，改动前自己确认一下。
-- 本地跑 `dotnet ef migrations add/list/database update` 之前，要先设置环境变量 `ConnectionStrings__DefaultConnection`（设计期工厂不读 `appsettings.json`）。
-- 没有独立的设计文档文件在仓库里，`schema.sql` 开头的注释是目前对整体设计意图最完整的书面说明，改动 schema 前值得看一眼。
+- The existing empty-shell types/interfaces in `Application/Interfaces` and `Infrastructure/Persistence/Repositories` default to `internal`. Remember to change them to `public` when actually implementing the cross-assembly interface, otherwise the build fails (`IUnitOfWork` has already been changed — use it as a reference).
+- Check the `.csproj` before adding a new project reference — when the project was first scaffolded, `Infrastructure` didn't reference `Application` and `Application` didn't reference `Domain`; this was only fixed on 2026-08-29. This means the skeleton's project references can't be fully trusted — verify for yourself before making changes.
+- Before running `dotnet ef migrations add/list/database update` locally, set the `ConnectionStrings__DefaultConnection` environment variable first (the design-time factory doesn't read `appsettings.json`).
+- There's no standalone design document file in the repo — the comment block at the top of `schema.sql` is currently the most complete written statement of the overall design intent, worth a look before changing the schema.
 
-## 常用命令
+## Common commands
 
 ```bash
-# 构建（Api 项目会连带构建 Infrastructure/Application/Domain）
+# Build (building the Api project also builds Infrastructure/Application/Domain)
 dotnet build src/DeepLearning.Api
 
-# EF 相关命令要先设置环境变量，再在 src/DeepLearning.Api 目录下执行
+# EF-related commands need the environment variable set first, then run from src/DeepLearning.Api
 export ConnectionStrings__DefaultConnection="Host=...;Port=5432;Database=postgres;Username=...;Password=...;SSL Mode=Require;Trust Server Certificate=true"
 dotnet ef migrations add <MigrationName>
 dotnet ef migrations list
