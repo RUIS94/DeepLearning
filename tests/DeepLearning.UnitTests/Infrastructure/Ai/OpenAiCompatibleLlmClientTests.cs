@@ -1,0 +1,128 @@
+using System.Net;
+using System.Net.Http.Json;
+using DeepLearning.Application.Interfaces;
+using DeepLearning.Domain.Exceptions;
+using DeepLearning.Infrastructure.Ai;
+using DeepLearning.Infrastructure.Ai.Options;
+
+namespace DeepLearning.UnitTests.Infrastructure.Ai
+{
+    public class OpenAiCompatibleLlmClientTests
+    {
+        private class CapturingHandler : HttpMessageHandler
+        {
+            public HttpRequestMessage? CapturedRequest { get; private set; }
+            public string? CapturedBody { get; private set; }
+            public HttpResponseMessage ResponseToReturn { get; set; } = new(HttpStatusCode.OK);
+
+            protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                CapturedRequest = request;
+                CapturedBody = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+                return ResponseToReturn;
+            }
+        }
+
+        private static HttpResponseMessage BuildSuccessResponse(string content) => new(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new
+            {
+                choices = new[] { new { message = new { content } } },
+                model = "the-model",
+                usage = new { prompt_tokens = 12, completion_tokens = 34 },
+            }),
+        };
+
+        [Fact]
+        public async Task Sends_the_configured_auth_header_and_max_tokens_field_name()
+        {
+            var handler = new CapturingHandler { ResponseToReturn = BuildSuccessResponse("hello") };
+            var httpClient = new HttpClient(handler);
+            var options = new OpenAiCompatibleOptions
+            {
+                ApiKey = "test-key",
+                BaseUrl = "https://example.test/v1/chat/completions",
+                Model = "test-model",
+                AuthHeaderName = "api-key",
+                AuthHeaderValuePrefix = "",
+                MaxTokensFieldName = "max_completion_tokens",
+            };
+            var client = new OpenAiCompatibleLlmClient(httpClient, options, "TestProvider");
+
+            await client.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "hi", MaxTokens: 100));
+
+            Assert.Equal("test-key", handler.CapturedRequest!.Headers.GetValues("api-key").Single());
+            Assert.Contains("\"max_completion_tokens\":100", handler.CapturedBody);
+            Assert.DoesNotContain("\"max_tokens\"", handler.CapturedBody);
+        }
+
+        [Fact]
+        public async Task Uses_bearer_prefix_and_max_tokens_field_name_for_a_deepseek_style_provider()
+        {
+            var handler = new CapturingHandler { ResponseToReturn = BuildSuccessResponse("hello") };
+            var httpClient = new HttpClient(handler);
+            var options = new OpenAiCompatibleOptions
+            {
+                ApiKey = "test-key",
+                BaseUrl = "https://example.test/v1/chat/completions",
+                Model = "test-model",
+                AuthHeaderName = "Authorization",
+                AuthHeaderValuePrefix = "Bearer ",
+                MaxTokensFieldName = "max_tokens",
+            };
+            var client = new OpenAiCompatibleLlmClient(httpClient, options, "TestProvider");
+
+            await client.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "hi", MaxTokens: 100));
+
+            Assert.Equal("Bearer test-key", handler.CapturedRequest!.Headers.GetValues("Authorization").Single());
+            Assert.Contains("\"max_tokens\":100", handler.CapturedBody);
+        }
+
+        [Fact]
+        public async Task Includes_a_system_message_only_when_a_system_prompt_is_given()
+        {
+            var handler = new CapturingHandler { ResponseToReturn = BuildSuccessResponse("hello") };
+            var httpClient = new HttpClient(handler);
+            var options = new OpenAiCompatibleOptions { ApiKey = "k", BaseUrl = "https://example.test/x", Model = "m" };
+            var client = new OpenAiCompatibleLlmClient(httpClient, options, "TestProvider");
+
+            await client.CompleteAsync(new LlmCompletionRequest(SystemPrompt: "be nice", UserPrompt: "hi", MaxTokens: 10));
+
+            Assert.Contains("\"role\":\"system\"", handler.CapturedBody);
+            Assert.Contains("be nice", handler.CapturedBody);
+        }
+
+        [Fact]
+        public async Task Parses_the_generated_text_and_token_usage_from_the_response()
+        {
+            var handler = new CapturingHandler { ResponseToReturn = BuildSuccessResponse("the generated text") };
+            var httpClient = new HttpClient(handler);
+            var options = new OpenAiCompatibleOptions { ApiKey = "k", BaseUrl = "https://example.test/x", Model = "m" };
+            var client = new OpenAiCompatibleLlmClient(httpClient, options, "TestProvider");
+
+            var result = await client.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10));
+
+            Assert.Equal("the generated text", result.Text);
+            Assert.Equal(12, result.InputTokens);
+            Assert.Equal(34, result.OutputTokens);
+        }
+
+        [Fact]
+        public async Task Throws_ai_call_failed_exception_on_a_non_success_status_code()
+        {
+            var handler = new CapturingHandler
+            {
+                ResponseToReturn = new HttpResponseMessage(HttpStatusCode.Unauthorized)
+                {
+                    Content = new StringContent("{\"error\":\"bad key\"}"),
+                },
+            };
+            var httpClient = new HttpClient(handler);
+            var options = new OpenAiCompatibleOptions { ApiKey = "k", BaseUrl = "https://example.test/x", Model = "m" };
+            var client = new OpenAiCompatibleLlmClient(httpClient, options, "TestProvider");
+
+            await Assert.ThrowsAsync<AiCallFailedException>(
+                () => client.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10)));
+        }
+    }
+}

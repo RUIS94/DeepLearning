@@ -5,10 +5,12 @@ using Polly;
 namespace DeepLearning.Infrastructure.Ai
 {
     /// <summary>
-    /// The retry/circuit-breaker policy for calls to Claude (or any future provider adapter
-    /// built the same way): up to 3 retries with exponential backoff (2s/4s/8s + jitter) on
-    /// 429/5xx/network failures, then a circuit breaker on sustained failure — matches the
-    /// design doc's "最多3次重试,指数退避,连续失败触发熔断" non-functional requirement.
+    /// The retry/circuit-breaker policy shared by every LLM provider adapter (Claude,
+    /// OpenAI-compatible providers): up to 3 retries with exponential backoff (2s/4s/8s +
+    /// jitter) on 429/5xx/network failures, then a circuit breaker on sustained failure —
+    /// matches the design doc's "最多3次重试,指数退避,连续失败触发熔断" non-functional
+    /// requirement. One shared policy for all providers, applied to each provider's own
+    /// named HttpClient at registration time (see DependencyInjection.cs).
     ///
     /// <see cref="BuildRetryOptions"/> takes an explicit base delay (rather than hardcoding
     /// production's 2s) so a unit test can exercise the exact same retry-count/ShouldHandle
@@ -17,7 +19,7 @@ namespace DeepLearning.Infrastructure.Ai
     /// delay timer — FakeTimeProvider's auto-advance never actually fired Polly's timer,
     /// which hung the test suite indefinitely. A real, tiny delay is simpler and reliable.)
     /// </summary>
-    public static class ClaudeResiliencePipeline
+    public static class LlmResiliencePipeline
     {
         private static readonly TimeSpan ProductionBaseDelay = TimeSpan.FromSeconds(2);
 

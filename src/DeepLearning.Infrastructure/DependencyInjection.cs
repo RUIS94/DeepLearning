@@ -48,9 +48,31 @@ namespace DeepLearning.Infrastructure
                 {
                     client.DefaultRequestHeaders.Add("anthropic-workspace-id", options.WorkspaceId);
                 }
-            }).AddStandardResilienceHandler(ClaudeResiliencePipeline.Configure);
+            }).AddStandardResilienceHandler(LlmResiliencePipeline.Configure);
 
             services.AddKeyedTransient<ILlmClient>("claude", (sp, _) => sp.GetRequiredService<ClaudeLlmClient>());
+
+            // OpenAI-compatible providers (OpenAI, DeepSeek, Mimo) share one adapter class —
+            // only the config differs per provider (named options + a keyed registration each).
+            // One shared named HttpClient carries the same resilience policy as Claude's.
+            services.AddHttpClient("llm-openai-compatible").AddStandardResilienceHandler(LlmResiliencePipeline.Configure);
+
+            services.AddOptions<OpenAiCompatibleOptions>("openai").Bind(configuration.GetSection("Llm:OpenAi"));
+            services.AddOptions<OpenAiCompatibleOptions>("deepseek").Bind(configuration.GetSection("Llm:DeepSeek"));
+            services.AddOptions<OpenAiCompatibleOptions>("mimo").Bind(configuration.GetSection("Llm:Mimo"));
+
+            services.AddKeyedTransient<ILlmClient>("openai", (sp, _) => new OpenAiCompatibleLlmClient(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("llm-openai-compatible"),
+                sp.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<OpenAiCompatibleOptions>>().Get("openai"),
+                "OpenAI"));
+            services.AddKeyedTransient<ILlmClient>("deepseek", (sp, _) => new OpenAiCompatibleLlmClient(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("llm-openai-compatible"),
+                sp.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<OpenAiCompatibleOptions>>().Get("deepseek"),
+                "DeepSeek"));
+            services.AddKeyedTransient<ILlmClient>("mimo", (sp, _) => new OpenAiCompatibleLlmClient(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("llm-openai-compatible"),
+                sp.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<OpenAiCompatibleOptions>>().Get("mimo"),
+                "Mimo"));
 
             services.AddScoped<ILlmClient>(sp =>
             {

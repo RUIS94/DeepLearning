@@ -3,7 +3,7 @@ using DeepLearning.Infrastructure.Ai;
 
 namespace DeepLearning.UnitTests.Infrastructure.Ai
 {
-    public class ClaudeResiliencePipelineTests
+    public class LlmResiliencePipelineTests
     {
         // Same retry-count/ShouldHandle logic as production, but a millisecond-scale base
         // delay so the exponential backoff genuinely runs without a multi-second test.
@@ -12,7 +12,7 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
         [Fact]
         public async Task Retries_on_500_and_eventually_succeeds()
         {
-            var pipeline = ClaudeResiliencePipeline.BuildTestPipeline(TestBaseDelay);
+            var pipeline = LlmResiliencePipeline.BuildTestPipeline(TestBaseDelay);
             var attempts = 0;
 
             var response = await pipeline.ExecuteAsync(async _ =>
@@ -33,7 +33,7 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
         [Fact]
         public async Task Gives_up_after_max_retry_attempts_and_returns_the_last_failure()
         {
-            var pipeline = ClaudeResiliencePipeline.BuildTestPipeline(TestBaseDelay);
+            var pipeline = LlmResiliencePipeline.BuildTestPipeline(TestBaseDelay);
             var attempts = 0;
 
             var response = await pipeline.ExecuteAsync(async _ =>
@@ -51,7 +51,7 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
         [Fact]
         public async Task Does_not_retry_a_client_error()
         {
-            var pipeline = ClaudeResiliencePipeline.BuildTestPipeline(TestBaseDelay);
+            var pipeline = LlmResiliencePipeline.BuildTestPipeline(TestBaseDelay);
             var attempts = 0;
 
             var response = await pipeline.ExecuteAsync(async _ =>
