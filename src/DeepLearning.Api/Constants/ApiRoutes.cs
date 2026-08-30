@@ -59,6 +59,11 @@ namespace DeepLearning.Api.Constants
             public const string Base = $"{Prefix}/weak-points";
         }
 
+        public static class Progress
+        {
+            public const string Base = $"{Prefix}/progress";
+        }
+
         public static class QuestionBankCategories
         {
             public const string Base = $"{Prefix}/question-bank-categories";

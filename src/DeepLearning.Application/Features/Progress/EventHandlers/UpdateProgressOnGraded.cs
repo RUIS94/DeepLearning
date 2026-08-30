@@ -51,9 +51,7 @@ namespace DeepLearning.Application.Features.Progress.EventHandlers
                 return;
             }
 
-            var submissionGroups = results.GroupBy(x => x.SubmissionId).ToList();
-            var passCount = submissionGroups.Count(g => g.All(r => r.PassBool));
-            var passRate = Math.Round(100m * passCount / submissionGroups.Count, 2);
+            var aggregate = ProgressSnapshotCalculator.Compute(results);
 
             var snapshot = await _progressRepository.GetByUserPeriodAsync(gradedEvent.UserId, today, today, difficultyTier, cancellationToken);
             if (snapshot is null)
@@ -70,25 +68,12 @@ namespace DeepLearning.Application.Features.Progress.EventHandlers
                 await _progressRepository.AddAsync(snapshot, cancellationToken);
             }
 
-            snapshot.AvgBandMeaningTransfer = AverageBand(results, "meaning_transfer");
-            snapshot.AvgBandTextualNorms = AverageBand(results, "textual_norms");
-            snapshot.AvgBandLanguageProficiency = AverageBand(results, "language_proficiency");
-            snapshot.PassRate = passRate;
+            snapshot.AvgBandMeaningTransfer = aggregate.AvgBandMeaningTransfer;
+            snapshot.AvgBandTextualNorms = aggregate.AvgBandTextualNorms;
+            snapshot.AvgBandLanguageProficiency = aggregate.AvgBandLanguageProficiency;
+            snapshot.PassRate = aggregate.PassRate;
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-        }
-
-        // dimension_key values are the fixed set seeded for NAATI CT (design doc §6.5) — matches
-        // the same convention as other hardcoded rule/policy keys elsewhere in this codebase
-        // (e.g. GenerationPolicyRepository's "difficulty_distribution").
-        private static decimal? AverageBand(List<GradingResult> results, string dimensionKey)
-        {
-            var bands = results
-                .Where(r => r.Dimension!.DimensionKey == dimensionKey)
-                .Select(r => (decimal)r.Band)
-                .ToList();
-
-            return bands.Count > 0 ? Math.Round(bands.Average(), 1) : null;
         }
     }
 }

@@ -465,4 +465,66 @@ namespace DeepLearning.UnitTests.Api
         public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(_client);
     }
+
+    /// <summary>
+    /// Fixed-JSON stand-in for GenerateProgressTrendSnapshotCommandHandler's AI call (Step 9) —
+    /// also records every prompt it was called with, so a test can assert the rendered prompt
+    /// actually carries the current week's numbers and prior weeks' history.
+    /// </summary>
+    public class FakeProgressTrendLlmClient : ILlmClient
+    {
+        public const string TrendNote = "本周meaning_transfer维度较上周有所提升。";
+
+        public int CallCount { get; private set; }
+
+        public List<string> CapturedPrompts { get; } = [];
+
+        public bool KeyTurningPoint { get; set; }
+
+        public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            CapturedPrompts.Add(request.UserPrompt);
+
+            var json = $$"""
+                {
+                  "trendNote": "{{TrendNote}}",
+                  "keyTurningPoint": {{(KeyTurningPoint ? "true" : "false")}}
+                }
+                """;
+
+            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
+        }
+    }
+
+    /// <summary>
+    /// Always returns a response missing the required trendNote — proves
+    /// GenerateProgressTrendSnapshotCommandHandler's AI-narrative failure path leaves the
+    /// already-recomputed numeric snapshot row intact instead of losing it, unlike every other
+    /// AI-orchestration handler in this codebase (which fail the whole operation).
+    /// </summary>
+    public class FakeAlwaysInvalidProgressTrendLlmClient : ILlmClient
+    {
+        public int CallCount { get; private set; }
+
+        public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            var json = """{ "trendNote": "", "keyTurningPoint": false }""";
+            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
+        }
+    }
+
+    public class FixedProgressTrendLlmClientResolver : ILlmClientResolver
+    {
+        private readonly ILlmClient _client;
+
+        public FixedProgressTrendLlmClientResolver(ILlmClient client)
+        {
+            _client = client;
+        }
+
+        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(_client);
+    }
 }

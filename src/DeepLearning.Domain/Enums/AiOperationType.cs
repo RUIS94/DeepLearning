@@ -6,6 +6,7 @@ namespace DeepLearning.Domain.Enums
         grading,
         followup,
         standard_revision,
-        deep_learning
+        deep_learning,
+        progress_trend
     }
 }

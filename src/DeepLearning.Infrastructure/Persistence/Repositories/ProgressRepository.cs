@@ -50,5 +50,40 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
 
         public async Task AddAsync(ProgressSnapshot snapshot, CancellationToken cancellationToken = default)
             => await _context.ProgressSnapshots.AddAsync(snapshot, cancellationToken);
+
+        public Task<List<ProgressSnapshot>> ListByUserAsync(
+            Guid userId,
+            string? difficultyTier,
+            CancellationToken cancellationToken = default)
+            => _context.ProgressSnapshots
+                .Where(x => x.UserId == userId && (difficultyTier == null || x.DifficultyTier == difficultyTier))
+                .OrderBy(x => x.PeriodStart)
+                .ToListAsync(cancellationToken);
+
+        public Task<List<ProgressSnapshot>> ListRecentBeforeAsync(
+            Guid userId,
+            string difficultyTier,
+            DateOnly beforePeriodStart,
+            int take,
+            CancellationToken cancellationToken = default)
+            => _context.ProgressSnapshots
+                .Where(x => x.UserId == userId && x.DifficultyTier == difficultyTier && x.PeriodStart < beforePeriodStart)
+                .OrderByDescending(x => x.PeriodStart)
+                .Take(take)
+                .ToListAsync(cancellationToken);
+
+        public async Task<List<Guid>> ListUserIdsWithGradingActivitySinceAsync(
+            DateOnly since,
+            CancellationToken cancellationToken = default)
+        {
+            var sinceUtc = since.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+
+            return await _context.Submissions
+                .Where(x => (x.Status == Domain.Enums.SubmissionStatus.graded || x.Status == Domain.Enums.SubmissionStatus.archived)
+                    && x.UpdatedAt >= sinceUtc)
+                .Select(x => x.UserId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+        }
     }
 }

@@ -3,6 +3,8 @@ using DeepLearning.Api.Services;
 using DeepLearning.Application;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Infrastructure;
+using DeepLearning.Infrastructure.BackgroundJobs;
+using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
@@ -78,6 +80,11 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
+
+    // No auth story for the dashboard itself yet (this codebase has no admin/role concept at
+    // all — see AGENTS.md's Auth section), so it's Development-only for now, same gating as
+    // Scalar/OpenApi above rather than exposed unauthenticated in production.
+    app.UseHangfireDashboard();
 }
 
 app.UseMiddleware<CorrelationIdMiddleware>();
@@ -91,6 +98,15 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHealthChecks("/health");
+
+// Design doc §11.2 Step 9's "Hangfire定时任务生成快照" — user's earlier decision on cadence was
+// weekly (matches §10.6's own "建议每周" precedent for the calibration report Step 10 will add
+// alongside this). Registering here (not inside AddInfrastructure) mirrors this codebase's own
+// "Program.cs wires concrete app behavior, DependencyInjection.cs only wires services" split.
+RecurringJob.AddOrUpdate<ProgressSnapshotJob>(
+    "progress-snapshot-weekly",
+    job => job.RunAsync(CancellationToken.None),
+    Cron.Weekly);
 
 app.Run();
 

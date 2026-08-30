@@ -2,8 +2,11 @@ using DeepLearning.Application.Interfaces;
 using DeepLearning.Infrastructure.Ai;
 using DeepLearning.Infrastructure.Ai.GradingResultInterpreters;
 using DeepLearning.Infrastructure.Ai.Options;
+using DeepLearning.Infrastructure.BackgroundJobs;
 using DeepLearning.Infrastructure.Persistence;
 using DeepLearning.Infrastructure.Persistence.Repositories;
+using Hangfire;
+using Hangfire.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -118,6 +121,19 @@ namespace DeepLearning.Infrastructure
             // design doc §4.2's retry sub-state-machine for a 200-OK-but-invalid-content AI
             // response — distinct from Polly's transport-level retries above.
             services.AddSingleton<IAiCallRetryExecutor>(new AiCallRetryExecutor());
+
+            // --- Hangfire: design doc §7's "后台任务与定时重试,存储用PostgreSQL" ---------------
+            // Same connection string/database as everything else — no separate infra to stand up.
+            // Program.cs registers the actual recurring jobs (RecurringJob.AddOrUpdate); this is
+            // just the storage + worker wiring, same layering as AddDbContext above.
+            services.AddHangfire(config => config
+                .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+                .UseSimpleAssemblyNameTypeSerializer()
+                .UseRecommendedSerializerSettings()
+                .UsePostgreSqlStorage(c => c.UseNpgsqlConnection(connectionString)));
+            services.AddHangfireServer();
+
+            services.AddScoped<ProgressSnapshotJob>();
 
             return services;
         }
