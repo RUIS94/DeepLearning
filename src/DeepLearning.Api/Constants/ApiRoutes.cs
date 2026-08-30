@@ -58,5 +58,15 @@ namespace DeepLearning.Api.Constants
         {
             public const string Base = $"{Prefix}/weak-points";
         }
+
+        public static class QuestionBankCategories
+        {
+            public const string Base = $"{Prefix}/question-bank-categories";
+        }
+
+        public static class ReviewLibrary
+        {
+            public const string Base = $"{Prefix}/review-library";
+        }
     }
 }

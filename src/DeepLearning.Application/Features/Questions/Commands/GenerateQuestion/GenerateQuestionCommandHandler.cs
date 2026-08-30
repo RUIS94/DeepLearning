@@ -4,6 +4,8 @@ using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
 using DeepLearning.Domain.Exceptions;
+using FluentValidation;
+using FluentValidation.Results;
 using MediatR;
 
 namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
@@ -18,6 +20,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
         private readonly IErrorTaxonomyRepository _errorTaxonomyRepository;
         private readonly IGenerationPolicyRepository _generationPolicyRepository;
         private readonly IAiCallLogRepository _aiCallLogRepository;
+        private readonly ISeedReferenceLinkRepository _seedReferenceLinkRepository;
         private readonly IExamConfigLoader _examConfigLoader;
         private readonly ILlmClientResolver _llmClientResolver;
         private readonly IUnitOfWork _unitOfWork;
@@ -29,6 +32,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             IErrorTaxonomyRepository errorTaxonomyRepository,
             IGenerationPolicyRepository generationPolicyRepository,
             IAiCallLogRepository aiCallLogRepository,
+            ISeedReferenceLinkRepository seedReferenceLinkRepository,
             IExamConfigLoader examConfigLoader,
             ILlmClientResolver llmClientResolver,
             IUnitOfWork unitOfWork)
@@ -39,6 +43,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             _errorTaxonomyRepository = errorTaxonomyRepository;
             _generationPolicyRepository = generationPolicyRepository;
             _aiCallLogRepository = aiCallLogRepository;
+            _seedReferenceLinkRepository = seedReferenceLinkRepository;
             _examConfigLoader = examConfigLoader;
             _llmClientResolver = llmClientResolver;
             _unitOfWork = unitOfWork;
@@ -57,6 +62,8 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
 
             var difficulty = request.Difficulty ?? await ResolveDifficultyAsync(request.ExamTypeId, cancellationToken);
             var errorTaxonomies = await _errorTaxonomyRepository.ListByExamTypeAsync(request.ExamTypeId, cancellationToken);
+
+            var (seedSamples, seedSelectionReason) = await ResolveSeedSamplesAsync(request, difficulty, cancellationToken);
 
             var aiCallLog = new AiCallLog
             {
@@ -83,6 +90,11 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                         CategoryKey = t.CategoryKey,
                         CategoryName = t.CategoryName,
                         Description = t.Description,
+                    }),
+                    SeedSamples = seedSamples.Select(s => new
+                    {
+                        Title = s.Title,
+                        SourceText = s.SourceText,
                     }),
                 };
                 var prompt = await _examConfigLoader.BuildPromptAsync(
@@ -155,6 +167,20 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             }
             await _questionRepository.AddSeededErrorsAsync(seededErrors, cancellationToken);
 
+            if (seedSamples.Count > 0)
+            {
+                await _seedReferenceLinkRepository.AddRangeAsync(
+                    seedSamples.Select(s => new SeedReferenceLink
+                    {
+                        Id = Guid.NewGuid(),
+                        GeneratedQuestionId = question.Id,
+                        SeedQuestionId = s.Id,
+                        SimilarityReason = seedSelectionReason,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                    }),
+                    cancellationToken);
+            }
+
             aiCallLog.Status = CallStatus.success;
             aiCallLog.RelatedId = question.Id;
             aiCallLog.LatencyMs = completion.LatencyMs;
@@ -173,6 +199,56 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                 : DifficultyDistributionSelector.DefaultWeights;
 
             return DifficultyDistributionSelector.Select(weights, Random.Shared.NextDouble());
+        }
+
+        /// <summary>
+        /// SeedQuestionIds (caller-specified) always wins outright over the automatic
+        /// task-type/difficulty/category filter — same "explicit value overrides the policy"
+        /// precedent as Difficulty itself. Every id must resolve to a real, IsSeedReference=true
+        /// Question or the whole request is rejected (404/400) before any AI call is made —
+        /// design doc §10.3's "hard constraint in code" philosophy applies to caller input here
+        /// too, not just AI output: a manually "referenced" question must actually be a real-exam
+        /// seed, or seed_reference_links' audit trail stops meaning what it says.
+        /// </summary>
+        private async Task<(List<Question> Samples, string Reason)> ResolveSeedSamplesAsync(
+            GenerateQuestionCommand request, Difficulty difficulty, CancellationToken cancellationToken)
+        {
+            if (request.SeedQuestionIds is { Count: > 0 } seedQuestionIds)
+            {
+                var found = await _questionRepository.ListByIdsAsync(seedQuestionIds, cancellationToken);
+                var byId = found.ToDictionary(x => x.Id);
+
+                foreach (var id in seedQuestionIds)
+                {
+                    if (!byId.TryGetValue(id, out var seedQuestion))
+                    {
+                        throw new NotFoundException(nameof(Question), id);
+                    }
+
+                    if (!seedQuestion.IsSeedReference)
+                    {
+                        throw new ValidationException(new[]
+                        {
+                            new ValidationFailure(
+                                nameof(GenerateQuestionCommand.SeedQuestionIds),
+                                $"Question '{id}' is not a seed reference (IsSeedReference=false) and cannot be manually specified as generation reference."),
+                        });
+                    }
+                }
+
+                // Preserve the caller's own ordering rather than whatever order the DB returns.
+                var ordered = seedQuestionIds.Select(id => byId[id]).ToList();
+                return (ordered, "manually specified by caller");
+            }
+
+            // Real-exam few-shot reference (design doc §11.2 Step 8) — simple task type +
+            // difficulty (+ optional category) filtering, no pgvector semantic search yet.
+            var automatic = await _questionRepository.ListSeedReferenceCandidatesAsync(
+                request.TaskType, difficulty, request.CategoryId, take: 3, cancellationToken);
+            var reason = request.CategoryId is not null
+                ? $"same category + difficulty={difficulty}"
+                : $"same task type + difficulty={difficulty}";
+            return (automatic, reason);
         }
 
         private async Task FailAsync(AiCallLog aiCallLog, string errorMessage, CancellationToken cancellationToken)

@@ -34,5 +34,6 @@ namespace DeepLearning.Application.Features.Questions.Queries.GetQuestionById
         DateTimeOffset CreatedAt,
         bool IsActive,
         List<MeaningCheckpointItem> MeaningCheckpoints,
-        TaskBDetails? TaskB);
+        TaskBDetails? TaskB,
+        List<Guid> CategoryIds);
 }

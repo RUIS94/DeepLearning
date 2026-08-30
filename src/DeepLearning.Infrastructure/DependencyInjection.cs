@@ -41,6 +41,8 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<IProgressRepository, ProgressRepository>();
             services.AddScoped<IReviewLibraryRepository, ReviewLibraryRepository>();
             services.AddScoped<IReferenceTranslationRepository, ReferenceTranslationRepository>();
+            services.AddScoped<IQuestionBankCategoryRepository, QuestionBankCategoryRepository>();
+            services.AddScoped<ISeedReferenceLinkRepository, SeedReferenceLinkRepository>();
 
             services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 

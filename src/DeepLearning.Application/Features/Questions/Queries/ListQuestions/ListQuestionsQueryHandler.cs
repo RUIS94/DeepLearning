@@ -14,7 +14,7 @@ namespace DeepLearning.Application.Features.Questions.Queries.ListQuestions
 
         public async Task<List<ListQuestionsResultItem>> Handle(ListQuestionsQuery request, CancellationToken cancellationToken)
         {
-            var questions = await _questionRepository.ListAsync(request.TaskType, request.Difficulty, request.InBank, cancellationToken);
+            var questions = await _questionRepository.ListAsync(request.TaskType, request.Difficulty, request.InBank, request.CategoryId, cancellationToken);
 
             return questions.Select(x => new ListQuestionsResultItem(
                 x.Id, x.TaskType, x.Difficulty, x.Title, x.WordCount, x.InBank, x.CreatedAt)).ToList();

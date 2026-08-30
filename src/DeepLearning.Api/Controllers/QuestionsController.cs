@@ -4,6 +4,7 @@ using DeepLearning.Application.Features.Questions.Commands.GenerateQuestion;
 using DeepLearning.Application.Features.Questions.Commands.ImportUserQuestion;
 using DeepLearning.Application.Features.Questions.Queries.GetDeepLearningContentByQuestionId;
 using DeepLearning.Application.Features.Questions.Queries.GetQuestionById;
+using DeepLearning.Application.Features.Questions.Queries.GetSeedReferenceLinksByQuestionId;
 using DeepLearning.Application.Features.Questions.Queries.ListQuestions;
 using DeepLearning.Domain.Enums;
 using MediatR;
@@ -48,13 +49,15 @@ namespace DeepLearning.Api.Controllers
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
 
-        public record GenerateQuestionRequest(Guid ExamTypeId, TaskType TaskType, Difficulty? Difficulty, Guid? CreatedBy);
+        public record GenerateQuestionRequest(
+            Guid ExamTypeId, TaskType TaskType, Difficulty? Difficulty, Guid? CategoryId, List<Guid>? SeedQuestionIds, Guid? CreatedBy);
 
         [HttpPost("generate")]
         public async Task<ActionResult<GenerateQuestionResult>> Generate(GenerateQuestionRequest request, CancellationToken cancellationToken)
         {
             var result = await _mediator.Send(
-                new GenerateQuestionCommand(request.ExamTypeId, request.TaskType, request.Difficulty, request.CreatedBy),
+                new GenerateQuestionCommand(
+                    request.ExamTypeId, request.TaskType, request.Difficulty, request.CategoryId, request.SeedQuestionIds, request.CreatedBy),
                 cancellationToken);
 
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
@@ -66,8 +69,13 @@ namespace DeepLearning.Api.Controllers
 
         [HttpGet]
         public async Task<ActionResult<List<ListQuestionsResultItem>>> List(
-            TaskType? taskType, Difficulty? difficulty, bool? inBank, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new ListQuestionsQuery(taskType, difficulty, inBank), cancellationToken));
+            TaskType? taskType, Difficulty? difficulty, bool? inBank, Guid? categoryId, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new ListQuestionsQuery(taskType, difficulty, inBank, categoryId), cancellationToken));
+
+        // Design doc §11.2 Step 8: "记录了每次出题参考了哪些真题" traceability read.
+        [HttpGet("{id:guid}/seed-references")]
+        public async Task<ActionResult<List<SeedReferenceLinkResultItem>>> GetSeedReferences(Guid id, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new GetSeedReferenceLinksByQuestionIdQuery(id), cancellationToken));
 
         public record GenerateDeepLearningContentRequest(Guid ExamTypeId);
 

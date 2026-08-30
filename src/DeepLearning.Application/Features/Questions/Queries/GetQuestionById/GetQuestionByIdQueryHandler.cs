@@ -20,6 +20,7 @@ namespace DeepLearning.Application.Features.Questions.Queries.GetQuestionById
                 ?? throw new NotFoundException(nameof(Domain.Entities.Question), request.Id);
 
             var checkpoints = await _questionRepository.GetMeaningCheckpointsAsync(question.Id, cancellationToken);
+            var categoryIds = await _questionRepository.ListCategoryIdsAsync(question.Id, cancellationToken);
             var checkpointItems = checkpoints
                 .Select(c => new MeaningCheckpointItem(c.Id, c.CheckpointText, c.CheckpointType, c.Importance))
                 .ToList();
@@ -57,7 +58,8 @@ namespace DeepLearning.Application.Features.Questions.Queries.GetQuestionById
                 question.CreatedAt,
                 question.IsActive,
                 checkpointItems,
-                taskBDetails);
+                taskBDetails,
+                categoryIds);
         }
     }
 }
