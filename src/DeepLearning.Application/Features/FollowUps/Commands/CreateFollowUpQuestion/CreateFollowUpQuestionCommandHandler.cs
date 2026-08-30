@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
+using DeepLearning.Domain.Events;
 using DeepLearning.Domain.Exceptions;
 using MediatR;
 
@@ -237,6 +238,14 @@ namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQue
 
             candidate.Status = OverrideStatus.active;
             candidate.EffectiveFrom = DateTimeOffset.UtcNow;
+            candidate.AddDomainEvent(new StandardOverrideActivatedEvent
+            {
+                StandardOverrideId = candidate.Id,
+                Scope = candidate.Scope,
+                DimensionOrRule = candidate.DimensionOrRule,
+                PreviousOverrideId = candidate.PreviousOverrideId,
+                ActivatedAt = candidate.EffectiveFrom.Value,
+            });
 
             if (candidate.PreviousOverrideId is { } previousId)
             {

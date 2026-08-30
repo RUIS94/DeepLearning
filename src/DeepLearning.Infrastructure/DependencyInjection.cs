@@ -37,6 +37,9 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<IGenerationPolicyRepository, GenerationPolicyRepository>();
             services.AddScoped<IFollowUpQuestionRepository, FollowUpQuestionRepository>();
             services.AddScoped<IStandardOverrideRepository, StandardOverrideRepository>();
+            services.AddScoped<IWeakPointRepository, WeakPointRepository>();
+            services.AddScoped<IProgressRepository, ProgressRepository>();
+            services.AddScoped<IReviewLibraryRepository, ReviewLibraryRepository>();
 
             services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 

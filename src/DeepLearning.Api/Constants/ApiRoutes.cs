@@ -53,5 +53,10 @@ namespace DeepLearning.Api.Constants
         {
             public const string Base = $"{Prefix}/standard-overrides";
         }
+
+        public static class WeakPoints
+        {
+            public const string Base = $"{Prefix}/weak-points";
+        }
     }
 }

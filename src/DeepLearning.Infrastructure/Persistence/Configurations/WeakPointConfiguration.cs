@@ -26,6 +26,11 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
 
             builder.HasIndex(x => new { x.UserId, x.Status }).HasDatabaseName("idx_weak_points_user_status");
 
+            // One row per (user, category) — UpdateWeakPointsOnGraded looks this up before
+            // deciding insert vs. update, this is the DB-level backstop against two concurrent
+            // grading events for the same user/category racing each other into a duplicate row.
+            builder.HasIndex(x => new { x.UserId, x.Category }).IsUnique().HasDatabaseName("ux_weak_points_user_category");
+
             builder.HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)

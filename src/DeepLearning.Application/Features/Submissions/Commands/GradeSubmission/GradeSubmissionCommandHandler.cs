@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
+using DeepLearning.Domain.Events;
 using DeepLearning.Domain.Exceptions;
 using MediatR;
 
@@ -167,6 +168,15 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 await _submissionRepository.AddErrorListItemsAsync(errorItems, cancellationToken);
 
                 submission.TransitionTo(SubmissionStatus.graded);
+                submission.AddDomainEvent(new SubmissionGradedEvent
+                {
+                    SubmissionId = submission.Id,
+                    UserId = submission.UserId,
+                    QuestionId = submission.QuestionId,
+                    ExamTypeId = request.ExamTypeId,
+                    TaskType = submission.TaskType,
+                    GradedAt = DateTimeOffset.UtcNow,
+                });
 
                 aiCallLog.Status = CallStatus.success;
                 aiCallLog.LatencyMs = completion.LatencyMs;
