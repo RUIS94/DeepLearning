@@ -4,6 +4,7 @@ using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.ExamConfig.Commands.CreateErrorTaxonomy;
 using DeepLearning.Application.Features.ExamConfig.Commands.CreateExamType;
 using DeepLearning.Application.Features.Questions.Commands.GenerateQuestion;
+using DeepLearning.Application.Features.Questions.Commands.ImportUserQuestion;
 using DeepLearning.Application.Features.Questions.Queries.GetQuestionById;
 using DeepLearning.Application.Features.Questions.Queries.GetSeedReferenceLinksByQuestionId;
 using DeepLearning.Application.Interfaces;
@@ -276,6 +277,7 @@ namespace DeepLearning.UnitTests.Api
             var examType = await examTypeResponse.Content.ReadFromJsonAsync<CreateExamTypeResult>();
 
             Question matchingSeed;
+            Question nonMatchingSeed;
             using (var scope = _factory.Services.CreateScope())
             {
                 var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -293,7 +295,7 @@ namespace DeepLearning.UnitTests.Api
                     Visibility = Visibility.Private,
                     CreatedAt = DateTimeOffset.UtcNow,
                 };
-                var nonMatchingSeed = new Question
+                nonMatchingSeed = new Question
                 {
                     Id = Guid.NewGuid(),
                     TaskType = TaskType.A,
@@ -320,8 +322,15 @@ namespace DeepLearning.UnitTests.Api
             Assert.Equal(HttpStatusCode.OK, linksResponse.StatusCode);
             var links = await linksResponse.Content.ReadFromJsonAsync<List<SeedReferenceLinkResultItem>>();
 
-            Assert.Single(links!);
-            Assert.Equal(matchingSeed.Id, links![0].SeedQuestionId);
+            // Contains/DoesNotContain rather than exact-count: ApiCollection shares one DB across
+            // the whole test class (and now other tests can also create IsSeedReference=true
+            // TaskType.A/medium questions via the real import endpoint — see
+            // QuestionsControllerTests.Import_with_is_seed_reference_true_...), so other tests'
+            // rows can legitimately also land in this take-3 pool. matchingSeed is still
+            // guaranteed to be in it: it's created immediately before this generate call, within
+            // the same sequential (non-parallel) collection, so nothing more recent can exist yet.
+            Assert.Contains(links!, l => l.SeedQuestionId == matchingSeed.Id);
+            Assert.DoesNotContain(links!, l => l.SeedQuestionId == nonMatchingSeed.Id);
         }
 
         /// <summary>
@@ -469,6 +478,60 @@ namespace DeepLearning.UnitTests.Api
                 });
 
             Assert.Equal(HttpStatusCode.BadRequest, generateResponse.StatusCode);
+        }
+
+        /// <summary>
+        /// Closes the loop end to end through the API only (no direct DbContext seeding) —
+        /// proves a real deployment can actually populate and use the seed-reference pool without
+        /// hand-run SQL: import a question via POST /questions with IsSeedReference=true, then
+        /// generate a matching-task-type/difficulty question with no explicit SeedQuestionIds/
+        /// CategoryId, and confirm the automatic filter (ListSeedReferenceCandidatesAsync) really
+        /// picked up the imported one.
+        /// </summary>
+        [Fact]
+        public async Task A_seed_reference_question_imported_through_the_api_is_automatically_used_by_a_later_generate_call()
+        {
+            var client = _factory
+                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
+                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                .CreateClient();
+
+            var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
+            {
+                Code = $"test_{Guid.NewGuid():N}",
+                Name = "API Test Exam Type",
+                SubjectCategory = SubjectCategory.translation,
+            });
+            var examType = await examTypeResponse.Content.ReadFromJsonAsync<CreateExamTypeResult>();
+
+            var importResponse = await client.PostAsJsonAsync(ApiRoutes.Questions.Base, new
+            {
+                TaskType = TaskType.A,
+                Difficulty = Difficulty.medium,
+                Title = $"real_exam_seed_{Guid.NewGuid():N}",
+                Brief = (string?)null,
+                SourceText = "A real-exam passage imported through the API.",
+                FlawedTranslationText = (string?)null,
+                WordCount = 200,
+                CreatedBy = (Guid?)null,
+                Visibility = Visibility.Private,
+                MeaningCheckpoints = Array.Empty<object>(),
+                SeededErrors = Array.Empty<object>(),
+                IsSeedReference = true,
+            });
+            Assert.Equal(HttpStatusCode.Created, importResponse.StatusCode);
+            var importedSeed = await importResponse.Content.ReadFromJsonAsync<ImportUserQuestionResult>();
+
+            var generateResponse = await client.PostAsJsonAsync(
+                $"{ApiRoutes.Questions.Base}/generate",
+                new { ExamTypeId = examType!.Id, TaskType = TaskType.A, Difficulty = Difficulty.medium, CreatedBy = (Guid?)null });
+            Assert.Equal(HttpStatusCode.Created, generateResponse.StatusCode);
+            var generated = await generateResponse.Content.ReadFromJsonAsync<GenerateQuestionResult>();
+
+            var linksResponse = await client.GetAsync($"{ApiRoutes.Questions.Base}/{generated!.Id}/seed-references");
+            var links = await linksResponse.Content.ReadFromJsonAsync<List<SeedReferenceLinkResultItem>>();
+
+            Assert.Contains(links!, l => l.SeedQuestionId == importedSeed!.Id);
         }
     }
 }

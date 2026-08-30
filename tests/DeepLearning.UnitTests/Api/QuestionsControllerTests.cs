@@ -120,6 +120,74 @@ namespace DeepLearning.UnitTests.Api
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         }
 
+        /// <summary>
+        /// Self-audit follow-up (2026-08-30, user-requested): before this, nothing in the API
+        /// could ever produce a Question with IsSeedReference=true — the whole few-shot/
+        /// traceability mechanism (design doc §11.2 Step 8) was only reachable by writing
+        /// directly to the DB. This is now the one way in: importing with IsSeedReference=true
+        /// also sets Origin/SourceType to the real_exam_seed/real_exam pair instead of the usual
+        /// user_uploaded/user_generated one.
+        /// </summary>
+        [Fact]
+        public async Task Import_with_is_seed_reference_true_sets_origin_and_source_type_to_the_real_exam_pair()
+        {
+            var client = _factory.CreateClient();
+
+            var createResponse = await client.PostAsJsonAsync(ApiRoutes.Questions.Base, new
+            {
+                TaskType = TaskType.A,
+                Difficulty = Difficulty.medium,
+                Title = "A real-exam sample article",
+                Brief = (string?)null,
+                SourceText = "Some real-exam-shaped source text.",
+                FlawedTranslationText = (string?)null,
+                WordCount = 200,
+                CreatedBy = (Guid?)null,
+                Visibility = Visibility.Private,
+                MeaningCheckpoints = Array.Empty<object>(),
+                SeededErrors = Array.Empty<object>(),
+                IsSeedReference = true,
+            });
+            Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+            var created = await createResponse.Content.ReadFromJsonAsync<ImportUserQuestionResult>();
+
+            var getResponse = await client.GetAsync($"{ApiRoutes.Questions.Base}/{created!.Id}");
+            var fetched = await getResponse.Content.ReadFromJsonAsync<GetQuestionByIdResult>();
+
+            Assert.True(fetched!.IsSeedReference);
+            Assert.Equal(QuestionOrigin.real_exam_seed, fetched.Origin);
+            Assert.Equal(SourceType.real_exam, fetched.SourceType);
+        }
+
+        [Fact]
+        public async Task Import_without_specifying_is_seed_reference_defaults_to_false_and_the_ordinary_origin_pair()
+        {
+            var client = _factory.CreateClient();
+
+            var createResponse = await client.PostAsJsonAsync(ApiRoutes.Questions.Base, new
+            {
+                TaskType = TaskType.A,
+                Difficulty = Difficulty.medium,
+                Title = "An ordinary user-uploaded question",
+                Brief = (string?)null,
+                SourceText = "Some ordinary source text.",
+                FlawedTranslationText = (string?)null,
+                WordCount = 200,
+                CreatedBy = (Guid?)null,
+                Visibility = Visibility.Private,
+                MeaningCheckpoints = Array.Empty<object>(),
+                SeededErrors = Array.Empty<object>(),
+            });
+            var created = await createResponse.Content.ReadFromJsonAsync<ImportUserQuestionResult>();
+
+            var getResponse = await client.GetAsync($"{ApiRoutes.Questions.Base}/{created!.Id}");
+            var fetched = await getResponse.Content.ReadFromJsonAsync<GetQuestionByIdResult>();
+
+            Assert.False(fetched!.IsSeedReference);
+            Assert.Equal(QuestionOrigin.user_uploaded, fetched.Origin);
+            Assert.Equal(SourceType.user_generated, fetched.SourceType);
+        }
+
         [Fact]
         public async Task List_returns_ok()
         {

@@ -34,7 +34,8 @@ namespace DeepLearning.Api.Controllers
             Guid? CreatedBy,
             Visibility Visibility,
             List<MeaningCheckpointInput> MeaningCheckpoints,
-            List<SeededErrorInput> SeededErrors);
+            List<SeededErrorInput> SeededErrors,
+            bool IsSeedReference = false);
 
         [HttpPost]
         public async Task<ActionResult<ImportUserQuestionResult>> Import(ImportUserQuestionRequest request, CancellationToken cancellationToken)
@@ -43,7 +44,7 @@ namespace DeepLearning.Api.Controllers
                 new ImportUserQuestionCommand(
                     request.TaskType, request.Difficulty, request.Title, request.Brief, request.SourceText,
                     request.FlawedTranslationText, request.WordCount, request.CreatedBy, request.Visibility,
-                    request.MeaningCheckpoints, request.SeededErrors),
+                    request.MeaningCheckpoints, request.SeededErrors, request.IsSeedReference),
                 cancellationToken);
 
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
