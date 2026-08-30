@@ -9,7 +9,6 @@ using DeepLearning.Application.Features.StandardOverrides.Commands.ActivateStand
 using DeepLearning.Application.Features.StandardOverrides.Queries.GetStandardOverrideById;
 using DeepLearning.Application.Features.StandardOverrides.Queries.ListStandardOverrides;
 using DeepLearning.Application.Features.Submissions.Commands.CreateSubmission;
-using DeepLearning.Application.Features.Users.Commands.RegisterUser;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
@@ -130,7 +129,7 @@ namespace DeepLearning.UnitTests.Api
             await context.SaveChangesAsync();
         }
 
-        private static async Task<(Guid QuestionId, Guid UserId, Guid SubmissionId)> SeedSubmittedSubmissionAsync(HttpClient client)
+        private async Task<(Guid QuestionId, Guid UserId, Guid SubmissionId)> SeedSubmittedSubmissionAsync(HttpClient client)
         {
             var questionResponse = await client.PostAsJsonAsync(ApiRoutes.Questions.Base, new
             {
@@ -149,30 +148,22 @@ namespace DeepLearning.UnitTests.Api
             questionResponse.EnsureSuccessStatusCode();
             var question = await questionResponse.Content.ReadFromJsonAsync<ImportUserQuestionResult>();
 
-            var userResponse = await client.PostAsJsonAsync(ApiRoutes.Users.Base, new
-            {
-                Username = $"test_{Guid.NewGuid():N}",
-                Email = $"{Guid.NewGuid():N}@test.local",
-                Password = "Password123!",
-                DisplayName = (string?)null,
-            });
-            userResponse.EnsureSuccessStatusCode();
-            var user = await userResponse.Content.ReadFromJsonAsync<RegisterUserResult>();
+            var userId = await _factory.SeedUserAsync();
 
             var createResponse = await client.PostAsJsonAsync(ApiRoutes.Submissions.Base, new
             {
                 QuestionId = question!.Id,
-                UserId = user!.Id,
+                UserId = userId,
                 TaskType = TaskType.A,
                 Content = "\"my translation of the text\"",
             });
             createResponse.EnsureSuccessStatusCode();
             var submission = await createResponse.Content.ReadFromJsonAsync<CreateSubmissionResult>();
 
-            return (question.Id, user.Id, submission!.Id);
+            return (question.Id, userId, submission!.Id);
         }
 
-        private static async Task<(Guid QuestionId, Guid UserId, Guid SubmissionId)> SeedGradedSubmissionAsync(HttpClient client, Guid examTypeId)
+        private async Task<(Guid QuestionId, Guid UserId, Guid SubmissionId)> SeedGradedSubmissionAsync(HttpClient client, Guid examTypeId)
         {
             var (questionId, userId, submissionId) = await SeedSubmittedSubmissionAsync(client);
 

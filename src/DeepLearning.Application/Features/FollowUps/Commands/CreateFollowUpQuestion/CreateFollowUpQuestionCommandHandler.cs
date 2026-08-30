@@ -43,6 +43,7 @@ namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQue
         private readonly IAiCallLogRepository _aiCallLogRepository;
         private readonly IExamConfigLoader _examConfigLoader;
         private readonly ILlmClientResolver _llmClientResolver;
+        private readonly IAiCallRetryExecutor _aiCallRetryExecutor;
         private readonly IUnitOfWork _unitOfWork;
 
         public CreateFollowUpQuestionCommandHandler(
@@ -59,6 +60,7 @@ namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQue
             IAiCallLogRepository aiCallLogRepository,
             IExamConfigLoader examConfigLoader,
             ILlmClientResolver llmClientResolver,
+            IAiCallRetryExecutor aiCallRetryExecutor,
             IUnitOfWork unitOfWork)
         {
             _examTypeRepository = examTypeRepository;
@@ -74,6 +76,7 @@ namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQue
             _aiCallLogRepository = aiCallLogRepository;
             _examConfigLoader = examConfigLoader;
             _llmClientResolver = llmClientResolver;
+            _aiCallRetryExecutor = aiCallRetryExecutor;
             _unitOfWork = unitOfWork;
         }
 
@@ -119,34 +122,42 @@ namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQue
             // in which case the prompt simply omits the reference-translation section.
             var referenceTranslation = await _referenceTranslationRepository.GetByQuestionIdAsync(question.Id, cancellationToken);
 
-            LlmCompletionResult completion;
+            var templateModel = BuildTemplateModel(request, submission, question, dimensions, errorTaxonomies, gradingResults, errorList, referenceTranslation);
+            var prompt = await _examConfigLoader.BuildPromptAsync(request.ExamTypeId, AiOperationType.followup, templateModel, cancellationToken);
+            var dimensionKeys = dimensions.Select(x => x.DimensionKey).ToHashSet();
+
+            FollowUpPayload payload;
             try
             {
-                var templateModel = BuildTemplateModel(request, submission, question, dimensions, errorTaxonomies, gradingResults, errorList, referenceTranslation);
-                var prompt = await _examConfigLoader.BuildPromptAsync(request.ExamTypeId, AiOperationType.followup, templateModel, cancellationToken);
+                // Design doc §4.2's retry sub-state-machine: re-prompts (same prompt, fresh call)
+                // up to aiCallLog.MaxRetries times when the AI's response fails structured-output
+                // validation — distinct from Polly's transport-level retries inside CompleteAsync
+                // itself, which already ran and gave up before this ever throws.
+                payload = await _aiCallRetryExecutor.ExecuteAsync(aiCallLog, async () =>
+                {
+                    var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                    var completion = await llmClient.CompleteAsync(
+                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 4096),
+                        cancellationToken);
+                    aiCallLog.LatencyMs = completion.LatencyMs;
 
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
-                completion = await llmClient.CompleteAsync(
-                    new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 4096),
-                    cancellationToken);
+                    var parsed = ParsePayload(completion.Text);
+                    ValidatePayload(parsed, dimensionKeys);
+                    return parsed;
+                }, cancellationToken);
             }
             catch (Exception ex)
             {
-                await FailAsync(submission, aiCallLog, ex.Message, cancellationToken);
-                throw;
+                await FailAsync(submission, aiCallLog, $"Failed after {aiCallLog.AttemptCount} attempt(s): {ex.Message}", cancellationToken);
+                throw new AiCallFailedException($"Follow-up response could not be used: {ex.Message}", ex);
             }
 
-            // Everything from here on — parsing, structured-output validation, entity
-            // construction, and the final persist — is one try/catch, same reasoning as
+            // Entity construction + the final persist is its own try/catch, same reasoning as
             // GradeSubmissionCommandHandler: without it, a failure here would leave the
             // submission stuck in UnderDispute forever (there's no UnderDispute->UnderDispute
             // transition, so it could never be retried).
             try
             {
-                var dimensionKeys = dimensions.Select(x => x.DimensionKey).ToHashSet();
-                var payload = ParsePayload(completion.Text);
-                ValidatePayload(payload, dimensionKeys);
-
                 var followUp = new FollowUpQuestion
                 {
                     Id = Guid.NewGuid(),
@@ -190,7 +201,6 @@ namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQue
 
                 aiCallLog.Status = CallStatus.success;
                 aiCallLog.RelatedId = followUp.Id;
-                aiCallLog.LatencyMs = completion.LatencyMs;
                 aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
 
                 // Persisted before the activation-threshold count below — that count queries the
@@ -223,7 +233,7 @@ namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQue
                     submission.Status = SubmissionStatus.under_dispute;
                 }
 
-                await FailAsync(submission, aiCallLog, $"Failed to parse/validate/persist LLM response: {ex.Message}", cancellationToken);
+                await FailAsync(submission, aiCallLog, $"Failed to persist follow-up result: {ex.Message}", cancellationToken);
                 throw new AiCallFailedException($"Follow-up response could not be used: {ex.Message}", ex);
             }
         }

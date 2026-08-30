@@ -6,6 +6,7 @@ using DeepLearning.Application.Features.Questions.Queries.GetDeepLearningContent
 using DeepLearning.Application.Features.Questions.Queries.GetQuestionById;
 using DeepLearning.Application.Features.Questions.Queries.GetSeedReferenceLinksByQuestionId;
 using DeepLearning.Application.Features.Questions.Queries.ListQuestions;
+using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -17,10 +18,12 @@ namespace DeepLearning.Api.Controllers
     public class QuestionsController : ControllerBase
     {
         private readonly IMediator _mediator;
+        private readonly ICurrentUserService _currentUser;
 
-        public QuestionsController(IMediator mediator)
+        public QuestionsController(IMediator mediator, ICurrentUserService currentUser)
         {
             _mediator = mediator;
+            _currentUser = currentUser;
         }
 
         public record ImportUserQuestionRequest(
@@ -40,10 +43,11 @@ namespace DeepLearning.Api.Controllers
         [HttpPost]
         public async Task<ActionResult<ImportUserQuestionResult>> Import(ImportUserQuestionRequest request, CancellationToken cancellationToken)
         {
+            var createdBy = _currentUser.UserId ?? request.CreatedBy;
             var result = await _mediator.Send(
                 new ImportUserQuestionCommand(
                     request.TaskType, request.Difficulty, request.Title, request.Brief, request.SourceText,
-                    request.FlawedTranslationText, request.WordCount, request.CreatedBy, request.Visibility,
+                    request.FlawedTranslationText, request.WordCount, createdBy, request.Visibility,
                     request.MeaningCheckpoints, request.SeededErrors, request.IsSeedReference),
                 cancellationToken);
 
@@ -51,14 +55,22 @@ namespace DeepLearning.Api.Controllers
         }
 
         public record GenerateQuestionRequest(
-            Guid ExamTypeId, TaskType TaskType, Difficulty? Difficulty, Guid? CategoryId, List<Guid>? SeedQuestionIds, Guid? CreatedBy);
+            Guid ExamTypeId,
+            TaskType TaskType,
+            Difficulty? Difficulty,
+            Guid? CategoryId,
+            List<Guid>? SeedQuestionIds,
+            Guid? CreatedBy,
+            bool TargetWeakPoints = false);
 
         [HttpPost("generate")]
         public async Task<ActionResult<GenerateQuestionResult>> Generate(GenerateQuestionRequest request, CancellationToken cancellationToken)
         {
+            var createdBy = _currentUser.UserId ?? request.CreatedBy;
             var result = await _mediator.Send(
                 new GenerateQuestionCommand(
-                    request.ExamTypeId, request.TaskType, request.Difficulty, request.CategoryId, request.SeedQuestionIds, request.CreatedBy),
+                    request.ExamTypeId, request.TaskType, request.Difficulty, request.CategoryId, request.SeedQuestionIds,
+                    createdBy, request.TargetWeakPoints),
                 cancellationToken);
 
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);

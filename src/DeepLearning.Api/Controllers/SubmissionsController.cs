@@ -2,6 +2,7 @@ using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.Submissions.Commands.CreateSubmission;
 using DeepLearning.Application.Features.Submissions.Commands.GradeSubmission;
 using DeepLearning.Application.Features.Submissions.Queries.GetSubmissionById;
+using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -13,10 +14,12 @@ namespace DeepLearning.Api.Controllers
     public class SubmissionsController : ControllerBase
     {
         private readonly IMediator _mediator;
+        private readonly ICurrentUserService _currentUser;
 
-        public SubmissionsController(IMediator mediator)
+        public SubmissionsController(IMediator mediator, ICurrentUserService currentUser)
         {
             _mediator = mediator;
+            _currentUser = currentUser;
         }
 
         public record CreateSubmissionRequest(Guid QuestionId, Guid UserId, TaskType TaskType, string Content);
@@ -24,8 +27,11 @@ namespace DeepLearning.Api.Controllers
         [HttpPost]
         public async Task<ActionResult<CreateSubmissionResult>> Create(CreateSubmissionRequest request, CancellationToken cancellationToken)
         {
+            // A valid JWT's identity always wins over whatever UserId the caller put in the body —
+            // see AGENTS.md's Auth section for why this is opt-in rather than [Authorize]-enforced.
+            var userId = _currentUser.UserId ?? request.UserId;
             var result = await _mediator.Send(
-                new CreateSubmissionCommand(request.QuestionId, request.UserId, request.TaskType, request.Content),
+                new CreateSubmissionCommand(request.QuestionId, userId, request.TaskType, request.Content),
                 cancellationToken);
 
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);

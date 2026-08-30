@@ -1,5 +1,10 @@
+using DeepLearning.Application.Interfaces;
+using DeepLearning.Domain.Entities;
+using DeepLearning.Infrastructure.Ai;
 using DeepLearning.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
@@ -27,6 +32,19 @@ namespace DeepLearning.UnitTests.TestInfrastructure
             .WithPassword("postgres")
             .Build();
 
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+
+            // AiCallRetryExecutor's default 2s/4s/8s backoff (design doc §7) is correct for
+            // production but would make every existing "AI response is invalid" test sit through
+            // real multi-second sleeps for no reason — override with a near-instant delay so
+            // retry behavior (attempt counting, eventual success/failure) is still exercised for
+            // real, just fast.
+            builder.ConfigureTestServices(services =>
+                services.AddSingleton<IAiCallRetryExecutor>(new AiCallRetryExecutor(TimeSpan.FromMilliseconds(1))));
+        }
+
         public async Task InitializeAsync()
         {
             await _container.StartAsync();
@@ -36,6 +54,28 @@ namespace DeepLearning.UnitTests.TestInfrastructure
             using var scope = Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             await context.Database.MigrateAsync();
+        }
+
+        /// <summary>
+        /// Registration/login moved entirely to Supabase Auth (see AGENTS.md's Auth section) — the
+        /// backend no longer exposes a POST /users endpoint, so tests that just need a real FK-able
+        /// `User` row (not exercising auth itself) seed one directly via DbContext, same convention
+        /// as ReviewLibraryControllerTests.NewUser()/ExtractKnowledgePointsOnGradedTests.
+        /// </summary>
+        public async Task<Guid> SeedUserAsync()
+        {
+            using var scope = Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var user = new User
+            {
+                Id = Guid.NewGuid(),
+                Username = $"test_{Guid.NewGuid():N}",
+                Email = $"{Guid.NewGuid():N}@test.local",
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            await context.Users.AddAsync(user);
+            await context.SaveChangesAsync();
+            return user.Id;
         }
 
         async Task IAsyncLifetime.DisposeAsync()

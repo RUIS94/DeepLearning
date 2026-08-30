@@ -8,7 +8,6 @@ using DeepLearning.Application.Features.Questions.Commands.ImportUserQuestion;
 using DeepLearning.Application.Features.Questions.Queries.GetDeepLearningContentByQuestionId;
 using DeepLearning.Application.Features.Submissions.Commands.CreateSubmission;
 using DeepLearning.Application.Features.Submissions.Commands.GradeSubmission;
-using DeepLearning.Application.Features.Users.Commands.RegisterUser;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
@@ -39,7 +38,7 @@ namespace DeepLearning.UnitTests.Api
         private const string GradingMarker = "GRADING_CONTAMINATION_MARKER_9f3c";
         private const string DeepLearningMarkerTemplate = "DEEP_LEARNING_SOURCE_MARKER: {{ source_text }}";
 
-        private static async Task<(Guid ExamTypeId, Guid QuestionId, Guid UserId)> SeedExamTypeQuestionAndUserAsync(HttpClient client)
+        private async Task<(Guid ExamTypeId, Guid QuestionId, Guid UserId)> SeedExamTypeQuestionAndUserAsync(HttpClient client)
         {
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -87,17 +86,9 @@ namespace DeepLearning.UnitTests.Api
             questionResponse.EnsureSuccessStatusCode();
             var question = await questionResponse.Content.ReadFromJsonAsync<ImportUserQuestionResult>();
 
-            var userResponse = await client.PostAsJsonAsync(ApiRoutes.Users.Base, new
-            {
-                Username = $"test_{Guid.NewGuid():N}",
-                Email = $"{Guid.NewGuid():N}@test.local",
-                Password = "Password123!",
-                DisplayName = (string?)null,
-            });
-            userResponse.EnsureSuccessStatusCode();
-            var user = await userResponse.Content.ReadFromJsonAsync<RegisterUserResult>();
+            var userId = await _factory.SeedUserAsync();
 
-            return (examType.Id, question!.Id, user!.Id);
+            return (examType.Id, question!.Id, userId);
         }
 
         // Mirrors AssessmentDimensionsController.CreateAssessmentDimensionRequest — nested inside

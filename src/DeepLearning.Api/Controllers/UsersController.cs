@@ -1,11 +1,15 @@
 using DeepLearning.Api.Constants;
-using DeepLearning.Application.Features.Users.Commands.RegisterUser;
 using DeepLearning.Application.Features.Users.Queries.GetUserById;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeepLearning.Api.Controllers
 {
+    /// <summary>
+    /// Registration and login happen entirely against Supabase Auth now, not this backend — see
+    /// AGENTS.md's Auth section. EnsureUserProfileMiddleware syncs a public.users row from a
+    /// validated JWT the first time it's seen; there is deliberately no POST here to create one.
+    /// </summary>
     [ApiController]
     [Route(ApiRoutes.Users.Base)]
     public class UsersController : ControllerBase
@@ -15,18 +19,6 @@ namespace DeepLearning.Api.Controllers
         public UsersController(IMediator mediator)
         {
             _mediator = mediator;
-        }
-
-        public record RegisterUserRequest(string Username, string Email, string Password, string? DisplayName);
-
-        [HttpPost]
-        public async Task<ActionResult<RegisterUserResult>> Register(RegisterUserRequest request, CancellationToken cancellationToken)
-        {
-            var result = await _mediator.Send(
-                new RegisterUserCommand(request.Username, request.Email, request.Password, request.DisplayName),
-                cancellationToken);
-
-            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
 
         [HttpGet("{id:guid}")]

@@ -1,6 +1,7 @@
 using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Common;
+using DeepLearning.Domain.Exceptions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -40,7 +41,20 @@ namespace DeepLearning.Infrastructure.Persistence
                 aggregate.ClearDomainEvents();
             }
 
-            var result = await _context.SaveChangesAsync(cancellationToken);
+            int result;
+            try
+            {
+                result = await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // Currently only reachable for Submission (the only entity with
+                // UseXminAsConcurrencyToken() — see SubmissionConfiguration) — someone else's save
+                // committed a change to the same row between this call's read and its write.
+                // Translated to ConflictException (a plain Domain type) rather than left as EF's
+                // own exception type, which Application can't reference.
+                throw new ConflictException("The record was modified by another request since it was loaded. Please retry.", ex);
+            }
 
             foreach (var domainEvent in domainEvents)
             {

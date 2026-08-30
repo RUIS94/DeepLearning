@@ -19,10 +19,12 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
         private readonly IQuestionRepository _questionRepository;
         private readonly IErrorTaxonomyRepository _errorTaxonomyRepository;
         private readonly IGenerationPolicyRepository _generationPolicyRepository;
+        private readonly IWeakPointRepository _weakPointRepository;
         private readonly IAiCallLogRepository _aiCallLogRepository;
         private readonly ISeedReferenceLinkRepository _seedReferenceLinkRepository;
         private readonly IExamConfigLoader _examConfigLoader;
         private readonly ILlmClientResolver _llmClientResolver;
+        private readonly IAiCallRetryExecutor _aiCallRetryExecutor;
         private readonly IUnitOfWork _unitOfWork;
 
         public GenerateQuestionCommandHandler(
@@ -31,10 +33,12 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             IQuestionRepository questionRepository,
             IErrorTaxonomyRepository errorTaxonomyRepository,
             IGenerationPolicyRepository generationPolicyRepository,
+            IWeakPointRepository weakPointRepository,
             IAiCallLogRepository aiCallLogRepository,
             ISeedReferenceLinkRepository seedReferenceLinkRepository,
             IExamConfigLoader examConfigLoader,
             ILlmClientResolver llmClientResolver,
+            IAiCallRetryExecutor aiCallRetryExecutor,
             IUnitOfWork unitOfWork)
         {
             _examTypeRepository = examTypeRepository;
@@ -42,10 +46,12 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             _questionRepository = questionRepository;
             _errorTaxonomyRepository = errorTaxonomyRepository;
             _generationPolicyRepository = generationPolicyRepository;
+            _weakPointRepository = weakPointRepository;
             _aiCallLogRepository = aiCallLogRepository;
             _seedReferenceLinkRepository = seedReferenceLinkRepository;
             _examConfigLoader = examConfigLoader;
             _llmClientResolver = llmClientResolver;
+            _aiCallRetryExecutor = aiCallRetryExecutor;
             _unitOfWork = unitOfWork;
         }
 
@@ -64,6 +70,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             var errorTaxonomies = await _errorTaxonomyRepository.ListByExamTypeAsync(request.ExamTypeId, cancellationToken);
 
             var (seedSamples, seedSelectionReason) = await ResolveSeedSamplesAsync(request, difficulty, cancellationToken);
+            var weakPointHint = await ResolveWeakPointHintAsync(request, cancellationToken);
 
             var aiCallLog = new AiCallLog
             {
@@ -78,52 +85,52 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             // Persisted up front so the log survives even if the LLM call below never returns.
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            LlmCompletionResult completion;
-            try
+            var templateModel = new
             {
-                var templateModel = new
+                Difficulty = difficulty.ToString(),
+                TaskType = request.TaskType.ToString(),
+                ErrorTaxonomies = errorTaxonomies.Select(t => new
                 {
-                    Difficulty = difficulty.ToString(),
-                    TaskType = request.TaskType.ToString(),
-                    ErrorTaxonomies = errorTaxonomies.Select(t => new
-                    {
-                        CategoryKey = t.CategoryKey,
-                        CategoryName = t.CategoryName,
-                        Description = t.Description,
-                    }),
-                    SeedSamples = seedSamples.Select(s => new
-                    {
-                        Title = s.Title,
-                        SourceText = s.SourceText,
-                    }),
-                };
-                var prompt = await _examConfigLoader.BuildPromptAsync(
-                    request.ExamTypeId, AiOperationType.question_gen, templateModel, cancellationToken);
-
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
-                completion = await llmClient.CompleteAsync(
-                    new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 4096),
-                    cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                await FailAsync(aiCallLog, ex.Message, cancellationToken);
-                throw;
-            }
+                    CategoryKey = t.CategoryKey,
+                    CategoryName = t.CategoryName,
+                    Description = t.Description,
+                }),
+                SeedSamples = seedSamples.Select(s => new
+                {
+                    Title = s.Title,
+                    SourceText = s.SourceText,
+                }),
+                WeakPointHint = weakPointHint,
+            };
+            var prompt = await _examConfigLoader.BuildPromptAsync(
+                request.ExamTypeId, AiOperationType.question_gen, templateModel, cancellationToken);
 
             GeneratedQuestionPayload payload;
             List<TaskBSeededError> seededErrors;
             try
             {
-                payload = ParsePayload(completion.Text);
+                // Design doc §4.2's retry sub-state-machine: re-prompts (same prompt, fresh call)
+                // up to aiCallLog.MaxRetries times when the AI's response fails structured-output
+                // validation — distinct from Polly's transport-level retries inside CompleteAsync
+                // itself, which already ran and gave up before this ever throws.
+                (payload, seededErrors) = await _aiCallRetryExecutor.ExecuteAsync(aiCallLog, async () =>
+                {
+                    var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                    var completion = await llmClient.CompleteAsync(
+                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 4096),
+                        cancellationToken);
+                    aiCallLog.LatencyMs = completion.LatencyMs;
 
-                seededErrors = request.TaskType == TaskType.B
-                    ? ValidateAndBuildTaskBSeededErrors(payload, errorTaxonomies)
-                    : [];
+                    var parsedPayload = ParsePayload(completion.Text);
+                    var errors = request.TaskType == TaskType.B
+                        ? ValidateAndBuildTaskBSeededErrors(parsedPayload, errorTaxonomies)
+                        : [];
+                    return (parsedPayload, errors);
+                }, cancellationToken);
             }
             catch (Exception ex)
             {
-                await FailAsync(aiCallLog, $"Failed to parse/validate LLM response as the expected JSON shape: {ex.Message}", cancellationToken);
+                await FailAsync(aiCallLog, $"Failed after {aiCallLog.AttemptCount} attempt(s): {ex.Message}", cancellationToken);
                 throw new AiCallFailedException($"Claude response could not be used: {ex.Message}", ex);
             }
 
@@ -183,7 +190,6 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
 
             aiCallLog.Status = CallStatus.success;
             aiCallLog.RelatedId = question.Id;
-            aiCallLog.LatencyMs = completion.LatencyMs;
             aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -199,6 +205,41 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                 : DifficultyDistributionSelector.DefaultWeights;
 
             return DifficultyDistributionSelector.Select(weights, Random.Shared.NextDouble());
+        }
+
+        /// <summary>
+        /// Design doc §10.5's opt-in weak-point targeting (see WeakPointTargetingSelector and
+        /// GenerateQuestionCommand's own doc comment). Returns null (no hint injected into the
+        /// prompt) unless the caller asked for it, supplied a user, that user has an active weak
+        /// point on file, AND the policy-weighted dice roll actually says to target this call —
+        /// most calls with TargetWeakPoints=true still won't get a hint, by design.
+        /// </summary>
+        private async Task<string?> ResolveWeakPointHintAsync(GenerateQuestionCommand request, CancellationToken cancellationToken)
+        {
+            if (!request.TargetWeakPoints || request.CreatedBy is not { } userId)
+            {
+                return null;
+            }
+
+            var policy = await _generationPolicyRepository.GetByKeyAsync(request.ExamTypeId, "weak_point_targeting_ratio", cancellationToken);
+            var ratio = policy is not null
+                ? WeakPointTargetingSelector.ParseRatio(policy.PolicyValue)
+                : WeakPointTargetingSelector.DefaultWeakPointRatio;
+
+            if (!WeakPointTargetingSelector.ShouldTarget(ratio, Random.Shared.NextDouble()))
+            {
+                return null;
+            }
+
+            var activeWeakPoints = await _weakPointRepository.ListByUserAsync(userId, WeakPointStatus.active, cancellationToken);
+            var topWeakPoint = activeWeakPoints
+                // Priority is declared { high, medium, low } — high is ordinal 0, so ascending
+                // order puts it first (see AGENTS.md's note on this same enum-ordinal landmine).
+                .OrderBy(w => w.Priority)
+                .ThenByDescending(w => w.LastSeenAt)
+                .FirstOrDefault();
+
+            return topWeakPoint?.Category;
         }
 
         /// <summary>

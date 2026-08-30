@@ -1,11 +1,17 @@
 using System.Net;
 using System.Net.Http.Json;
 using DeepLearning.Api.Constants;
-using DeepLearning.Application.Features.Users.Commands.RegisterUser;
+using DeepLearning.Application.Features.Users.Queries.GetUserById;
 using DeepLearning.UnitTests.TestInfrastructure;
 
 namespace DeepLearning.UnitTests.Api
 {
+    /// <summary>
+    /// Registration/login moved to Supabase Auth (see AGENTS.md's Auth section) — there is no
+    /// longer a POST /users endpoint on this backend at all, so this file only covers the read
+    /// side. Auth-driven profile creation (EnsureUserProfileMiddleware) is covered by
+    /// JwtAuthenticationTests.cs instead.
+    /// </summary>
     [Collection(ApiCollection.Name)]
     public class UsersControllerTests
     {
@@ -17,57 +23,26 @@ namespace DeepLearning.UnitTests.Api
         }
 
         [Fact]
-        public async Task Register_then_get_by_id_round_trips_over_http()
+        public async Task Get_by_id_returns_a_user_seeded_directly_in_the_database()
         {
             var client = _factory.CreateClient();
-            var suffix = Guid.NewGuid().ToString("N")[..8];
-            var request = new
-            {
-                Username = $"user_{suffix}",
-                Email = $"user_{suffix}@example.com",
-                Password = "correct horse battery staple",
-                DisplayName = "Test User",
-            };
+            var userId = await _factory.SeedUserAsync();
 
-            var createResponse = await client.PostAsJsonAsync(ApiRoutes.Users.Base, request);
-            Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+            var response = await client.GetAsync($"{ApiRoutes.Users.Base}/{userId}");
 
-            var created = await createResponse.Content.ReadFromJsonAsync<RegisterUserResult>();
-            Assert.NotNull(created);
-
-            var getResponse = await client.GetAsync($"{ApiRoutes.Users.Base}/{created!.Id}");
-            Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var fetched = await response.Content.ReadFromJsonAsync<GetUserByIdResult>();
+            Assert.Equal(userId, fetched!.Id);
         }
 
         [Fact]
-        public async Task Register_returns_400_when_password_too_short()
+        public async Task Get_by_id_returns_404_for_unknown_id()
         {
             var client = _factory.CreateClient();
-            var request = new { Username = "shortpw", Email = "shortpw@example.com", Password = "abc", DisplayName = (string?)null };
 
-            var response = await client.PostAsJsonAsync(ApiRoutes.Users.Base, request);
+            var response = await client.GetAsync($"{ApiRoutes.Users.Base}/{Guid.NewGuid()}");
 
-            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        }
-
-        [Fact]
-        public async Task Register_returns_409_for_duplicate_username()
-        {
-            var client = _factory.CreateClient();
-            var suffix = Guid.NewGuid().ToString("N")[..8];
-            var request = new
-            {
-                Username = $"dup_{suffix}",
-                Email = $"dup_{suffix}@example.com",
-                Password = "correct horse battery staple",
-                DisplayName = (string?)null,
-            };
-
-            var first = await client.PostAsJsonAsync(ApiRoutes.Users.Base, request);
-            Assert.Equal(HttpStatusCode.Created, first.StatusCode);
-
-            var second = await client.PostAsJsonAsync(ApiRoutes.Users.Base, request with { Email = $"other_{suffix}@example.com" });
-            Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
     }
 }

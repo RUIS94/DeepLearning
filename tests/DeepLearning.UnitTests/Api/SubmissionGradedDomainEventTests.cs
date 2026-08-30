@@ -5,7 +5,6 @@ using DeepLearning.Application.Features.ExamConfig.Commands.CreateAssessmentDime
 using DeepLearning.Application.Features.ExamConfig.Commands.CreateExamType;
 using DeepLearning.Application.Features.Questions.Commands.ImportUserQuestion;
 using DeepLearning.Application.Features.Submissions.Commands.CreateSubmission;
-using DeepLearning.Application.Features.Users.Commands.RegisterUser;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
@@ -91,15 +90,7 @@ namespace DeepLearning.UnitTests.Api
             questionResponse.EnsureSuccessStatusCode();
             var question = await questionResponse.Content.ReadFromJsonAsync<ImportUserQuestionResult>();
 
-            var userResponse = await client.PostAsJsonAsync(ApiRoutes.Users.Base, new
-            {
-                Username = $"test_{Guid.NewGuid():N}",
-                Email = $"{Guid.NewGuid():N}@test.local",
-                Password = "Password123!",
-                DisplayName = (string?)null,
-            });
-            userResponse.EnsureSuccessStatusCode();
-            var user = await userResponse.Content.ReadFromJsonAsync<RegisterUserResult>();
+            var userId = await _factory.SeedUserAsync();
 
             // Pre-attach one SentencePattern and one VocabExpression to this Question — Step 7's
             // AI extraction isn't built yet, so this stands in for "a question that already has
@@ -133,7 +124,7 @@ namespace DeepLearning.UnitTests.Api
             var createResponse = await client.PostAsJsonAsync(ApiRoutes.Submissions.Base, new
             {
                 QuestionId = question!.Id,
-                UserId = user!.Id,
+                UserId = userId,
                 TaskType = TaskType.A,
                 Content = "\"my translation of the text\"",
             });
@@ -149,7 +140,7 @@ namespace DeepLearning.UnitTests.Api
                 var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
                 // UpdateWeakPointsOnGraded
-                var weakPoint = await context.WeakPoints.SingleAsync(x => x.UserId == user.Id);
+                var weakPoint = await context.WeakPoints.SingleAsync(x => x.UserId == userId);
                 Assert.Equal("Meaning transfer - Distortion", weakPoint.Category);
                 Assert.Equal(WeakPointStatus.active, weakPoint.Status);
                 var occurrence = await context.WeakPointOccurrences.SingleAsync(x => x.SubmissionId == submission.Id);
@@ -157,15 +148,15 @@ namespace DeepLearning.UnitTests.Api
                 Assert.False(occurrence.IsRecurrence);
 
                 // UpdateProgressOnGraded
-                var snapshot = await context.ProgressSnapshots.SingleAsync(x => x.UserId == user.Id);
+                var snapshot = await context.ProgressSnapshots.SingleAsync(x => x.UserId == userId);
                 Assert.Equal("medium", snapshot.DifficultyTier);
                 Assert.Equal(2.0m, snapshot.AvgBandMeaningTransfer);
                 Assert.Equal(100m, snapshot.PassRate);
 
                 // ExtractKnowledgePointsOnGraded
-                var patternReview = await context.UserPatternReview.SingleAsync(x => x.UserId == user.Id && x.PatternId == patternId);
+                var patternReview = await context.UserPatternReview.SingleAsync(x => x.UserId == userId && x.PatternId == patternId);
                 Assert.Equal(1, patternReview.TimesEncountered);
-                var vocabReview = await context.UserVocabReview.SingleAsync(x => x.UserId == user.Id && x.VocabId == vocabId);
+                var vocabReview = await context.UserVocabReview.SingleAsync(x => x.UserId == userId && x.VocabId == vocabId);
                 Assert.Equal(1, vocabReview.TimesEncountered);
             }
         }

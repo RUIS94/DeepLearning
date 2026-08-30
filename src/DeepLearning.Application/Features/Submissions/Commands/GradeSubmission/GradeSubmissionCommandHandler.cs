@@ -32,6 +32,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         private readonly IAiCallLogRepository _aiCallLogRepository;
         private readonly IExamConfigLoader _examConfigLoader;
         private readonly ILlmClientResolver _llmClientResolver;
+        private readonly IAiCallRetryExecutor _aiCallRetryExecutor;
         private readonly IUnitOfWork _unitOfWork;
         private readonly Dictionary<ScaleType, IGradingResultInterpreter> _interpreters;
 
@@ -44,6 +45,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             IAiCallLogRepository aiCallLogRepository,
             IExamConfigLoader examConfigLoader,
             ILlmClientResolver llmClientResolver,
+            IAiCallRetryExecutor aiCallRetryExecutor,
             IUnitOfWork unitOfWork,
             IEnumerable<IGradingResultInterpreter> interpreters)
         {
@@ -55,6 +57,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             _aiCallLogRepository = aiCallLogRepository;
             _examConfigLoader = examConfigLoader;
             _llmClientResolver = llmClientResolver;
+            _aiCallRetryExecutor = aiCallRetryExecutor;
             _unitOfWork = unitOfWork;
             _interpreters = interpreters.ToDictionary(x => x.ScaleType);
         }
@@ -72,7 +75,12 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
 
             // Grading -> only legal from Submitted (first attempt) or GradingFailed (retry) —
             // Submission.TransitionTo throws InvalidSubmissionStateException otherwise, which
-            // also rejects a concurrent second call while the first is still in Grading.
+            // rejects a SEQUENTIAL second call arriving after the first already committed
+            // Grading. That alone doesn't stop two calls that both read Submitted before either
+            // commits — SubmissionConfiguration.UseXminAsConcurrencyToken() closes that race:
+            // IUnitOfWork.SaveChangesAsync below throws a ConflictException (409) instead of
+            // silently letting both through, translated from EF's DbUpdateConcurrencyException by
+            // UnitOfWork itself (Application can't reference EF Core directly).
             submission.TransitionTo(SubmissionStatus.grading);
 
             var aiCallLog = new AiCallLog
@@ -97,35 +105,45 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             var dimensions = await _assessmentDimensionRepository.ListByExamTypeAsync(request.ExamTypeId, submission.TaskType, cancellationToken);
             var errorTaxonomies = await _errorTaxonomyRepository.ListByExamTypeAsync(request.ExamTypeId, cancellationToken);
 
-            LlmCompletionResult completion;
+            var templateModel = BuildTemplateModel(submission, question, checkpoints, seededErrors, dimensions, errorTaxonomies);
+            var prompt = await _examConfigLoader.BuildPromptAsync(request.ExamTypeId, AiOperationType.grading, templateModel, cancellationToken);
+
+            GradingPayload payload;
             try
             {
-                var templateModel = BuildTemplateModel(submission, question, checkpoints, seededErrors, dimensions, errorTaxonomies);
-                var prompt = await _examConfigLoader.BuildPromptAsync(request.ExamTypeId, AiOperationType.grading, templateModel, cancellationToken);
+                // Design doc §4.2's retry sub-state-machine: re-prompts (same prompt, fresh call)
+                // up to aiCallLog.MaxRetries times when the AI's response fails structured-output
+                // validation — distinct from Polly's transport-level retries inside CompleteAsync
+                // itself, which already ran and gave up before this ever throws. Only the
+                // "get a valid payload" step retries — a persistence failure below isn't something
+                // re-prompting the AI would fix.
+                payload = await _aiCallRetryExecutor.ExecuteAsync(aiCallLog, async () =>
+                {
+                    var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                    var completion = await llmClient.CompleteAsync(
+                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 8192),
+                        cancellationToken);
+                    aiCallLog.LatencyMs = completion.LatencyMs;
 
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
-                completion = await llmClient.CompleteAsync(
-                    new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 8192),
-                    cancellationToken);
+                    var parsed = ParsePayload(completion.Text);
+                    ValidatePayload(parsed, dimensions, errorTaxonomies);
+                    return parsed;
+                }, cancellationToken);
             }
             catch (Exception ex)
             {
-                await FailAsync(submission, aiCallLog, ex.Message, cancellationToken);
-                throw;
+                await FailAsync(submission, aiCallLog, $"Failed after {aiCallLog.AttemptCount} attempt(s): {ex.Message}", cancellationToken);
+                throw new AiCallFailedException($"Grading response could not be used: {ex.Message}", ex);
             }
 
-            // Everything from here on — parsing, structured-output validation, entity
-            // construction, and the final persist — is one try/catch so that ANY failure
-            // (including a final SaveChangesAsync that trips a DB constraint the checks below
-            // didn't anticipate) still transitions the submission to GradingFailed. Without this,
-            // a failure here would leave the submission stuck in Grading forever — the state
+            // Entity construction + the final persist is its own try/catch so that ANY failure
+            // (including a SaveChangesAsync that trips a DB constraint the checks above didn't
+            // anticipate) still transitions the submission to GradingFailed. Without this, a
+            // failure here would leave the submission stuck in Grading forever — the state
             // machine has no Grading->Grading transition, so a stuck submission could never be
             // retried.
             try
             {
-                var payload = ParsePayload(completion.Text);
-                ValidatePayload(payload, dimensions, errorTaxonomies);
-
                 var dimensionsByKey = dimensions.ToDictionary(x => x.DimensionKey);
                 var taxonomiesByKey = errorTaxonomies.ToDictionary(x => x.CategoryKey);
 
@@ -179,7 +197,6 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 });
 
                 aiCallLog.Status = CallStatus.success;
-                aiCallLog.LatencyMs = completion.LatencyMs;
                 aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
 
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -200,7 +217,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                     submission.Status = SubmissionStatus.grading;
                 }
 
-                await FailAsync(submission, aiCallLog, $"Failed to parse/validate/persist LLM response: {ex.Message}", cancellationToken);
+                await FailAsync(submission, aiCallLog, $"Failed to persist grading result: {ex.Message}", cancellationToken);
                 throw new AiCallFailedException($"Grading response could not be used: {ex.Message}", ex);
             }
         }

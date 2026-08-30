@@ -386,4 +386,83 @@ namespace DeepLearning.UnitTests.Api
         public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<ILlmClient>(new FakeDeepLearningLlmClientWithInvalidPattern());
     }
+
+    /// <summary>
+    /// Self-audit fix (2026-08-30, design doc §4.2's retry sub-state-machine): returns malformed
+    /// (unparseable) JSON on its first two calls, then a valid GenerateQuestion response on the
+    /// third — proves AiCallRetryExecutor really re-prompts on a structured-output failure instead
+    /// of giving up on the first bad response, and that AiCallLog.AttemptCount ends up reflecting
+    /// how many calls it actually took.
+    /// </summary>
+    public class FakeLlmClientFailingTwiceThenSucceeding : ILlmClient
+    {
+        public int CallCount { get; private set; }
+
+        public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            if (CallCount < 3)
+            {
+                return Task.FromResult(new LlmCompletionResult("not valid json at all", 10, 20, "fake-model", 5));
+            }
+
+            var json = $$"""
+                {
+                  "title": "{{FakeLlmClient.FixedTitle}}",
+                  "sourceText": "{{FakeLlmClient.FixedSourceText}}",
+                  "brief": {"domain": "test", "textType": "article"},
+                  "wordCount": 42,
+                  "meaningCheckpoints": []
+                }
+                """;
+            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
+        }
+    }
+
+    public class FakeLlmClientResolverFailingTwiceThenSucceeding : ILlmClientResolver
+    {
+        private readonly FakeLlmClientFailingTwiceThenSucceeding _client = new();
+
+        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<ILlmClient>(_client);
+    }
+
+    /// <summary>
+    /// Same fixed-valid-JSON response as FakeLlmClient, but records the prompt it was called
+    /// with — lets a test assert on what GenerateQuestionCommandHandler actually sent the LLM
+    /// (e.g. whether a weak_point_hint made it into the rendered prompt).
+    /// </summary>
+    public class CapturingQuestionGenLlmClient : ILlmClient
+    {
+        public string? CapturedPrompt { get; private set; }
+
+        public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
+        {
+            CapturedPrompt = request.UserPrompt;
+
+            var json = $$"""
+                {
+                  "title": "{{FakeLlmClient.FixedTitle}}",
+                  "sourceText": "{{FakeLlmClient.FixedSourceText}}",
+                  "brief": {"domain": "test", "textType": "article"},
+                  "wordCount": 42,
+                  "meaningCheckpoints": []
+                }
+                """;
+            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
+        }
+    }
+
+    public class FixedQuestionGenLlmClientResolver : ILlmClientResolver
+    {
+        private readonly ILlmClient _client;
+
+        public FixedQuestionGenLlmClientResolver(ILlmClient client)
+        {
+            _client = client;
+        }
+
+        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(_client);
+    }
 }

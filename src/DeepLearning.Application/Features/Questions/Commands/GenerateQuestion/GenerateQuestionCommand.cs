@@ -19,6 +19,12 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
     /// ListSeedReferenceCandidatesAsync. Every id must resolve to an existing Question with
     /// IsSeedReference=true (404/400 otherwise) — a caller can't point generation at an arbitrary,
     /// non-seed question. Capped at GenerateQuestionValidator.MaxSeedQuestionIds.
+    ///
+    /// TargetWeakPoints is optional, defaults to false (design doc §10.5's "出题与薄弱点联动",
+    /// deliberately opt-in per call, not a global switch — see WeakPointTargetingSelector). When
+    /// true AND CreatedBy is supplied, the handler may (not always — see the selector's own doc)
+    /// bias this generation toward one of that user's active weak points. Ignored if CreatedBy is
+    /// null — there's no user to look weak points up for.
     /// </summary>
     public record GenerateQuestionCommand(
         Guid ExamTypeId,
@@ -26,5 +32,6 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
         Difficulty? Difficulty,
         Guid? CategoryId,
         List<Guid>? SeedQuestionIds,
-        Guid? CreatedBy) : IRequest<GenerateQuestionResult>;
+        Guid? CreatedBy,
+        bool TargetWeakPoints = false) : IRequest<GenerateQuestionResult>;
 }

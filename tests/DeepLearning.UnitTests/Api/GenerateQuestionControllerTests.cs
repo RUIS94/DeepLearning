@@ -533,5 +533,191 @@ namespace DeepLearning.UnitTests.Api
 
             Assert.Contains(links!, l => l.SeedQuestionId == importedSeed!.Id);
         }
+
+        /// <summary>
+        /// Self-audit fix (2026-08-30, design doc §4.2's retry sub-state-machine): before this,
+        /// GenerateQuestionCommandHandler treated a single malformed AI response as an immediate,
+        /// unretried final_failure. This proves the fix end to end through the real API + real
+        /// Postgres: an LLM client that returns garbage twice then a valid response the third time
+        /// still yields a 201 Created, and the persisted AiCallLog row's AttemptCount reflects all
+        /// 3 real attempts rather than showing 1 (the pre-fix behavior would never have reached a
+        /// successful response at all).
+        /// </summary>
+        [Fact]
+        public async Task Generate_retries_on_a_malformed_ai_response_and_succeeds_once_the_ai_returns_something_valid()
+        {
+            var client = _factory
+                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
+                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolverFailingTwiceThenSucceeding>()))
+                .CreateClient();
+
+            var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
+            {
+                Code = $"test_{Guid.NewGuid():N}",
+                Name = "API Test Exam Type",
+                SubjectCategory = SubjectCategory.translation,
+            });
+            var examType = await examTypeResponse.Content.ReadFromJsonAsync<CreateExamTypeResult>();
+
+            var generateResponse = await client.PostAsJsonAsync(
+                $"{ApiRoutes.Questions.Base}/generate",
+                new { ExamTypeId = examType!.Id, TaskType = TaskType.A, Difficulty = Difficulty.medium, CreatedBy = (Guid?)null });
+
+            Assert.Equal(HttpStatusCode.Created, generateResponse.StatusCode);
+            var generated = await generateResponse.Content.ReadFromJsonAsync<GenerateQuestionResult>();
+            Assert.Equal(FakeLlmClient.FixedTitle, generated!.Title);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var aiCallLog = await context.AiCallLogs.SingleAsync(
+                x => x.RequestType == AiOperationType.question_gen && x.RelatedId == generated.Id);
+
+            Assert.Equal(CallStatus.success, aiCallLog.Status);
+            Assert.Equal(3, aiCallLog.AttemptCount);
+        }
+
+        private const string WeakPointHintMarkerTemplate = "WEAK_POINT_HINT_MARKER: {{ if weak_point_hint }}[{{ weak_point_hint }}]{{ end }}";
+
+        private static async Task SeedWeakPointHintPromptTemplateAsync(ApiWebApplicationFactory factory)
+        {
+            using var scope = factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await context.PromptTemplates.AddAsync(new PromptTemplate
+            {
+                Id = Guid.NewGuid(),
+                SubjectCategory = SubjectCategory.translation,
+                TemplateType = AiOperationType.question_gen,
+                Layer = TemplateLayer.shared_methodology,
+                TemplateContent = WeakPointHintMarkerTemplate,
+                Version = 1,
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+            await context.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Design doc §10.5 "出题与薄弱点联动", deliberately opt-in (WeakPointTargetingSelector's
+        /// own doc comment). Default TargetWeakPoints=false must never inject a hint into the
+        /// prompt, even when the user has an active, high-priority weak point on file — proves the
+        /// feature really is off unless explicitly requested, not just "usually off by chance".
+        /// </summary>
+        [Fact]
+        public async Task Generate_with_target_weak_points_false_never_injects_a_weak_point_hint_even_when_one_exists()
+        {
+            var capturingClient = new CapturingQuestionGenLlmClient();
+            var client = _factory
+                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
+                    services => services.AddScoped<ILlmClientResolver>(_ => new FixedQuestionGenLlmClientResolver(capturingClient))))
+                .CreateClient();
+
+            await SeedWeakPointHintPromptTemplateAsync(_factory);
+
+            var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
+            {
+                Code = $"test_{Guid.NewGuid():N}",
+                Name = "API Test Exam Type",
+                SubjectCategory = SubjectCategory.translation,
+            });
+            var examType = await examTypeResponse.Content.ReadFromJsonAsync<CreateExamTypeResult>();
+
+            var userId = await _factory.SeedUserAsync();
+            var category = $"weak_category_{Guid.NewGuid():N}";
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                await context.WeakPoints.AddAsync(new WeakPoint
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Category = category,
+                    Status = WeakPointStatus.active,
+                    Priority = Priority.high,
+                    FirstDetectedAt = DateTimeOffset.UtcNow,
+                    LastSeenAt = DateTimeOffset.UtcNow,
+                });
+                await context.SaveChangesAsync();
+            }
+
+            var generateResponse = await client.PostAsJsonAsync(
+                $"{ApiRoutes.Questions.Base}/generate",
+                new { ExamTypeId = examType!.Id, TaskType = TaskType.A, Difficulty = Difficulty.medium, CreatedBy = userId, TargetWeakPoints = false });
+
+            Assert.Equal(HttpStatusCode.Created, generateResponse.StatusCode);
+            Assert.DoesNotContain(category, capturingClient.CapturedPrompt);
+        }
+
+        /// <summary>
+        /// The other half of the same guarantee: TargetWeakPoints=true, plus forcing the
+        /// weak_point_targeting_ratio policy to 1.0 (always target — same "override the seeded
+        /// policy with a degenerate distribution" technique as
+        /// Generate_uses_the_seeded_difficulty_distribution_policy_when_difficulty_is_omitted"),
+        /// really does inject the user's top-priority active weak point's category into the prompt.
+        /// </summary>
+        [Fact]
+        public async Task Generate_with_target_weak_points_true_and_a_forced_ratio_of_one_injects_the_users_top_weak_point_hint()
+        {
+            var capturingClient = new CapturingQuestionGenLlmClient();
+            var client = _factory
+                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
+                    services => services.AddScoped<ILlmClientResolver>(_ => new FixedQuestionGenLlmClientResolver(capturingClient))))
+                .CreateClient();
+
+            await SeedWeakPointHintPromptTemplateAsync(_factory);
+
+            var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
+            {
+                Code = $"test_{Guid.NewGuid():N}",
+                Name = "API Test Exam Type",
+                SubjectCategory = SubjectCategory.translation,
+            });
+            var examType = await examTypeResponse.Content.ReadFromJsonAsync<CreateExamTypeResult>();
+
+            var userId = await _factory.SeedUserAsync();
+            var lowPriorityCategory = $"weak_low_{Guid.NewGuid():N}";
+            var highPriorityCategory = $"weak_high_{Guid.NewGuid():N}";
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                await context.WeakPoints.AddRangeAsync(
+                    new WeakPoint
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = userId,
+                        Category = lowPriorityCategory,
+                        Status = WeakPointStatus.active,
+                        Priority = Priority.low,
+                        FirstDetectedAt = DateTimeOffset.UtcNow,
+                        LastSeenAt = DateTimeOffset.UtcNow,
+                    },
+                    new WeakPoint
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = userId,
+                        Category = highPriorityCategory,
+                        Status = WeakPointStatus.active,
+                        Priority = Priority.high,
+                        FirstDetectedAt = DateTimeOffset.UtcNow,
+                        LastSeenAt = DateTimeOffset.UtcNow,
+                    });
+                await context.GenerationPolicies.AddAsync(new GenerationPolicy
+                {
+                    Id = Guid.NewGuid(),
+                    ExamTypeId = examType!.Id,
+                    PolicyKey = "weak_point_targeting_ratio",
+                    PolicyValue = "{\"weak_point_ratio\": 1.0}",
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                });
+                await context.SaveChangesAsync();
+            }
+
+            var generateResponse = await client.PostAsJsonAsync(
+                $"{ApiRoutes.Questions.Base}/generate",
+                new { ExamTypeId = examType!.Id, TaskType = TaskType.A, Difficulty = Difficulty.medium, CreatedBy = userId, TargetWeakPoints = true });
+
+            Assert.Equal(HttpStatusCode.Created, generateResponse.StatusCode);
+            Assert.Contains(highPriorityCategory, capturingClient.CapturedPrompt);
+            Assert.DoesNotContain(lowPriorityCategory, capturingClient.CapturedPrompt);
+        }
     }
 }

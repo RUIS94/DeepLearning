@@ -2,7 +2,6 @@ using DeepLearning.Application.Interfaces;
 using DeepLearning.Infrastructure.Ai;
 using DeepLearning.Infrastructure.Ai.GradingResultInterpreters;
 using DeepLearning.Infrastructure.Ai.Options;
-using DeepLearning.Infrastructure.Common;
 using DeepLearning.Infrastructure.Persistence;
 using DeepLearning.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -43,8 +42,6 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<IReferenceTranslationRepository, ReferenceTranslationRepository>();
             services.AddScoped<IQuestionBankCategoryRepository, QuestionBankCategoryRepository>();
             services.AddScoped<ISeedReferenceLinkRepository, SeedReferenceLinkRepository>();
-
-            services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 
             // One IGradingResultInterpreter per assessment_dimensions.scale_type — GradeSubmissionCommandHandler
             // picks the matching one via DI's IEnumerable<IGradingResultInterpreter>.
@@ -117,6 +114,10 @@ namespace DeepLearning.Infrastructure
 
             services.AddSingleton<PromptRenderer>();
             services.AddScoped<IExamConfigLoader, ExamConfigLoader>();
+
+            // design doc §4.2's retry sub-state-machine for a 200-OK-but-invalid-content AI
+            // response — distinct from Polly's transport-level retries above.
+            services.AddSingleton<IAiCallRetryExecutor>(new AiCallRetryExecutor());
 
             return services;
         }

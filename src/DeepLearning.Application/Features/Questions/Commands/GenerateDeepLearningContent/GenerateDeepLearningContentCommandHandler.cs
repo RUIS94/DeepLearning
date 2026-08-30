@@ -30,6 +30,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
         private readonly IAiCallLogRepository _aiCallLogRepository;
         private readonly IExamConfigLoader _examConfigLoader;
         private readonly ILlmClientResolver _llmClientResolver;
+        private readonly IAiCallRetryExecutor _aiCallRetryExecutor;
         private readonly IUnitOfWork _unitOfWork;
 
         public GenerateDeepLearningContentCommandHandler(
@@ -40,6 +41,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             IAiCallLogRepository aiCallLogRepository,
             IExamConfigLoader examConfigLoader,
             ILlmClientResolver llmClientResolver,
+            IAiCallRetryExecutor aiCallRetryExecutor,
             IUnitOfWork unitOfWork)
         {
             _examTypeRepository = examTypeRepository;
@@ -49,6 +51,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             _aiCallLogRepository = aiCallLogRepository;
             _examConfigLoader = examConfigLoader;
             _llmClientResolver = llmClientResolver;
+            _aiCallRetryExecutor = aiCallRetryExecutor;
             _unitOfWork = unitOfWork;
         }
 
@@ -82,27 +85,39 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             // Persisted up front so the log survives even if the LLM call below never returns.
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            LlmCompletionResult completion;
+            // Deliberately just TaskType + SourceText — see the isolation note in the class
+            // doc comment. No submission content, no grading_results, no meaning_checkpoints.
+            var templateModel = new
+            {
+                TaskType = question.TaskType.ToString(),
+                SourceText = question.SourceText,
+            };
+            var prompt = await _examConfigLoader.BuildPromptAsync(request.ExamTypeId, AiOperationType.deep_learning, templateModel, cancellationToken);
+
+            DeepLearningPayload payload;
             try
             {
-                // Deliberately just TaskType + SourceText — see the isolation note in the class
-                // doc comment. No submission content, no grading_results, no meaning_checkpoints.
-                var templateModel = new
+                // Design doc §4.2's retry sub-state-machine: re-prompts (same prompt, fresh call)
+                // up to aiCallLog.MaxRetries times when the AI's response fails structured-output
+                // validation — distinct from Polly's transport-level retries inside CompleteAsync
+                // itself, which already ran and gave up before this ever throws.
+                payload = await _aiCallRetryExecutor.ExecuteAsync(aiCallLog, async () =>
                 {
-                    TaskType = question.TaskType.ToString(),
-                    SourceText = question.SourceText,
-                };
-                var prompt = await _examConfigLoader.BuildPromptAsync(request.ExamTypeId, AiOperationType.deep_learning, templateModel, cancellationToken);
+                    var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                    var completion = await llmClient.CompleteAsync(
+                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 4096),
+                        cancellationToken);
+                    aiCallLog.LatencyMs = completion.LatencyMs;
 
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
-                completion = await llmClient.CompleteAsync(
-                    new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 4096),
-                    cancellationToken);
+                    var parsed = ParsePayload(completion.Text);
+                    ValidatePayload(parsed);
+                    return parsed;
+                }, cancellationToken);
             }
             catch (Exception ex)
             {
-                await FailAsync(aiCallLog, ex.Message, cancellationToken);
-                throw;
+                await FailAsync(aiCallLog, $"Failed after {aiCallLog.AttemptCount} attempt(s): {ex.Message}", cancellationToken);
+                throw new AiCallFailedException($"Deep learning content could not be used: {ex.Message}", ex);
             }
 
             ReferenceTranslation referenceTranslation;
@@ -110,9 +125,6 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             List<VocabExpression> vocab;
             try
             {
-                var payload = ParsePayload(completion.Text);
-                ValidatePayload(payload);
-
                 referenceTranslation = new ReferenceTranslation
                 {
                     Id = Guid.NewGuid(),
@@ -154,14 +166,13 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                 await _reviewLibraryRepository.AddVocabAsync(vocab, cancellationToken);
 
                 aiCallLog.Status = CallStatus.success;
-                aiCallLog.LatencyMs = completion.LatencyMs;
                 aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
 
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
             catch (Exception ex)
             {
-                await FailAsync(aiCallLog, $"Failed to parse/validate/persist LLM response: {ex.Message}", cancellationToken);
+                await FailAsync(aiCallLog, $"Failed to persist deep learning content: {ex.Message}", cancellationToken);
                 throw new AiCallFailedException($"Deep learning content could not be used: {ex.Message}", ex);
             }
 

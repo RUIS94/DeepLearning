@@ -1,6 +1,10 @@
 using DeepLearning.Api.Middleware;
+using DeepLearning.Api.Services;
 using DeepLearning.Application;
+using DeepLearning.Application.Interfaces;
 using DeepLearning.Infrastructure;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
 using Serilog.Events;
@@ -30,6 +34,43 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 builder.Services.AddHealthChecks();
 
+// Registration/login are Supabase Auth's job entirely — this backend never issues or checks
+// passwords, only validates the JWT Supabase Auth already issued. Supabase's newer projects sign
+// with an asymmetric key (JWKS), which is what Authority-based discovery below is for; a legacy
+// project on the shared HS256 secret would need TokenValidationParameters.IssuerSigningKey set to
+// a SymmetricSecurityKey instead — see AGENTS.md's Auth section for the full design and the one
+// piece (whether Supabase serves OIDC discovery at this exact path) worth confirming against a
+// real token once Supabase:ProjectUrl is filled in.
+var supabaseUrl = builder.Configuration["Supabase:ProjectUrl"];
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        if (string.IsNullOrEmpty(supabaseUrl))
+        {
+            // No project configured (e.g. a fresh clone before appsettings.Development.json is
+            // filled in) — degrade to "no token will ever validate" rather than crashing at
+            // startup, same fallback philosophy as LlmClientResolver's missing-config handling.
+            return;
+        }
+
+        options.Authority = $"{supabaseUrl}/auth/v1";
+        // Claims keep their original JWT names ("sub", "email", ...) instead of being remapped to
+        // the long ClaimTypes.* URIs — CurrentUserService and EnsureUserProfileMiddleware both
+        // read claims by their raw Supabase names.
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = $"{supabaseUrl}/auth/v1",
+            ValidateAudience = true,
+            ValidAudience = "authenticated",
+            ValidateLifetime = true,
+        };
+    });
+builder.Services.AddAuthorization();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -44,6 +85,8 @@ app.UseExceptionHandler();
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
+app.UseMiddleware<EnsureUserProfileMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
