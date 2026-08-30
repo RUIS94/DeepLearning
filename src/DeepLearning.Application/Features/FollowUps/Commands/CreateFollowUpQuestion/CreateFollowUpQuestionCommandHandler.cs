@@ -38,6 +38,7 @@ namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQue
         private readonly IErrorTaxonomyRepository _errorTaxonomyRepository;
         private readonly IFollowUpQuestionRepository _followUpQuestionRepository;
         private readonly IStandardOverrideRepository _standardOverrideRepository;
+        private readonly IReferenceTranslationRepository _referenceTranslationRepository;
         private readonly IGenerationPolicyRepository _generationPolicyRepository;
         private readonly IAiCallLogRepository _aiCallLogRepository;
         private readonly IExamConfigLoader _examConfigLoader;
@@ -53,6 +54,7 @@ namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQue
             IErrorTaxonomyRepository errorTaxonomyRepository,
             IFollowUpQuestionRepository followUpQuestionRepository,
             IStandardOverrideRepository standardOverrideRepository,
+            IReferenceTranslationRepository referenceTranslationRepository,
             IGenerationPolicyRepository generationPolicyRepository,
             IAiCallLogRepository aiCallLogRepository,
             IExamConfigLoader examConfigLoader,
@@ -67,6 +69,7 @@ namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQue
             _errorTaxonomyRepository = errorTaxonomyRepository;
             _followUpQuestionRepository = followUpQuestionRepository;
             _standardOverrideRepository = standardOverrideRepository;
+            _referenceTranslationRepository = referenceTranslationRepository;
             _generationPolicyRepository = generationPolicyRepository;
             _aiCallLogRepository = aiCallLogRepository;
             _examConfigLoader = examConfigLoader;
@@ -111,11 +114,15 @@ namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQue
             var errorTaxonomies = await _errorTaxonomyRepository.ListByExamTypeAsync(request.ExamTypeId, cancellationToken);
             var gradingResults = await _submissionRepository.GetGradingResultsAsync(submission.Id, cancellationToken);
             var errorList = await _submissionRepository.GetErrorListAsync(submission.Id, cancellationToken);
+            // Design doc §2.1 node W ("对参考译文有疑问") reuses this same follow-up mechanism —
+            // null if the question's deep-learning content (Step 7) hasn't been generated yet,
+            // in which case the prompt simply omits the reference-translation section.
+            var referenceTranslation = await _referenceTranslationRepository.GetByQuestionIdAsync(question.Id, cancellationToken);
 
             LlmCompletionResult completion;
             try
             {
-                var templateModel = BuildTemplateModel(request, submission, question, dimensions, errorTaxonomies, gradingResults, errorList);
+                var templateModel = BuildTemplateModel(request, submission, question, dimensions, errorTaxonomies, gradingResults, errorList, referenceTranslation);
                 var prompt = await _examConfigLoader.BuildPromptAsync(request.ExamTypeId, AiOperationType.followup, templateModel, cancellationToken);
 
                 var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
@@ -275,7 +282,8 @@ namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQue
             List<AssessmentDimension> dimensions,
             List<ErrorTaxonomy> errorTaxonomies,
             List<GradingResult> gradingResults,
-            List<ErrorListItem> errorList) => new
+            List<ErrorListItem> errorList,
+            ReferenceTranslation? referenceTranslation) => new
             {
                 QuestionText = request.QuestionText,
                 ContextRef = request.ContextRef,
@@ -305,6 +313,13 @@ namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQue
                     CategoryKey = t.CategoryKey,
                     CategoryName = t.CategoryName,
                 }),
+                // Null when Step 7's deep-learning content hasn't been generated for this
+                // Question yet — the template guards on this with {{ if reference_translation }}.
+                ReferenceTranslation = referenceTranslation is null ? null : new
+                {
+                    ReferenceText = referenceTranslation.ReferenceText,
+                    ComparisonNotes = referenceTranslation.ComparisonNotes,
+                },
             };
 
         private static FollowUpPayload ParsePayload(string rawText)

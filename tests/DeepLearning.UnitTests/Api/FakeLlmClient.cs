@@ -278,20 +278,30 @@ namespace DeepLearning.UnitTests.Api
             _followUpResponseJson = followUpResponseJson;
         }
 
+        /// <summary>
+        /// The actual prompt sent for the most recent non-grading (i.e. follow-up) call — lets a
+        /// test assert on what CreateFollowUpQuestionCommandHandler actually sent the LLM, e.g.
+        /// that a Question's reference translation made it into the prompt.
+        /// </summary>
+        public string? LastFollowUpPrompt { get; private set; }
+
         public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
         {
-            var json = request.UserPrompt.Contains(GradingMarker, StringComparison.Ordinal)
-                ? $$"""
+            if (request.UserPrompt.Contains(GradingMarker, StringComparison.Ordinal))
+            {
+                var gradingJson = $$"""
                     {
                       "dimensions": [
                         {"dimensionKey": "{{_dimensionKey}}", "band": 2, "rationale": "ok", "cumulativeDensityFlag": false, "cumulativeDensityNote": null, "estimatedPassProbability": 80}
                       ],
                       "errors": []
                     }
-                    """
-                : _followUpResponseJson;
+                    """;
+                return Task.FromResult(new LlmCompletionResult(gradingJson, 10, 20, "fake-model", 5));
+            }
 
-            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
+            LastFollowUpPrompt = request.UserPrompt;
+            return Task.FromResult(new LlmCompletionResult(_followUpResponseJson, 10, 20, "fake-model", 5));
         }
     }
 

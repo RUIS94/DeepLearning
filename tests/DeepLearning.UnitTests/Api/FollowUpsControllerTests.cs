@@ -6,6 +6,7 @@ using DeepLearning.Application.Features.ExamConfig.Commands.CreateExamType;
 using DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQuestion;
 using DeepLearning.Application.Features.Questions.Commands.ImportUserQuestion;
 using DeepLearning.Application.Features.StandardOverrides.Commands.ActivateStandardOverride;
+using DeepLearning.Application.Features.StandardOverrides.Queries.GetStandardOverrideById;
 using DeepLearning.Application.Features.StandardOverrides.Queries.ListStandardOverrides;
 using DeepLearning.Application.Features.Submissions.Commands.CreateSubmission;
 using DeepLearning.Application.Features.Users.Commands.RegisterUser;
@@ -320,6 +321,103 @@ namespace DeepLearning.UnitTests.Api
             });
 
             Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task Create_includes_the_reference_translation_in_the_prompt_and_accepts_a_translation_reference_scoped_revision()
+        {
+            // Design doc §2.1 node W ("对参考译文有疑问") reuses this same follow-up endpoint —
+            // this proves the reference translation's own text actually reaches the AI prompt
+            // (not just that the code compiles) and that a translation_reference-scoped
+            // standardRevision (already a legal OverrideScope value, but never exercised by
+            // Step 5's own tests, which only ever used grading_rubric) round-trips correctly.
+            var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
+            var responseJson = """
+                {
+                  "aiResponse": "You're right, that phrasing in the reference translation is a bit stiff.",
+                  "verdict": "user_correct",
+                  "standardRevision": {"scope": "translation_reference", "dimensionOrRule": "reference_wording", "originalRuleText": "used a literal calque", "revisedRuleText": "prefer a more natural phrasing next time"}
+                }
+                """;
+            var fakeClient = new FakeFollowUpFlowLlmClient(dimensionKey, responseJson);
+            var client = _factory
+                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
+                    services => services.AddSingleton<ILlmClientResolver>(new FixedLlmClientResolver(fakeClient))))
+                .CreateClient();
+
+            var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                await context.PromptTemplates.AddRangeAsync(
+                    new PromptTemplate
+                    {
+                        Id = Guid.NewGuid(),
+                        SubjectCategory = SubjectCategory.translation,
+                        TemplateType = AiOperationType.grading,
+                        Layer = TemplateLayer.shared_methodology,
+                        TemplateContent = FakeFollowUpFlowLlmClient.GradingMarker,
+                        Version = 1,
+                        IsActive = true,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                    },
+                    new PromptTemplate
+                    {
+                        Id = Guid.NewGuid(),
+                        SubjectCategory = SubjectCategory.translation,
+                        TemplateType = AiOperationType.followup,
+                        Layer = TemplateLayer.shared_methodology,
+                        // The real {{ if reference_translation }} guard, exercised against the
+                        // handler's real BuildTemplateModel output rather than the production
+                        // add_followup_reference_translation_content.sql wording (that file is
+                        // hand-run against Supabase, not applied to this throwaway Testcontainers
+                        // DB — same convention as every other content-injection test in this file).
+                        TemplateContent = $"{FakeFollowUpFlowLlmClient.FollowUpMarker}\n{{{{ if reference_translation }}}}REF: {{{{ reference_translation.reference_text }}}}{{{{ end }}}}",
+                        Version = 1,
+                        IsActive = true,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                    });
+                await context.SaveChangesAsync();
+            }
+
+            var (questionId, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
+
+            const string referenceText = "REFERENCE_TRANSLATION_MARKER_abc123";
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                await context.ReferenceTranslations.AddAsync(new ReferenceTranslation
+                {
+                    Id = Guid.NewGuid(),
+                    QuestionId = questionId,
+                    ReferenceText = referenceText,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                });
+                await context.SaveChangesAsync();
+            }
+
+            var response = await client.PostAsJsonAsync(ApiRoutes.FollowUps.Base, new
+            {
+                SubmissionId = submissionId,
+                UserId = userId,
+                ExamTypeId = examTypeId,
+                ContextRef = (string?)null,
+                QuestionText = "Why does the reference translation phrase it that way?",
+            });
+
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var result = await response.Content.ReadFromJsonAsync<CreateFollowUpQuestionResult>();
+            Assert.Equal(FollowUpVerdict.user_correct, result!.Verdict);
+            Assert.NotNull(result.StandardOverrideId);
+
+            Assert.NotNull(fakeClient.LastFollowUpPrompt);
+            Assert.Contains(referenceText, fakeClient.LastFollowUpPrompt);
+
+            var overrideResponse = await client.GetAsync($"{ApiRoutes.StandardOverrides.Base}/{result.StandardOverrideId}");
+            Assert.Equal(HttpStatusCode.OK, overrideResponse.StatusCode);
+            var overrideResult = await overrideResponse.Content.ReadFromJsonAsync<GetStandardOverrideByIdResult>();
+            Assert.Equal(OverrideScope.translation_reference, overrideResult!.Scope);
         }
 
         [Fact]
