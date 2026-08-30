@@ -16,8 +16,13 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
             builder.Property(x => x.FirstDetectedAt).HasDefaultValueSql("now()");
             builder.Property(x => x.LastSeenAt).HasDefaultValueSql("now()");
             builder.Property(x => x.RecurrenceCount).HasDefaultValue(0);
-            builder.Property(x => x.Status).HasDefaultValue(Domain.Enums.WeakPointStatus.active);
-            builder.Property(x => x.Priority).HasDefaultValue(Domain.Enums.Priority.medium);
+            builder.Property(x => x.Status).HasDefaultValue(Domain.Enums.WeakPointStatus.active).ValueGeneratedNever();
+            // ValueGeneratedNever() matters here specifically: Priority.medium (the DB default) is
+            // NOT the enum's ordinal-0 member (Priority.high is) — without this, EF's
+            // "HasDefaultValue implies ValueGeneratedOnAdd" convention would silently discard an
+            // explicit Priority.high on a brand-new row and substitute medium instead, the same
+            // bug FollowUpQuestionConfiguration.Verdict hit for real (see its comment).
+            builder.Property(x => x.Priority).HasDefaultValue(Domain.Enums.Priority.medium).ValueGeneratedNever();
 
             builder.HasIndex(x => new { x.UserId, x.Status }).HasDatabaseName("idx_weak_points_user_status");
 

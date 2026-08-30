@@ -250,4 +250,61 @@ namespace DeepLearning.UnitTests.Api
         public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(_client);
     }
+
+    /// <summary>
+    /// A follow-up flow needs both a grading call (to get the submission to Graded first) and a
+    /// follow-up call, but ApiWebApplicationFactory only lets one ILlmClientResolver be
+    /// registered per test client. This client tells the two apart by a literal marker string
+    /// each test's seeded PromptTemplate rows render verbatim (see
+    /// FollowUpsControllerTests.SeedGradingAndFollowUpTemplatesAsync) and returns a fixed grading
+    /// response (parameterized by dimensionKey, so it validates against whatever AssessmentDimension
+    /// that test seeded) for the former, or the caller-supplied JSON (varied per test to control
+    /// the verdict) for the latter. dimensionKey is caller-supplied rather than a shared constant
+    /// because standard_overrides has no exam_type_id column (design doc §9.4) — it matches purely
+    /// on (scope, dimensionOrRule), so tests sharing one literal string would silently pollute each
+    /// other's confirmation counts through the ApiCollection's one shared Testcontainers DB.
+    /// </summary>
+    public class FakeFollowUpFlowLlmClient : ILlmClient
+    {
+        public const string GradingMarker = "GRADING_MARKER";
+        public const string FollowUpMarker = "FOLLOWUP_MARKER";
+
+        private readonly string _dimensionKey;
+        private readonly string _followUpResponseJson;
+
+        public FakeFollowUpFlowLlmClient(string dimensionKey, string followUpResponseJson)
+        {
+            _dimensionKey = dimensionKey;
+            _followUpResponseJson = followUpResponseJson;
+        }
+
+        public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
+        {
+            var json = request.UserPrompt.Contains(GradingMarker, StringComparison.Ordinal)
+                ? $$"""
+                    {
+                      "dimensions": [
+                        {"dimensionKey": "{{_dimensionKey}}", "band": 2, "rationale": "ok", "cumulativeDensityFlag": false, "cumulativeDensityNote": null, "estimatedPassProbability": 80}
+                      ],
+                      "errors": []
+                    }
+                    """
+                : _followUpResponseJson;
+
+            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
+        }
+    }
+
+    public class FakeFollowUpFlowLlmClientResolver : ILlmClientResolver
+    {
+        private readonly ILlmClient _client;
+
+        public FakeFollowUpFlowLlmClientResolver(string dimensionKey, string followUpResponseJson)
+        {
+            _client = new FakeFollowUpFlowLlmClient(dimensionKey, followUpResponseJson);
+        }
+
+        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(_client);
+    }
 }

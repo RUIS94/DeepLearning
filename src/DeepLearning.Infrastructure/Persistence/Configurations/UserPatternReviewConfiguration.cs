@@ -13,7 +13,7 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
             builder.Property(x => x.TimesEncountered).HasDefaultValue(1);
-            builder.Property(x => x.MasteryLevel).HasDefaultValue(Domain.Enums.MasteryLevel.New);
+            builder.Property(x => x.MasteryLevel).HasDefaultValue(Domain.Enums.MasteryLevel.New).ValueGeneratedNever();
             builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
 
             builder.HasIndex(x => new { x.UserId, x.PatternId }).IsUnique();

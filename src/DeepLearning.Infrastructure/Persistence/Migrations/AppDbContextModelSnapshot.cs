@@ -92,7 +92,6 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnName("resolved_at");
 
                     b.Property<CallStatus>("Status")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("call_status_enum")
                         .HasDefaultValue(CallStatus.pending)
                         .HasColumnName("status");
@@ -450,7 +449,6 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnName("user_id");
 
                     b.Property<FollowUpVerdict>("Verdict")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("followup_verdict_enum")
                         .HasDefaultValue(FollowUpVerdict.pending)
                         .HasColumnName("verdict");
@@ -996,7 +994,6 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnName("title");
 
                     b.Property<Visibility>("Visibility")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("visibility_enum")
                         .HasDefaultValue(Visibility.Private)
                         .HasColumnName("visibility");
@@ -1267,7 +1264,6 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnName("scope");
 
                     b.Property<OverrideStatus>("Status")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("override_status_enum")
                         .HasDefaultValue(OverrideStatus.observing)
                         .HasColumnName("status");
@@ -1315,7 +1311,6 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnName("question_id");
 
                     b.Property<SubmissionStatus>("Status")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("submission_status_enum")
                         .HasDefaultValue(SubmissionStatus.draft)
                         .HasColumnName("status");
@@ -1482,7 +1477,6 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnName("last_reviewed_at");
 
                     b.Property<MasteryLevel>("MasteryLevel")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("mastery_level_enum")
                         .HasDefaultValue(MasteryLevel.New)
                         .HasColumnName("mastery_level");
@@ -1529,7 +1523,6 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnName("last_reviewed_at");
 
                     b.Property<MasteryLevel>("MasteryLevel")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("mastery_level_enum")
                         .HasDefaultValue(MasteryLevel.New)
                         .HasColumnName("mastery_level");
@@ -1580,7 +1573,6 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnName("last_reviewed_at");
 
                     b.Property<MasteryLevel>("MasteryLevel")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("mastery_level_enum")
                         .HasDefaultValue(MasteryLevel.New)
                         .HasColumnName("mastery_level");
@@ -1705,7 +1697,6 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasDefaultValueSql("now()");
 
                     b.Property<Priority>("Priority")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("priority_enum")
                         .HasDefaultValue(Priority.medium)
                         .HasColumnName("priority");
@@ -1717,7 +1708,6 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnName("recurrence_count");
 
                     b.Property<WeakPointStatus>("Status")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("weak_point_status_enum")
                         .HasDefaultValue(WeakPointStatus.active)
                         .HasColumnName("status");

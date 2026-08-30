@@ -12,7 +12,7 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
-            builder.Property(x => x.Status).HasDefaultValue(Domain.Enums.CallStatus.pending);
+            builder.Property(x => x.Status).HasDefaultValue(Domain.Enums.CallStatus.pending).ValueGeneratedNever();
             builder.Property(x => x.AttemptCount).HasDefaultValue(0);
             builder.Property(x => x.MaxRetries).HasDefaultValue(3);
             builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");

@@ -13,7 +13,7 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
             builder.Property(x => x.Content).HasColumnType("jsonb").IsRequired();
-            builder.Property(x => x.Status).HasDefaultValue(Domain.Enums.SubmissionStatus.draft);
+            builder.Property(x => x.Status).HasDefaultValue(Domain.Enums.SubmissionStatus.draft).ValueGeneratedNever();
             builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
             builder.Property(x => x.UpdatedAt).HasDefaultValueSql("now()");
 

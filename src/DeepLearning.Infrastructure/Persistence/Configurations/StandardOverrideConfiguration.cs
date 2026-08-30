@@ -14,7 +14,7 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
             builder.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
             builder.Property(x => x.DimensionOrRule).HasMaxLength(100).IsRequired();
             builder.Property(x => x.RevisedRuleText).IsRequired();
-            builder.Property(x => x.Status).HasDefaultValue(Domain.Enums.OverrideStatus.observing);
+            builder.Property(x => x.Status).HasDefaultValue(Domain.Enums.OverrideStatus.observing).ValueGeneratedNever();
             builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
 
             builder.HasIndex(x => x.Status).HasDatabaseName("idx_standard_overrides_status");

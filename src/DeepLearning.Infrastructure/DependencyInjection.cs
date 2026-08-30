@@ -35,6 +35,8 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<ILlmProviderModelRepository, LlmProviderModelRepository>();
             services.AddScoped<ISubmissionRepository, SubmissionRepository>();
             services.AddScoped<IGenerationPolicyRepository, GenerationPolicyRepository>();
+            services.AddScoped<IFollowUpQuestionRepository, FollowUpQuestionRepository>();
+            services.AddScoped<IStandardOverrideRepository, StandardOverrideRepository>();
 
             services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 

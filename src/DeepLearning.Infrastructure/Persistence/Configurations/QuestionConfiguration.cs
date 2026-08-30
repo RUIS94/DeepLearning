@@ -17,7 +17,7 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
             builder.Property(x => x.SourceText).IsRequired();
             builder.Property(x => x.IsSeedReference).HasDefaultValue(false);
             builder.Property(x => x.InBank).HasDefaultValue(false);
-            builder.Property(x => x.Visibility).HasDefaultValue(Domain.Enums.Visibility.Private);
+            builder.Property(x => x.Visibility).HasDefaultValue(Domain.Enums.Visibility.Private).ValueGeneratedNever();
             builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
             builder.Property(x => x.IsActive).HasDefaultValue(true);
 
