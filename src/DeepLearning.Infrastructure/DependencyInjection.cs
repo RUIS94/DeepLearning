@@ -51,7 +51,19 @@ namespace DeepLearning.Infrastructure
             // line + its adapter class. No handler ever depends on a concrete provider.
             services.AddOptions<ClaudeApiOptions>().Bind(configuration.GetSection(ClaudeApiOptions.SectionName));
 
-            services.AddHttpClient<ClaudeLlmClient>((sp, client) =>
+            // Development-only request/response tracing (see AiTracingHandler's own doc comment)
+            // — must be Transient, matching HttpClientFactory's requirement for message handlers.
+            // Added AFTER AddStandardResilienceHandler below so it's the INNER handler and sees
+            // each Polly retry as its own logged attempt, not just the final outcome.
+            services.AddTransient<AiTracingHandler>();
+
+            // AddStandardResilienceHandler returns IHttpStandardResiliencePipelineBuilder (for
+            // configuring ITS OWN internal Polly pipeline), not IHttpClientBuilder, so it can't
+            // be chained into AddHttpMessageHandler directly — capture the original
+            // IHttpClientBuilder and call both extension methods on it instead. Both still append
+            // to the same underlying handler list in call order, so AiTracingHandler still ends
+            // up as the inner (closer to network) handler, same effect as chaining.
+            var claudeHttpClientBuilder = services.AddHttpClient<ClaudeLlmClient>((sp, client) =>
             {
                 var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ClaudeApiOptions>>().Value;
                 client.BaseAddress = new Uri(options.BaseUrl);
@@ -61,14 +73,18 @@ namespace DeepLearning.Infrastructure
                 {
                     client.DefaultRequestHeaders.Add("anthropic-workspace-id", options.WorkspaceId);
                 }
-            }).AddStandardResilienceHandler(LlmResiliencePipeline.Configure);
+            });
+            claudeHttpClientBuilder.AddStandardResilienceHandler(LlmResiliencePipeline.Configure);
+            claudeHttpClientBuilder.AddHttpMessageHandler<AiTracingHandler>();
 
             services.AddKeyedTransient<ILlmClient>("claude", (sp, _) => sp.GetRequiredService<ClaudeLlmClient>());
 
             // OpenAI-compatible providers (OpenAI, DeepSeek, Mimo) share one adapter class —
             // only the config differs per provider (named options + a keyed registration each).
             // One shared named HttpClient carries the same resilience policy as Claude's.
-            services.AddHttpClient("llm-openai-compatible").AddStandardResilienceHandler(LlmResiliencePipeline.Configure);
+            var openAiCompatibleHttpClientBuilder = services.AddHttpClient("llm-openai-compatible");
+            openAiCompatibleHttpClientBuilder.AddStandardResilienceHandler(LlmResiliencePipeline.Configure);
+            openAiCompatibleHttpClientBuilder.AddHttpMessageHandler<AiTracingHandler>();
 
             services.AddOptions<OpenAiCompatibleOptions>("openai").Bind(configuration.GetSection("Llm:OpenAi"));
             services.AddOptions<OpenAiCompatibleOptions>("deepseek").Bind(configuration.GetSection("Llm:DeepSeek"));
