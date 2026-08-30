@@ -22,7 +22,16 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
             TaskType? applicableTaskType,
             CancellationToken cancellationToken = default)
         {
-            var query = _context.AssessmentDimensions.Where(x => x.ExamTypeId == examTypeId);
+            // Design doc §10.1: only the version(s) actually in effect right now. Without this,
+            // inserting a second rubric_version for the same dimension_key would make both the
+            // old and new row match simultaneously — GradeSubmissionCommandHandler's
+            // dimensions.ToDictionary(x => x.DimensionKey) would then throw ArgumentException on
+            // the very next grading call for this exam type (duplicate key), not a soft ambiguity.
+            var now = DateTimeOffset.UtcNow;
+            var query = _context.AssessmentDimensions.Where(x =>
+                x.ExamTypeId == examTypeId
+                && x.EffectiveFrom <= now
+                && (x.EffectiveTo == null || x.EffectiveTo > now));
 
             if (applicableTaskType.HasValue)
             {
@@ -40,6 +49,14 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
             => _context.AssessmentDimensions.AnyAsync(
                 x => x.ExamTypeId == examTypeId && x.DimensionKey == dimensionKey && x.RubricVersion == rubricVersion,
                 cancellationToken);
+
+        public Task<List<AssessmentDimension>> ListOpenEndedByKeyAsync(
+            Guid examTypeId,
+            string dimensionKey,
+            CancellationToken cancellationToken = default)
+            => _context.AssessmentDimensions
+                .Where(x => x.ExamTypeId == examTypeId && x.DimensionKey == dimensionKey && x.EffectiveTo == null)
+                .ToListAsync(cancellationToken);
 
         public async Task AddAsync(AssessmentDimension dimension, CancellationToken cancellationToken = default)
             => await _context.AssessmentDimensions.AddAsync(dimension, cancellationToken);
