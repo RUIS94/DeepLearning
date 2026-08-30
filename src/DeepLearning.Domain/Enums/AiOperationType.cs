@@ -5,6 +5,7 @@ namespace DeepLearning.Domain.Enums
         question_gen,
         grading,
         followup,
-        standard_revision
+        standard_revision,
+        deep_learning
     }
 }

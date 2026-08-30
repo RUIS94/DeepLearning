@@ -1,6 +1,8 @@
 using DeepLearning.Api.Constants;
+using DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearningContent;
 using DeepLearning.Application.Features.Questions.Commands.GenerateQuestion;
 using DeepLearning.Application.Features.Questions.Commands.ImportUserQuestion;
+using DeepLearning.Application.Features.Questions.Queries.GetDeepLearningContentByQuestionId;
 using DeepLearning.Application.Features.Questions.Queries.GetQuestionById;
 using DeepLearning.Application.Features.Questions.Queries.ListQuestions;
 using DeepLearning.Domain.Enums;
@@ -66,5 +68,16 @@ namespace DeepLearning.Api.Controllers
         public async Task<ActionResult<List<ListQuestionsResultItem>>> List(
             TaskType? taskType, Difficulty? difficulty, bool? inBank, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(new ListQuestionsQuery(taskType, difficulty, inBank), cancellationToken));
+
+        public record GenerateDeepLearningContentRequest(Guid ExamTypeId);
+
+        [HttpPost("{id:guid}/deep-learning")]
+        public async Task<ActionResult<GenerateDeepLearningContentResult>> GenerateDeepLearningContent(
+            Guid id, GenerateDeepLearningContentRequest request, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new GenerateDeepLearningContentCommand(id, request.ExamTypeId), cancellationToken));
+
+        [HttpGet("{id:guid}/deep-learning")]
+        public async Task<ActionResult<GetDeepLearningContentByQuestionIdResult>> GetDeepLearningContent(Guid id, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new GetDeepLearningContentByQuestionIdQuery(id), cancellationToken));
     }
 }

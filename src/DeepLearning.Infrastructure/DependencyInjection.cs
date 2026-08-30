@@ -40,6 +40,7 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<IWeakPointRepository, WeakPointRepository>();
             services.AddScoped<IProgressRepository, ProgressRepository>();
             services.AddScoped<IReviewLibraryRepository, ReviewLibraryRepository>();
+            services.AddScoped<IReferenceTranslationRepository, ReferenceTranslationRepository>();
 
             services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 

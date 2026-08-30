@@ -15,5 +15,9 @@ namespace DeepLearning.Application.Interfaces
         Task AddUserPatternReviewAsync(UserPatternReview review, CancellationToken cancellationToken = default);
 
         Task AddUserVocabReviewAsync(UserVocabReview review, CancellationToken cancellationToken = default);
+
+        Task AddPatternsAsync(IEnumerable<SentencePattern> patterns, CancellationToken cancellationToken = default);
+
+        Task AddVocabAsync(IEnumerable<VocabExpression> vocab, CancellationToken cancellationToken = default);
     }
 }

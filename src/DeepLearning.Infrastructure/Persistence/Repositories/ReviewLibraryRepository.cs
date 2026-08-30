@@ -30,5 +30,11 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
 
         public async Task AddUserVocabReviewAsync(UserVocabReview review, CancellationToken cancellationToken = default)
             => await _context.UserVocabReview.AddAsync(review, cancellationToken);
+
+        public async Task AddPatternsAsync(IEnumerable<SentencePattern> patterns, CancellationToken cancellationToken = default)
+            => await _context.SentencePatterns.AddRangeAsync(patterns, cancellationToken);
+
+        public async Task AddVocabAsync(IEnumerable<VocabExpression> vocab, CancellationToken cancellationToken = default)
+            => await _context.VocabExpressions.AddRangeAsync(vocab, cancellationToken);
     }
 }

@@ -307,4 +307,73 @@ namespace DeepLearning.UnitTests.Api
         public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(_client);
     }
+
+    /// <summary>
+    /// Fixed-JSON stand-in for a deep-learning generation call (design doc §10.2/Step 7) — also
+    /// records every prompt it was called with and how many times, so a test can assert both
+    /// content-isolation (the prompt only ever contains what GenerateDeepLearningContentCommandHandler
+    /// is supposed to send) and idempotency (a second call for an already-generated Question never
+    /// reaches this client at all).
+    /// </summary>
+    public class FakeDeepLearningLlmClient : ILlmClient
+    {
+        public const string ReferenceText = "这是标准参考译文。";
+        public const string PatternName = "非限定性定语从句";
+        public const string VocabExpr = "in light of";
+
+        public int CallCount { get; private set; }
+
+        public List<string> CapturedPrompts { get; } = [];
+
+        public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            CapturedPrompts.Add(request.UserPrompt);
+
+            var json = $$"""
+                {
+                  "referenceText": "{{ReferenceText}}",
+                  "comparisonNotes": ["注意不要逐字直译"],
+                  "sentencePatterns": [
+                    {"patternName": "{{PatternName}}", "exampleSentence": "example sentence", "breakdownSteps": {"主干": "x"}, "variants": null, "domain": null, "scenario": null, "frequencyTag": null}
+                  ],
+                  "vocabExpressions": [
+                    {"englishExpr": "{{VocabExpr}}", "chineseEquiv": "鉴于", "contextNote": null, "category": null, "domain": null, "scenario": null, "frequencyTag": null}
+                  ]
+                }
+                """;
+
+            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
+        }
+    }
+
+    /// <summary>
+    /// Same shape as FakeDeepLearningLlmClient but its one sentencePatterns item has an empty
+    /// patternName — proves GenerateDeepLearningContentCommandHandler rejects a structurally
+    /// invalid item instead of persisting it (design doc §10.3's hard-constraint philosophy).
+    /// </summary>
+    public class FakeDeepLearningLlmClientWithInvalidPattern : ILlmClient
+    {
+        public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
+        {
+            var json = """
+                {
+                  "referenceText": "reference text",
+                  "comparisonNotes": [],
+                  "sentencePatterns": [
+                    {"patternName": "", "exampleSentence": "x", "breakdownSteps": null, "variants": null, "domain": null, "scenario": null, "frequencyTag": null}
+                  ],
+                  "vocabExpressions": []
+                }
+                """;
+
+            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
+        }
+    }
+
+    public class FakeDeepLearningLlmClientResolverWithInvalidPattern : ILlmClientResolver
+    {
+        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<ILlmClient>(new FakeDeepLearningLlmClientWithInvalidPattern());
+    }
 }
