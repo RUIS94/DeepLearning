@@ -24,7 +24,10 @@ const statusTone: Record<number, string> = {
 };
 
 export function StandardOverridesPage() {
-  const overrides = useQuery({ queryKey: ["standard-overrides"], queryFn: listStandardOverrides });
+  const overrides = useQuery({
+    queryKey: ["standard-overrides"],
+    queryFn: () => listStandardOverrides(),
+  });
 
   return (
     <AppShell
@@ -47,11 +50,9 @@ export function StandardOverridesPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <Scale className="size-4 text-muted-foreground" />
                       <span className="text-sm font-medium">{scopeLabel[o.scope]}</span>
-                      {o.dimensionKey ? (
-                        <Badge variant="outline" className="border-border text-muted-foreground">
-                          {o.dimensionKey}
-                        </Badge>
-                      ) : null}
+                      <Badge variant="outline" className="border-border text-muted-foreground">
+                        {o.dimensionOrRule}
+                      </Badge>
                       <Badge
                         variant="outline"
                         className={cn("border-transparent", statusTone[o.status])}
@@ -60,10 +61,10 @@ export function StandardOverridesPage() {
                       </Badge>
                     </div>
                     <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-                      {o.reason}
+                      {o.revisedRuleText}
                     </p>
                     <p className="text-numeric text-xs text-muted-foreground">
-                      {formatDate(o.createdAt)} · 关联提交 {o.submissionId}
+                      {formatDate(o.createdAt)}
                     </p>
                   </div>
                   <ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground" />

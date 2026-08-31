@@ -110,8 +110,7 @@ export function DimensionsPage() {
         dialogTitle="新建评分维度版本"
         createButtonLabel="新建版本"
         onCreate={(values) =>
-          createAssessmentDimension({
-            examTypeId,
+          createAssessmentDimension(examTypeId, {
             ...values,
             passThreshold: values.passThreshold || null,
             applicableTaskType:

@@ -21,6 +21,7 @@ import {
   WeakPointStatus,
 } from "@/lib/types/enums";
 import type {
+  ActivateStandardOverrideResult,
   AssessmentDimension,
   CreateAssessmentDimensionRequest,
   CreateErrorTaxonomyRequest,
@@ -28,13 +29,17 @@ import type {
   CreateFollowUpQuestionRequest,
   CreatePromptTemplateRequest,
   CreateQuestionBankCategoryRequest,
+  CreateQuestionResult,
   CreateSubmissionRequest,
+  CreateSubmissionResult,
   DeepLearningContent,
   ErrorTaxonomy,
   ExamType,
+  FollowUpQuestionDetail,
   FollowUpQuestionResult,
   GenerateDeepLearningContentResponse,
   GenerateQuestionRequest,
+  GradeSubmissionResult,
   ImportUserQuestionRequest,
   LlmProviderModel,
   LlmProviderSettings,
@@ -46,9 +51,12 @@ import type {
   QuestionListItem,
   ReviewPatternItem,
   ReviewVocabItem,
+  SeedReferenceLink,
   StandardOverride,
+  StandardOverrideDetail,
   SubmissionDetail,
   UpdateLlmProviderSettingsRequest,
+  UserProfile,
   WeakPoint,
 } from "@/lib/types/dtos";
 
@@ -57,6 +65,21 @@ export const MOCK_USER = {
   email: "learner@example.com",
   name: "练习者",
 };
+
+/** 对应后端 GET /users/{id}（GetUserByIdQuery）——目前只有 MOCK_USER 这一个用户。 */
+export async function getUserById(id: string): Promise<UserProfile> {
+  await delay(80);
+  if (id !== MOCK_USER.id)
+    throw new ApiError(404, { status: 404, title: `User with id ${id} was not found.` });
+  return {
+    id: MOCK_USER.id,
+    username: MOCK_USER.email,
+    email: MOCK_USER.email,
+    displayName: MOCK_USER.name,
+    createdAt: "2026-01-08T02:00:00Z",
+    lastLoginAt: new Date().toISOString(),
+  };
+}
 
 export const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -412,30 +435,65 @@ const questions: QuestionDetail[] = [
 /* ------------------------------ 内存状态 ------------------------------ */
 
 const submissions = new Map<string, SubmissionDetail>();
-const followUps = new Map<string, FollowUpQuestionResult[]>();
+/** 存 createFollowUp 累积的完整记录，按后端 FollowUpQuestionResultItem 的形状投影给 listFollowUps/getFollowUpQuestionById。 */
+const followUps = new Map<string, FollowUpQuestionDetail[]>();
 const deepLearningCache = new Map<string, DeepLearningContent>();
-const overrides: StandardOverride[] = [
+/** 内部存完整的 StandardOverrideDetail（含 originalRuleText/triggeredByFollowupId），
+ * listStandardOverrides 只投影出列表项需要的字段，与后端 List/GetById 返回不同形状一致。 */
+const overrides: StandardOverrideDetail[] = [
   {
     id: "ovr-1",
-    submissionId: "sub-9001",
     scope: OverrideScope.grading_rubric,
+    dimensionOrRule: "textual_norms",
+    originalRuleText: "「敬启者」等称谓一律按语域不当扣分。",
+    revisedRuleText: "「敬启者」在澳洲政府公文语境下属可接受的正式称谓，不再对该称谓单独扣分。",
+    triggeredByFollowupId: "fu-9001",
     status: OverrideStatus.active,
-    dimensionKey: "textual_norms",
-    reason:
-      "学员指出「敬启者」在澳洲政府公文语境下属可接受的正式称谓，评分标准已放宽对该称谓的扣分判定。",
+    previousOverrideId: null,
+    effectiveFrom: "2026-07-02T05:12:00Z",
     createdAt: "2026-07-02T05:12:00Z",
   },
   {
     id: "ovr-2",
-    submissionId: "sub-9002",
     scope: OverrideScope.translation_reference,
+    dimensionOrRule: "meaning_transfer",
+    originalRuleText: "“walk-in slots” 统一译为「无需预约名额」。",
+    revisedRuleText: "“walk-in slots” 亦可接受译为「现场号」，累计 2 次同类反馈后生效。",
+    triggeredByFollowupId: "fu-9002",
     status: OverrideStatus.observing,
-    dimensionKey: "meaning_transfer",
-    reason:
-      "关于 “walk-in slots” 是否可译为「现场号」的争议，已进入观察期，累计 2 次同类反馈后生效。",
+    previousOverrideId: null,
+    effectiveFrom: null,
     createdAt: "2026-08-15T11:40:00Z",
   },
 ];
+
+/** 对应后端 SeedReferenceLinkResultItem——记录 AI 出题时参考了哪些真题种子，按 questionId 索引。 */
+const seedReferenceLinks = new Map<string, SeedReferenceLink[]>([
+  [
+    "q-1002",
+    [
+      {
+        id: "srl-1",
+        seedQuestionId: "q-1001",
+        seedQuestionTitle: "社区健康中心疫苗接种通知",
+        similarityReason: "同属公共服务类公告，语域与句式结构相近。",
+        createdAt: "2026-04-11T09:00:00Z",
+      },
+    ],
+  ],
+  [
+    "q-1003",
+    [
+      {
+        id: "srl-2",
+        seedQuestionId: "q-1004",
+        seedQuestionTitle: "市政道路维修通知（找错）",
+        similarityReason: "同为面向公众的市政通知，条件句式可复用。",
+        createdAt: "2026-05-20T09:00:00Z",
+      },
+    ],
+  ],
+]);
 
 /* ------------------------------ 只读查询 ------------------------------ */
 
@@ -487,16 +545,17 @@ export async function listAssessmentDimensions(examTypeId: string): Promise<Asse
   );
 }
 
-/** 新建评分维度版本：语义上是“修订生效日期”，自动关闭上一条仍生效的记录（方案 3.8 节）。 */
+/** 新建评分维度版本：语义上是“修订生效日期”，自动关闭上一条仍生效的记录（方案 3.8 节）。
+ * examTypeId 是单独的参数，不在 req 里——镜像后端路由 /exam-types/{examTypeId}/assessment-dimensions
+ * 把 examTypeId 当路径参数而非 body 字段。 */
 export async function createAssessmentDimension(
+  examTypeId: string,
   req: CreateAssessmentDimensionRequest,
 ): Promise<AssessmentDimension> {
   await delay(200);
   const current = dimensions.find(
     (d) =>
-      d.examTypeId === req.examTypeId &&
-      d.dimensionKey === req.dimensionKey &&
-      d.effectiveTo === null,
+      d.examTypeId === examTypeId && d.dimensionKey === req.dimensionKey && d.effectiveTo === null,
   );
   if (current && req.effectiveFrom <= current.effectiveFrom) {
     throw new ApiError(400, {
@@ -507,7 +566,7 @@ export async function createAssessmentDimension(
   }
   const created: AssessmentDimension = {
     id: nextId("dim"),
-    examTypeId: req.examTypeId,
+    examTypeId,
     dimensionKey: req.dimensionKey,
     dimensionName: req.dimensionName,
     scaleType: req.scaleType,
@@ -530,11 +589,15 @@ export async function listErrorTaxonomiesByExamType(examTypeId: string): Promise
   return errorTaxonomies.filter((t) => t.examTypeId === examTypeId);
 }
 
-export async function createErrorTaxonomy(req: CreateErrorTaxonomyRequest): Promise<ErrorTaxonomy> {
+/** examTypeId 是单独的参数——镜像后端路由 /exam-types/{examTypeId}/error-taxonomies。 */
+export async function createErrorTaxonomy(
+  examTypeId: string,
+  req: CreateErrorTaxonomyRequest,
+): Promise<ErrorTaxonomy> {
   await delay(200);
   const created: ErrorTaxonomy = {
     id: nextId("tax"),
-    examTypeId: req.examTypeId,
+    examTypeId,
     categoryKey: req.categoryKey,
     categoryName: req.categoryName,
     description: req.description ?? null,
@@ -587,17 +650,13 @@ export async function listPromptTemplates(filter?: {
     );
 }
 
+/** version 必须由调用方显式传入——后端 CreatePromptTemplateCommand 要求显式 int Version，
+ * 没有像 assessment-dimensions 那样按"同族记录数+1"自动递增的逻辑，之前这里客户端自算版本号
+ * 是错的，接真实后端会导致版本号与后端语义脱节（静默写入错误数据，不会报错）。 */
 export async function createPromptTemplate(
   req: CreatePromptTemplateRequest,
 ): Promise<PromptTemplate> {
   await delay(200);
-  const sameFamily = promptTemplates.filter(
-    (t) =>
-      t.examTypeId === (req.examTypeId ?? null) &&
-      t.subjectCategory === (req.subjectCategory ?? null) &&
-      t.templateType === req.templateType &&
-      t.layer === req.layer,
-  );
   const created: PromptTemplate = {
     id: nextId("pt"),
     examTypeId: req.examTypeId ?? null,
@@ -605,7 +664,7 @@ export async function createPromptTemplate(
     templateType: req.templateType,
     layer: req.layer,
     templateContent: req.templateContent,
-    version: sameFamily.length + 1,
+    version: req.version,
     isActive: true,
     createdAt: new Date().toISOString(),
   };
@@ -651,34 +710,41 @@ const llmProviderModels: LlmProviderModel[] = [
   },
 ];
 
+/** 内部存储字段名与后端读接口一致：extraSettings（不带 Json 后缀）+ updatedAt。
+ * currentModel 不存在这里——它是从 llmProviderModels 目录里 isCurrent=true 的那条派生出来的
+ * 只读字符串（后端 LlmProviderResultItem.CurrentModel 同理），不是这张表自己的字段。 */
 const llmProviderSettingsList: Omit<LlmProviderSettings, "currentModel">[] = [
   {
     providerKey: "claude",
     isActive: false,
     thinkingEnabled: true,
     effort: "medium",
-    extraSettingsJson: null,
+    extraSettings: null,
+    updatedAt: "2026-01-01T00:00:00Z",
   },
   {
     providerKey: "openai",
     isActive: false,
     thinkingEnabled: false,
     effort: null,
-    extraSettingsJson: null,
+    extraSettings: null,
+    updatedAt: "2026-01-01T00:00:00Z",
   },
   {
     providerKey: "deepseek",
     isActive: false,
     thinkingEnabled: false,
     effort: null,
-    extraSettingsJson: null,
+    extraSettings: null,
+    updatedAt: "2026-01-01T00:00:00Z",
   },
   {
     providerKey: "mimo",
     isActive: true,
     thinkingEnabled: false,
     effort: null,
-    extraSettingsJson: null,
+    extraSettings: null,
+    updatedAt: "2026-01-01T00:00:00Z",
   },
 ];
 
@@ -686,7 +752,7 @@ function withCurrentModel(s: Omit<LlmProviderSettings, "currentModel">): LlmProv
   return {
     ...s,
     currentModel:
-      llmProviderModels.find((m) => m.providerKey === s.providerKey && m.isCurrent) ?? null,
+      llmProviderModels.find((m) => m.providerKey === s.providerKey && m.isCurrent)?.model ?? null,
   };
 }
 
@@ -706,7 +772,8 @@ export async function updateLlmProviderSettings(
   if (patch.thinkingEnabled !== undefined && patch.thinkingEnabled !== null)
     row.thinkingEnabled = patch.thinkingEnabled;
   if (patch.effort !== undefined) row.effort = patch.effort;
-  if (patch.extraSettingsJson !== undefined) row.extraSettingsJson = patch.extraSettingsJson;
+  if (patch.extraSettingsJson !== undefined) row.extraSettings = patch.extraSettingsJson;
+  row.updatedAt = new Date().toISOString();
   return withCurrentModel(row);
 }
 
@@ -716,6 +783,7 @@ export async function activateLlmProvider(providerKey: string): Promise<LlmProvi
   if (!row)
     throw new ApiError(404, { status: 404, title: `Provider '${providerKey}' was not found.` });
   llmProviderSettingsList.forEach((s) => (s.isActive = s.providerKey === providerKey));
+  row.updatedAt = new Date().toISOString();
   return withCurrentModel(row);
 }
 
@@ -790,7 +858,9 @@ export async function tagQuestionWithCategory(categoryId: string, questionId: st
   return question;
 }
 
-export async function importUserQuestion(req: ImportUserQuestionRequest): Promise<QuestionDetail> {
+export async function importUserQuestion(
+  req: ImportUserQuestionRequest,
+): Promise<CreateQuestionResult> {
   await delay(250);
   const created: QuestionDetail = {
     id: nextId("q"),
@@ -814,10 +884,11 @@ export async function importUserQuestion(req: ImportUserQuestionRequest): Promis
       checkpointType: c.checkpointType ?? null,
       importance: c.importance,
     })),
-    taskB: req.taskB
+    // 镜像后端 ImportUserQuestionCommand：flawedTranslationText/seededErrors 是顶层平铺字段。
+    taskB: req.flawedTranslationText
       ? {
-          flawedTranslationText: req.taskB.flawedTranslationText,
-          seededErrors: req.taskB.seededErrors.map((e) => ({
+          flawedTranslationText: req.flawedTranslationText,
+          seededErrors: (req.seededErrors ?? []).map((e) => ({
             id: nextId("se"),
             positionStart: e.positionStart,
             positionEnd: e.positionEnd,
@@ -832,7 +903,14 @@ export async function importUserQuestion(req: ImportUserQuestionRequest): Promis
     categoryIds: [],
   };
   questions.unshift(created);
-  return created;
+  // 对应后端 ImportUserQuestionResult——很薄，完整详情要另外 GET /questions/{id}。
+  return {
+    id: created.id,
+    taskType: created.taskType,
+    difficulty: created.difficulty,
+    title: created.title,
+    createdAt: created.createdAt,
+  };
 }
 
 export async function listQuestions(filter?: {
@@ -865,7 +943,9 @@ export async function getQuestionById(id: string): Promise<QuestionDetail> {
   return q;
 }
 
-export async function generateQuestion(req: GenerateQuestionRequest): Promise<QuestionDetail> {
+export async function generateQuestion(
+  req: GenerateQuestionRequest,
+): Promise<CreateQuestionResult> {
   await delay(2600);
   const base = questions.find((q) => q.taskType === req.taskType) ?? questions[0]!;
   const generated: QuestionDetail = {
@@ -884,12 +964,39 @@ export async function generateQuestion(req: GenerateQuestionRequest): Promise<Qu
     categoryIds: req.categoryId ? [req.categoryId] : base.categoryIds,
   };
   questions.unshift(generated);
-  return generated;
+  if (req.seedQuestionIds?.length) {
+    seedReferenceLinks.set(
+      generated.id,
+      req.seedQuestionIds.map((seedId) => ({
+        id: nextId("srl"),
+        seedQuestionId: seedId,
+        seedQuestionTitle: questions.find((q) => q.id === seedId)?.title ?? seedId,
+        similarityReason: "由调用方在出题请求中显式指定为参考真题。",
+        createdAt: generated.createdAt,
+      })),
+    );
+  }
+  // 对应后端 GenerateQuestionResult——很薄，完整详情要另外 GET /questions/{id}。
+  return {
+    id: generated.id,
+    taskType: generated.taskType,
+    difficulty: generated.difficulty,
+    title: generated.title,
+    createdAt: generated.createdAt,
+  };
+}
+
+/** 对应后端 GET /questions/{id}/seed-references——design doc §11.2 Step 8 的真题溯源读接口。 */
+export async function listSeedReferences(questionId: string): Promise<SeedReferenceLink[]> {
+  await delay(100);
+  return seedReferenceLinks.get(questionId) ?? [];
 }
 
 /* ------------------------------ 提交与评分 ------------------------------ */
 
-export async function createSubmission(req: CreateSubmissionRequest): Promise<SubmissionDetail> {
+export async function createSubmission(
+  req: CreateSubmissionRequest,
+): Promise<CreateSubmissionResult> {
   await delay(400);
   const now = new Date().toISOString();
   const submission: SubmissionDetail = {
@@ -905,7 +1012,14 @@ export async function createSubmission(req: CreateSubmissionRequest): Promise<Su
     errorList: [],
   };
   submissions.set(submission.id, submission);
-  return submission;
+  // 对应后端 CreateSubmissionResult——刻意很薄，完整详情要另外 GET /submissions/{id}。
+  return {
+    id: submission.id,
+    questionId: submission.questionId,
+    taskType: submission.taskType,
+    status: submission.status,
+    submittedAt: submission.submittedAt,
+  };
 }
 
 export async function getSubmissionById(id: string): Promise<SubmissionDetail> {
@@ -916,7 +1030,13 @@ export async function getSubmissionById(id: string): Promise<SubmissionDetail> {
   return s;
 }
 
-export async function gradeSubmission(id: string): Promise<SubmissionDetail> {
+/** examTypeId 镜像后端 POST /submissions/{id}/grade 的 GradeSubmissionRequest.examTypeId——
+ * mock 逻辑本身不需要它（题库只有一个 examType），但签名要和真实接口一致，接后端时才不用改调用点。 */
+export async function gradeSubmission(
+  id: string,
+  examTypeId: string,
+): Promise<GradeSubmissionResult> {
+  void examTypeId;
   await delay(3200);
   const s = submissions.get(id);
   if (!s)
@@ -1002,14 +1122,35 @@ export async function gradeSubmission(id: string): Promise<SubmissionDetail> {
     ],
   };
   submissions.set(id, graded);
-  return graded;
+  // 对应后端 GradeSubmissionResult——只有计数，评分结果需要调用方再 GET 一次 /submissions/{id}
+  // 才能拿到（真实流程是"评分 → 再 GET 一次"两步，不是一次调用直接拿到结果）。
+  return {
+    submissionId: graded.id,
+    status: graded.status,
+    gradingResultCount: graded.gradingResults.length,
+    errorListCount: graded.errorList.length,
+  };
 }
 
 /* -------------------------------- 追问 -------------------------------- */
 
-export async function listFollowUps(submissionId: string) {
+/** 对应后端 GET /follow-ups?submissionId=（ListFollowUpQuestionsQuery），按 createdAt 升序。 */
+export async function listFollowUps(submissionId: string): Promise<FollowUpQuestionDetail[]> {
   await delay(100);
   return followUps.get(submissionId) ?? [];
+}
+
+/** 对应后端 GET /follow-ups/{id}（GetFollowUpQuestionByIdQuery）。 */
+export async function getFollowUpQuestionById(id: string): Promise<FollowUpQuestionDetail> {
+  await delay(100);
+  for (const list of followUps.values()) {
+    const found = list.find((f) => f.id === id);
+    if (found) return found;
+  }
+  throw new ApiError(404, {
+    status: 404,
+    title: `Follow-up question with id ${id} was not found.`,
+  });
 }
 
 export async function createFollowUp(
@@ -1018,41 +1159,57 @@ export async function createFollowUp(
   await delay(2800);
   const supportsUser = /语域|正式|register|可接受|也可以|标准/.test(req.questionText);
   const verdict = supportsUser ? FollowUpVerdict.user_correct : FollowUpVerdict.partial;
+  const now = new Date().toISOString();
+  const followUpId = nextId("fu");
+  const aiResponse = supportsUser
+    ? "复核后认为你的判断成立：该表达在澳洲政府公文语境中属可接受的正式用法，原判定对语域的扣分过严。相关评分标准已生成修正记录并进入生效流程。"
+    : "你的理由部分成立：该处译法在口语场景确实常见，但本题为面向公众的正式通知，原判定的方向仍然保留；已将该判定的扣分权重下调，并在错误说明中补充语境条件。";
   const result: FollowUpQuestionResult = {
-    id: nextId("fu"),
+    id: followUpId,
     submissionId: req.submissionId,
     verdict,
-    aiResponse: supportsUser
-      ? "复核后认为你的判断成立：该表达在澳洲政府公文语境中属可接受的正式用法，原判定对语域的扣分过严。相关评分标准已生成修正记录并进入生效流程。"
-      : "你的理由部分成立：该处译法在口语场景确实常见，但本题为面向公众的正式通知，原判定的方向仍然保留；已将该判定的扣分权重下调，并在错误说明中补充语境条件。",
+    aiResponse,
     submissionStatus: supportsUser ? SubmissionStatus.standard_revised : SubmissionStatus.graded,
     standardOverrideId: supportsUser ? nextId("ovr") : null,
     standardOverrideStatus: supportsUser ? OverrideStatus.active : null,
   };
+  const detail: FollowUpQuestionDetail = {
+    id: followUpId,
+    submissionId: req.submissionId,
+    userId: req.userId,
+    contextRef: req.contextRef,
+    questionText: req.questionText,
+    aiResponse,
+    verdict,
+    createdAt: now,
+  };
   const list = followUps.get(req.submissionId) ?? [];
-  followUps.set(req.submissionId, [...list, result]);
+  followUps.set(req.submissionId, [...list, detail]);
   const s = submissions.get(req.submissionId);
   if (s) submissions.set(req.submissionId, { ...s, status: result.submissionStatus });
   if (result.standardOverrideId) {
     overrides.unshift({
       id: result.standardOverrideId,
-      submissionId: req.submissionId,
       scope: OverrideScope.grading_rubric,
+      dimensionOrRule: "textual_norms",
+      originalRuleText: "该场景默认按扣分处理。",
+      revisedRuleText: `由追问「${req.questionText.slice(0, 40)}」引发的评分标准修正。`,
+      triggeredByFollowupId: followUpId,
       status: OverrideStatus.active,
-      dimensionKey: "textual_norms",
-      reason: `由追问「${req.questionText.slice(0, 40)}」引发的评分标准修正。`,
-      createdAt: new Date().toISOString(),
+      previousOverrideId: null,
+      effectiveFrom: now,
+      createdAt: now,
     });
   }
   return result;
 }
 
-export async function listStandardOverrides() {
+export async function listStandardOverrides(status?: number): Promise<StandardOverride[]> {
   await delay(120);
-  return overrides;
+  return status === undefined ? overrides : overrides.filter((o) => o.status === status);
 }
 
-export async function getStandardOverrideById(id: string): Promise<StandardOverride> {
+export async function getStandardOverrideById(id: string): Promise<StandardOverrideDetail> {
   await delay(100);
   const found = overrides.find((o) => o.id === id);
   if (!found)
@@ -1061,6 +1218,29 @@ export async function getStandardOverrideById(id: string): Promise<StandardOverr
       title: `Standard override with id ${id} was not found.`,
     });
   return found;
+}
+
+/** 对应后端 POST /standard-overrides/{id}/activate——design doc §10.6"或经过一次人工复核"路径，
+ * 不看累计确认次数直接把 observing 提升为 active。 */
+export async function activateStandardOverride(
+  id: string,
+): Promise<ActivateStandardOverrideResult> {
+  await delay(200);
+  const found = overrides.find((o) => o.id === id);
+  if (!found)
+    throw new ApiError(404, {
+      status: 404,
+      title: `Standard override with id ${id} was not found.`,
+    });
+  if (found.status !== OverrideStatus.observing) {
+    throw new ApiError(409, {
+      status: 409,
+      title: `Standard override ${id} is not in the observing state.`,
+    });
+  }
+  found.status = OverrideStatus.active;
+  found.effectiveFrom = found.effectiveFrom ?? new Date().toISOString();
+  return { id: found.id, status: found.status, effectiveFrom: found.effectiveFrom };
 }
 
 /* ------------------------------ 深入学习 ------------------------------ */

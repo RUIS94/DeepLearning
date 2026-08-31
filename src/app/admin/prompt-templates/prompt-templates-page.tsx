@@ -7,7 +7,7 @@ import { CrudTable, type CrudColumn, type CrudField } from "@/components/admin/c
 import { EnumSelect } from "@/components/shared/enum-select";
 import { Badge } from "@/components/ui/badge";
 import { createPromptTemplate, listExamTypes, listPromptTemplates } from "@/lib/mock/store";
-import { SubjectCategoryLabel, TemplateLayerLabel, TemplateTypeLabel } from "@/lib/types/enums";
+import { AiOperationTypeLabel, SubjectCategoryLabel, TemplateLayerLabel } from "@/lib/types/enums";
 import { promptTemplateFormSchema, type PromptTemplateFormInput } from "@/lib/validation/admin";
 import type { PromptTemplate } from "@/lib/types/dtos";
 import { formatDate } from "@/lib/band";
@@ -16,7 +16,7 @@ const columns: CrudColumn<PromptTemplate>[] = [
   {
     key: "templateType",
     header: "用途",
-    render: (t) => <Badge variant="outline">{TemplateTypeLabel[t.templateType]}</Badge>,
+    render: (t) => <Badge variant="outline">{AiOperationTypeLabel[t.templateType]}</Badge>,
   },
   { key: "layer", header: "层级", render: (t) => TemplateLayerLabel[t.layer] },
   {
@@ -38,6 +38,7 @@ const defaultValues: PromptTemplateFormInput = {
   templateType: 0,
   layer: 0,
   templateContent: "",
+  version: 1,
 };
 
 export function PromptTemplatesPage() {
@@ -76,7 +77,7 @@ export function PromptTemplatesPage() {
       label: "模板用途",
       kind: "select",
       valueType: "number",
-      options: Object.entries(TemplateTypeLabel).map(([v, l]) => ({ value: v, label: l })),
+      options: Object.entries(AiOperationTypeLabel).map(([v, l]) => ({ value: v, label: l })),
     },
     {
       name: "layer",
@@ -92,6 +93,13 @@ export function PromptTemplatesPage() {
       rows: 8,
       description: "渲染时按考试类型加载，共享方法论片段与考试类型专属片段分层拼装。",
     },
+    {
+      name: "version",
+      label: "版本号",
+      kind: "number",
+      description:
+        "后端要求显式传版本号，没有自动递增逻辑；同一 examTypeId/subjectCategory + templateType + layer 组合下需自行保证递增。",
+    },
   ];
 
   return (
@@ -100,7 +108,7 @@ export function PromptTemplatesPage() {
       description="出题/评分/追问/标准修订的系统提示词，按考试类型独立维护、独立版本管理。"
       actions={
         <EnumSelect
-          labels={TemplateTypeLabel}
+          labels={AiOperationTypeLabel}
           value={templateType}
           onChange={setTemplateType}
           allowAll
@@ -128,6 +136,7 @@ export function PromptTemplatesPage() {
             templateType: values.templateType,
             layer: values.layer,
             templateContent: values.templateContent,
+            version: values.version,
           })
         }
         onCreated={() => queryClient.invalidateQueries({ queryKey: ["admin", "prompt-templates"] })}

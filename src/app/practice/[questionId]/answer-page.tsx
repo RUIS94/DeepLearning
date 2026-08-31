@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -22,8 +23,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createSubmission, errorTaxonomies, getQuestionById, MOCK_USER } from "@/lib/mock/store";
-import { TaskType } from "@/lib/types/enums";
+import {
+  createSubmission,
+  errorTaxonomies,
+  getQuestionById,
+  listSeedReferences,
+  MOCK_USER,
+} from "@/lib/mock/store";
+import { QuestionOrigin, TaskType } from "@/lib/types/enums";
 import type { TaskBAnnotation } from "@/lib/types/dtos";
 import { taskAContentSchema, taskBContentSchema } from "@/lib/validation/submission";
 
@@ -33,6 +40,12 @@ export function AnswerPage() {
   const question = useQuery({
     queryKey: ["question", questionId],
     queryFn: () => getQuestionById(questionId),
+  });
+  // design doc §11.2 Step 8 的真题溯源：AI 出题时参考了哪些真题种子，只对 ai_generated 题目有意义。
+  const seedReferences = useQuery({
+    queryKey: ["seed-references", questionId],
+    queryFn: () => listSeedReferences(questionId),
+    enabled: question.data?.origin === QuestionOrigin.ai_generated,
   });
 
   const [translation, setTranslation] = useState("");
@@ -91,31 +104,56 @@ export function AnswerPage() {
       }
     >
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="border-border shadow-none">
-          <CardHeader>
-            <CardTitle className="text-base">原文</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="source-text text-[15px]">{q.sourceText}</p>
-            {q.meaningCheckpoints.length ? (
-              <div className="mt-6 space-y-2 border-t border-border pt-4">
-                <p className="text-xs font-medium text-muted-foreground">核心意义点</p>
-                <ul className="space-y-1">
-                  {q.meaningCheckpoints.map((c) => (
-                    <li key={c.id} className="flex items-start gap-2 text-sm">
-                      <span
-                        className={`mt-1.5 size-1.5 shrink-0 rounded-full ${
-                          c.importance === 0 ? "bg-accent" : "bg-muted-foreground"
-                        }`}
-                      />
-                      {c.checkpointText}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
+        <div className="space-y-6">
+          <Card className="border-border shadow-none">
+            <CardHeader>
+              <CardTitle className="text-base">原文</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="source-text text-[15px]">{q.sourceText}</p>
+              {q.meaningCheckpoints.length ? (
+                <div className="mt-6 space-y-2 border-t border-border pt-4">
+                  <p className="text-xs font-medium text-muted-foreground">核心意义点</p>
+                  <ul className="space-y-1">
+                    {q.meaningCheckpoints.map((c) => (
+                      <li key={c.id} className="flex items-start gap-2 text-sm">
+                        <span
+                          className={`mt-1.5 size-1.5 shrink-0 rounded-full ${
+                            c.importance === 0 ? "bg-accent" : "bg-muted-foreground"
+                          }`}
+                        />
+                        {c.checkpointText}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          {seedReferences.data?.length ? (
+            <Card className="border-border shadow-none">
+              <CardHeader>
+                <CardTitle className="text-base">参考真题</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {seedReferences.data.map((r) => (
+                  <div key={r.id} className="rounded-md border border-border p-3 text-sm">
+                    <Link
+                      href={`/practice/${r.seedQuestionId}`}
+                      className="text-primary underline underline-offset-2"
+                    >
+                      {r.seedQuestionTitle}
+                    </Link>
+                    {r.similarityReason ? (
+                      <p className="mt-1 text-xs text-muted-foreground">{r.similarityReason}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
 
         <div className="space-y-6">
           {isTaskB ? (

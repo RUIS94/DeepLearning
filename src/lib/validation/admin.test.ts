@@ -28,7 +28,7 @@ describe("errorTaxonomyFormSchema", () => {
 });
 
 describe("promptTemplateFormSchema — examTypeId/subjectCategory XOR", () => {
-  const base = { templateType: 0, layer: 0, templateContent: "content" };
+  const base = { templateType: 0, layer: 0, templateContent: "content", version: 1 };
 
   it("accepts examTypeId alone", () => {
     expect(

@@ -80,18 +80,18 @@ export function ImportQuestionPage() {
           checkpointType: c.checkpointType ?? null,
           importance: c.importance,
         })),
-        taskB: values.taskB
-          ? {
-              flawedTranslationText: values.taskB.flawedTranslationText,
-              seededErrors: values.taskB.seededErrors.map((e) => ({
-                positionStart: e.positionStart,
-                positionEnd: e.positionEnd,
-                errorTaxonomyId: e.errorTaxonomyId,
-                correctReferenceText: e.correctReferenceText,
-                note: e.note ?? null,
-              })),
-            }
-          : null,
+        // 镜像后端 ImportUserQuestionCommand：flawedTranslationText/seededErrors 是顶层平铺
+        // 字段，不是嵌套在 taskB 里——表单内部仍用 taskB 分组管理这些字段更符合 UI 习惯，
+        // 只在构造请求体这一步展开。
+        flawedTranslationText: values.taskB?.flawedTranslationText ?? null,
+        seededErrors:
+          values.taskB?.seededErrors.map((e) => ({
+            positionStart: e.positionStart,
+            positionEnd: e.positionEnd,
+            errorTaxonomyId: e.errorTaxonomyId,
+            correctReferenceText: e.correctReferenceText,
+            note: e.note ?? null,
+          })) ?? [],
       }),
     onSuccess: (question) => router.push(`/practice/${question.id}`),
   });

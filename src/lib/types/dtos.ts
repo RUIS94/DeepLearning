@@ -100,6 +100,15 @@ export interface QuestionListItem {
   createdAt: string;
 }
 
+/** 对应后端 SeedReferenceLinkResultItem（GET /questions/{id}/seed-references）——记录 AI 出题时参考了哪些真题。 */
+export interface SeedReferenceLink {
+  id: string;
+  seedQuestionId: string;
+  seedQuestionTitle: string;
+  similarityReason: string | null;
+  createdAt: string;
+}
+
 export interface GenerateQuestionRequest {
   examTypeId: string;
   taskType: number;
@@ -108,6 +117,16 @@ export interface GenerateQuestionRequest {
   seedQuestionIds?: string[] | null;
   createdBy?: string | null;
   targetWeakPoints?: boolean;
+}
+
+/** 对应后端 GenerateQuestionResult / ImportUserQuestionResult——两者形状相同，都很薄
+ * （不含 sourceText/meaningCheckpoints/taskB 等），完整详情要另外 GET /questions/{id}。 */
+export interface CreateQuestionResult {
+  id: string;
+  taskType: number;
+  difficulty: number;
+  title: string;
+  createdAt: string;
 }
 
 export interface TaskBAnnotation {
@@ -123,6 +142,23 @@ export interface CreateSubmissionRequest {
   taskType: number;
   /** JSON 编码后的字符串：TaskA 为 JSON 字符串，TaskB 为 TaskBAnnotation[] */
   content: string;
+}
+
+/** 对应后端 CreateSubmissionResult ——刻意很薄，不含 content/gradingResults/errorList。 */
+export interface CreateSubmissionResult {
+  id: string;
+  questionId: string;
+  taskType: number;
+  status: number;
+  submittedAt: string | null;
+}
+
+/** 对应后端 GradeSubmissionResult ——同样很薄，只有计数，评分结果需要再 GET 一次 /submissions/{id}。 */
+export interface GradeSubmissionResult {
+  submissionId: string;
+  status: number;
+  gradingResultCount: number;
+  errorListCount: number;
 }
 
 export interface GradingResultItem {
@@ -181,14 +217,42 @@ export interface FollowUpQuestionResult {
   standardOverrideStatus: number | null;
 }
 
-export interface StandardOverride {
+/** 对应后端 FollowUpQuestionResultItem（GET /follow-ups?submissionId=）与 GetFollowUpQuestionByIdResult（GET /follow-ups/{id}）——两者字段完全一致，共用一个类型。 */
+export interface FollowUpQuestionDetail {
   id: string;
   submissionId: string;
-  scope: number;
-  status: number;
-  dimensionKey: string | null;
-  reason: string;
+  userId: string;
+  contextRef: string | null;
+  questionText: string;
+  aiResponse: string | null;
+  verdict: number;
   createdAt: string;
+}
+
+/** 对应后端 StandardOverrideResultItem（GET /standard-overrides 列表项）。没有 submissionId——
+ * 与提交的关联是间接的，经 triggeredByFollowupId → follow-up 的 submissionId。 */
+export interface StandardOverride {
+  id: string;
+  scope: number;
+  dimensionOrRule: string;
+  revisedRuleText: string;
+  status: number;
+  previousOverrideId: string | null;
+  effectiveFrom: string | null;
+  createdAt: string;
+}
+
+/** 对应后端 GetStandardOverrideByIdResult，比列表项多 originalRuleText/triggeredByFollowupId。 */
+export interface StandardOverrideDetail extends StandardOverride {
+  originalRuleText: string | null;
+  triggeredByFollowupId: string | null;
+}
+
+/** 对应后端 ActivateStandardOverrideResult（POST /standard-overrides/{id}/activate）。 */
+export interface ActivateStandardOverrideResult {
+  id: string;
+  status: number;
+  effectiveFrom: string | null;
 }
 
 export interface SentencePattern {
@@ -287,8 +351,8 @@ export interface CreateExamTypeRequest {
   description?: string | null;
 }
 
+/** examTypeId 不在这里——后端路由是 /exam-types/{examTypeId}/assessment-dimensions，examTypeId 是路径参数，不是 body 字段。 */
 export interface CreateAssessmentDimensionRequest {
-  examTypeId: string;
   dimensionKey: string;
   dimensionName: string;
   scaleType: number;
@@ -300,8 +364,8 @@ export interface CreateAssessmentDimensionRequest {
   sourceReference?: string | null;
 }
 
+/** examTypeId 同样是路径参数（/exam-types/{examTypeId}/error-taxonomies），不放在 body 里。 */
 export interface CreateErrorTaxonomyRequest {
-  examTypeId: string;
   categoryKey: string;
   categoryName: string;
   description?: string | null;
@@ -320,12 +384,14 @@ export interface PromptTemplate {
   createdAt: string;
 }
 
+/** 后端要求显式传 version（CreatePromptTemplateCommand），没有像 assessment-dimensions 那样的自动递增逻辑。 */
 export interface CreatePromptTemplateRequest {
   examTypeId?: string | null;
   subjectCategory?: number | null;
   templateType: number;
   layer: number;
   templateContent: string;
+  version: number;
 }
 
 export interface LlmProviderModel {
@@ -336,13 +402,17 @@ export interface LlmProviderModel {
   createdAt: string;
 }
 
+/** 对应后端 LlmProviderResultItem——currentModel 只是模型 id 字符串（不是完整对象，要显示 label
+ * 需要另外查一次 GET /llm-provider-settings/{key}/models 目录自己拼），读字段叫 extraSettings（不
+ * 带 Json 后缀，写字段 UpdateLlmProviderSettingsRequest.extraSettingsJson 才带）。 */
 export interface LlmProviderSettings {
   providerKey: string;
   isActive: boolean;
+  currentModel: string | null;
   thinkingEnabled: boolean;
   effort: string | null;
-  extraSettingsJson: string | null;
-  currentModel: LlmProviderModel | null;
+  extraSettings: string | null;
+  updatedAt: string;
 }
 
 export interface UpdateLlmProviderSettingsRequest {
@@ -372,19 +442,29 @@ export interface ImportMeaningCheckpointRequest {
   importance: number;
 }
 
+/** 镜像后端 ImportUserQuestionCommand：flawedTranslationText/seededErrors 是顶层平铺字段，
+ * 不是嵌套在 taskB 里（后端 record 里根本没有 taskB 这一层，是响应 DTO 才嵌套）。 */
 export interface ImportUserQuestionRequest {
   taskType: number;
   difficulty: number;
   title: string;
   brief?: string | null;
   sourceText: string;
+  flawedTranslationText?: string | null;
   wordCount?: number | null;
   isSeedReference?: boolean;
   visibility?: number;
   createdBy?: string | null;
   meaningCheckpoints?: ImportMeaningCheckpointRequest[];
-  taskB?: {
-    flawedTranslationText: string;
-    seededErrors: ImportSeededErrorRequest[];
-  } | null;
+  seededErrors?: ImportSeededErrorRequest[];
+}
+
+/** 对应后端 GetUserByIdResult（GET /users/{id}）。 */
+export interface UserProfile {
+  id: string;
+  username: string;
+  email: string;
+  displayName: string | null;
+  createdAt: string;
+  lastLoginAt: string | null;
 }

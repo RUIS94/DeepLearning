@@ -59,8 +59,7 @@ export function ErrorTaxonomiesPage() {
         defaultValues={defaultValues}
         dialogTitle="新建错误分类"
         onCreate={(values) =>
-          createErrorTaxonomy({
-            examTypeId,
+          createErrorTaxonomy(examTypeId, {
             ...values,
             description: values.description || null,
             exampleCases: values.exampleCases || null,

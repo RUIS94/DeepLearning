@@ -51,9 +51,13 @@ export const promptTemplateFormSchema = z
   .object({
     examTypeId: z.string().nullable().optional(),
     subjectCategory: z.number().int().min(-1).max(4).nullable().optional(),
-    templateType: z.number().int().min(0).max(3),
+    // 0-5：AiOperationType 的 6 个值（question_gen/grading/followup/standard_revision/
+    // deep_learning/progress_trend），不是只有前 4 个。
+    templateType: z.number().int().min(0).max(5),
     layer: z.number().int().min(0).max(1),
     templateContent: z.string().trim().min(1, "模板正文不能为空"),
+    // 后端 CreatePromptTemplateCommand 要求显式传版本号，没有自动递增逻辑。
+    version: z.number().int().min(1, "版本号至少为 1"),
   })
   .refine(
     (v) => {

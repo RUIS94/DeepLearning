@@ -39,14 +39,17 @@ export const SubjectCategory = {
 } as const;
 export const TemplateLayer = { shared_methodology: 0, exam_specific: 1 } as const;
 export const CheckpointImportance = { core: 0, peripheral: 1 } as const;
-// ⚠️ 后端 Domain/Enums 里的声明顺序未逐条核对（对接后端前请核实）：
-// design doc §6.24 只给了取值集合 question_gen/grading/followup/standard_revision，
-// 未明确声明顺序，这里按“出题在最前”的直觉排列，接后端时务必对照源码修正。
-export const TemplateType = {
+// 已对照 Domain/Enums/AiOperationType.cs 核实：prompt_templates.template_type 实际存的是
+// 这个 6 员枚举，不是只有 question_gen/grading/followup/standard_revision 4 个值——
+// deep_learning/progress_trend 两个模板类型在 Supabase 里已经有真实行（AGENTS.md 有记录），
+// 之前这里只声明了 4 个值会导致这两类模板在 admin 后台完全无法选中/正确展示。
+export const AiOperationType = {
   question_gen: 0,
   grading: 1,
   followup: 2,
   standard_revision: 3,
+  deep_learning: 4,
+  progress_trend: 5,
 } as const;
 
 export const TaskTypeLabel: Record<number, string> = {
@@ -120,11 +123,13 @@ export const CheckpointImportanceLabel: Record<number, string> = {
   [CheckpointImportance.peripheral]: "边缘",
 };
 
-export const TemplateTypeLabel: Record<number, string> = {
-  [TemplateType.question_gen]: "出题",
-  [TemplateType.grading]: "评分",
-  [TemplateType.followup]: "追问",
-  [TemplateType.standard_revision]: "标准修订",
+export const AiOperationTypeLabel: Record<number, string> = {
+  [AiOperationType.question_gen]: "出题",
+  [AiOperationType.grading]: "评分",
+  [AiOperationType.followup]: "追问",
+  [AiOperationType.standard_revision]: "标准修订",
+  [AiOperationType.deep_learning]: "深入学习",
+  [AiOperationType.progress_trend]: "进度趋势",
 };
 
 export const ScaleTypeLabel: Record<number, string> = {

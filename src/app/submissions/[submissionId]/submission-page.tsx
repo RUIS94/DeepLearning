@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  examType,
   getQuestionById,
   getSubmissionById,
   gradeSubmission,
@@ -45,7 +46,9 @@ export function SubmissionPage() {
   });
 
   const grade = useMutation({
-    mutationFn: () => gradeSubmission(submissionId),
+    // examTypeId 镜像后端 GradeSubmissionRequest 的必填字段——题库目前只有一个 examType，
+    // 真实接入后会由方案 §9.1 的"ExamTypeId 全局引导"提供，而不是硬编码这一个 mock 值。
+    mutationFn: () => gradeSubmission(submissionId, examType.id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["submission", submissionId] }),
   });
 

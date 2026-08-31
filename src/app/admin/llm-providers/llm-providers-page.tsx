@@ -130,7 +130,7 @@ function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
             <Skeleton className="h-9 w-full" />
           ) : (
             <Select
-              {...(settings.currentModel?.model ? { value: settings.currentModel.model } : {})}
+              {...(settings.currentModel ? { value: settings.currentModel } : {})}
               onValueChange={(model) => selectModel.mutate(model)}
             >
               <SelectTrigger>
