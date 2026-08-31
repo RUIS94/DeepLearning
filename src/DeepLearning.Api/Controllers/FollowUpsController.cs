@@ -1,6 +1,7 @@
 using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQuestion;
 using DeepLearning.Application.Features.FollowUps.Queries.GetFollowUpQuestionById;
+using DeepLearning.Application.Features.FollowUps.Queries.ListFollowUpQuestions;
 using DeepLearning.Application.Interfaces;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -36,5 +37,9 @@ namespace DeepLearning.Api.Controllers
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<GetFollowUpQuestionByIdResult>> GetById(Guid id, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(new GetFollowUpQuestionByIdQuery(id), cancellationToken));
+
+        [HttpGet]
+        public async Task<ActionResult<List<FollowUpQuestionResultItem>>> List(Guid submissionId, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new ListFollowUpQuestionsQuery(submissionId), cancellationToken));
     }
 }

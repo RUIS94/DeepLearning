@@ -4,6 +4,7 @@ using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.ExamConfig.Commands.CreateAssessmentDimension;
 using DeepLearning.Application.Features.ExamConfig.Commands.CreateExamType;
 using DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQuestion;
+using DeepLearning.Application.Features.FollowUps.Queries.ListFollowUpQuestions;
 using DeepLearning.Application.Features.Questions.Commands.ImportUserQuestion;
 using DeepLearning.Application.Features.StandardOverrides.Commands.ActivateStandardOverride;
 using DeepLearning.Application.Features.StandardOverrides.Queries.GetStandardOverrideById;
@@ -444,6 +445,48 @@ namespace DeepLearning.UnitTests.Api
 
             var secondActivate = await client.PostAsync($"{ApiRoutes.StandardOverrides.Base}/{created.StandardOverrideId}/activate", null);
             Assert.Equal(HttpStatusCode.Conflict, secondActivate.StatusCode);
+        }
+
+        [Fact]
+        public async Task List_returns_only_the_requested_submissions_follow_ups_in_chronological_order()
+        {
+            var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
+            var client = _factory
+                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
+                    services => services.AddSingleton<ILlmClientResolver>(new FakeFollowUpFlowLlmClientResolver(dimensionKey, UserIncorrectResponseJson))))
+                .CreateClient();
+
+            var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
+            await SeedGradingAndFollowUpTemplatesAsync(_factory);
+            var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
+            var (_, otherUserId, otherSubmissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
+
+            async Task<Guid> CreateFollowUpAsync(Guid forSubmissionId, Guid forUserId, string questionText)
+            {
+                var response = await client.PostAsJsonAsync(ApiRoutes.FollowUps.Base, new
+                {
+                    SubmissionId = forSubmissionId,
+                    UserId = forUserId,
+                    ExamTypeId = examTypeId,
+                    ContextRef = (string?)null,
+                    QuestionText = questionText,
+                });
+                response.EnsureSuccessStatusCode();
+                var result = await response.Content.ReadFromJsonAsync<CreateFollowUpQuestionResult>();
+                return result!.Id;
+            }
+
+            var firstId = await CreateFollowUpAsync(submissionId, userId, "First question?");
+            var secondId = await CreateFollowUpAsync(submissionId, userId, "Second question?");
+            await CreateFollowUpAsync(otherSubmissionId, otherUserId, "Unrelated submission's question?");
+
+            var listResponse = await client.GetAsync($"{ApiRoutes.FollowUps.Base}?submissionId={submissionId}");
+            Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+            var list = await listResponse.Content.ReadFromJsonAsync<List<FollowUpQuestionResultItem>>();
+
+            Assert.Equal(2, list!.Count);
+            Assert.Equal([firstId, secondId], list.Select(x => x.Id));
+            Assert.All(list, x => Assert.Equal(submissionId, x.SubmissionId));
         }
     }
 }
