@@ -1,0 +1,180 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * 设计系统：纸墨（paper & ink）
+ * 暖白纸面 + 深墨字色 + 靛青主色 + 朱砂强调色，贴合中文语言学习工具的阅读感。
+ * 所有颜色一律使用 oklch，组件里不允许出现硬编码颜色类。
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-band-1: var(--band-1);
+  --color-band-2: var(--band-2);
+  --color-band-3: var(--band-3);
+  --color-band-4: var(--band-4);
+  --color-band-5: var(--band-5);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans:
+    "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Noto Serif SC", "Songti SC", "SimSun", ui-serif, Georgia, serif;
+  --shadow-paper: 0 1px 2px oklch(0.3 0.03 250 / 0.06), 0 8px 24px oklch(0.3 0.03 250 / 0.06);
+}
+
+:root {
+  --radius: 0.5rem;
+  --paper: oklch(0.982 0.008 85);
+  --ink: oklch(0.245 0.02 250);
+  --background: oklch(0.982 0.008 85);
+  --foreground: oklch(0.245 0.02 250);
+  --card: oklch(1 0.003 85);
+  --card-foreground: oklch(0.245 0.02 250);
+  --popover: oklch(1 0.003 85);
+  --popover-foreground: oklch(0.245 0.02 250);
+  --primary: oklch(0.44 0.098 231);
+  --primary-foreground: oklch(0.985 0.008 85);
+  --secondary: oklch(0.945 0.014 85);
+  --secondary-foreground: oklch(0.32 0.025 250);
+  --muted: oklch(0.948 0.011 85);
+  --muted-foreground: oklch(0.52 0.021 250);
+  --accent: oklch(0.62 0.16 35);
+  --accent-foreground: oklch(0.985 0.008 85);
+  --destructive: oklch(0.56 0.2 27);
+  --destructive-foreground: oklch(0.985 0.008 85);
+  --success: oklch(0.56 0.12 155);
+  --success-foreground: oklch(0.985 0.008 85);
+  --warning: oklch(0.72 0.14 75);
+  --warning-foreground: oklch(0.25 0.03 75);
+  --border: oklch(0.9 0.012 85);
+  --input: oklch(0.9 0.012 85);
+  --ring: oklch(0.44 0.098 231);
+  --band-1: oklch(0.6 0.13 155);
+  --band-2: oklch(0.66 0.13 135);
+  --band-3: oklch(0.74 0.14 85);
+  --band-4: oklch(0.68 0.16 50);
+  --band-5: oklch(0.58 0.19 27);
+  --chart-1: oklch(0.44 0.098 231);
+  --chart-2: oklch(0.62 0.16 35);
+  --chart-3: oklch(0.56 0.12 155);
+  --chart-4: oklch(0.72 0.14 75);
+  --chart-5: oklch(0.5 0.07 260);
+  --sidebar: oklch(0.965 0.011 85);
+  --sidebar-foreground: oklch(0.245 0.02 250);
+  --sidebar-primary: oklch(0.44 0.098 231);
+  --sidebar-primary-foreground: oklch(0.985 0.008 85);
+  --sidebar-accent: oklch(0.93 0.014 85);
+  --sidebar-accent-foreground: oklch(0.32 0.025 250);
+  --sidebar-border: oklch(0.9 0.012 85);
+  --sidebar-ring: oklch(0.44 0.098 231);
+}
+
+.dark {
+  --paper: oklch(0.19 0.015 250);
+  --ink: oklch(0.94 0.008 85);
+  --background: oklch(0.19 0.015 250);
+  --foreground: oklch(0.94 0.008 85);
+  --card: oklch(0.235 0.018 250);
+  --card-foreground: oklch(0.94 0.008 85);
+  --popover: oklch(0.235 0.018 250);
+  --popover-foreground: oklch(0.94 0.008 85);
+  --primary: oklch(0.68 0.1 231);
+  --primary-foreground: oklch(0.19 0.015 250);
+  --secondary: oklch(0.28 0.02 250);
+  --secondary-foreground: oklch(0.94 0.008 85);
+  --muted: oklch(0.28 0.02 250);
+  --muted-foreground: oklch(0.7 0.015 250);
+  --accent: oklch(0.68 0.15 35);
+  --accent-foreground: oklch(0.19 0.015 250);
+  --destructive: oklch(0.65 0.18 27);
+  --destructive-foreground: oklch(0.19 0.015 250);
+  --success: oklch(0.66 0.12 155);
+  --success-foreground: oklch(0.19 0.015 250);
+  --warning: oklch(0.78 0.13 75);
+  --warning-foreground: oklch(0.19 0.015 250);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.68 0.1 231);
+  --sidebar: oklch(0.215 0.017 250);
+  --sidebar-foreground: oklch(0.94 0.008 85);
+  --sidebar-primary: oklch(0.68 0.1 231);
+  --sidebar-primary-foreground: oklch(0.19 0.015 250);
+  --sidebar-accent: oklch(0.28 0.02 250);
+  --sidebar-accent-foreground: oklch(0.94 0.008 85);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.68 0.1 231);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-serif);
+    letter-spacing: 0.01em;
+  }
+}
+
+@utility text-numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility source-text {
+  font-family: var(--font-serif);
+  line-height: 2;
+  letter-spacing: 0.015em;
+}
