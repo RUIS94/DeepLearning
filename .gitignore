@@ -366,3 +366,5 @@ src/DeepLearning.Api/appsettings.Development.json
 
 # CodeGraph local index (machine-local, has its own nested .gitignore too)
 .codegraph/
+
+src/DeepLearning.Web/
