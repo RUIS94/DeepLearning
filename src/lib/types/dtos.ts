@@ -274,3 +274,117 @@ export interface ReviewVocabItem {
   masteryLevel: number;
   lastReviewedAt: string | null;
 }
+
+/* ------------------------------ 内容管理后台 ------------------------------ */
+
+export interface CreateExamTypeRequest {
+  code: string;
+  name: string;
+  subjectCategory: number;
+  sourceLanguage?: string | null;
+  targetLanguage?: string | null;
+  gradeLevel?: string | null;
+  description?: string | null;
+}
+
+export interface CreateAssessmentDimensionRequest {
+  examTypeId: string;
+  dimensionKey: string;
+  dimensionName: string;
+  scaleType: number;
+  passThreshold?: string | null;
+  applicableTaskType?: number | null;
+  levelDescriptions: string;
+  rubricVersion: string;
+  effectiveFrom: string;
+  sourceReference?: string | null;
+}
+
+export interface CreateErrorTaxonomyRequest {
+  examTypeId: string;
+  categoryKey: string;
+  categoryName: string;
+  description?: string | null;
+  exampleCases?: string | null;
+}
+
+export interface PromptTemplate {
+  id: string;
+  examTypeId: string | null;
+  subjectCategory: number | null;
+  templateType: number;
+  layer: number;
+  templateContent: string;
+  version: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface CreatePromptTemplateRequest {
+  examTypeId?: string | null;
+  subjectCategory?: number | null;
+  templateType: number;
+  layer: number;
+  templateContent: string;
+}
+
+export interface LlmProviderModel {
+  providerKey: string;
+  model: string;
+  label: string | null;
+  isCurrent: boolean;
+  createdAt: string;
+}
+
+export interface LlmProviderSettings {
+  providerKey: string;
+  isActive: boolean;
+  thinkingEnabled: boolean;
+  effort: string | null;
+  extraSettingsJson: string | null;
+  currentModel: LlmProviderModel | null;
+}
+
+export interface UpdateLlmProviderSettingsRequest {
+  thinkingEnabled?: boolean | null;
+  effort?: string | null;
+  extraSettingsJson?: string | null;
+}
+
+export interface CreateQuestionBankCategoryRequest {
+  categoryType: number;
+  name: string;
+  parentId?: string | null;
+  description?: string | null;
+}
+
+export interface ImportSeededErrorRequest {
+  positionStart: number;
+  positionEnd: number;
+  errorTaxonomyId: string;
+  correctReferenceText: string;
+  note?: string | null;
+}
+
+export interface ImportMeaningCheckpointRequest {
+  checkpointText: string;
+  checkpointType?: string | null;
+  importance: number;
+}
+
+export interface ImportUserQuestionRequest {
+  taskType: number;
+  difficulty: number;
+  title: string;
+  brief?: string | null;
+  sourceText: string;
+  wordCount?: number | null;
+  isSeedReference?: boolean;
+  visibility?: number;
+  createdBy?: string | null;
+  meaningCheckpoints?: ImportMeaningCheckpointRequest[];
+  taskB?: {
+    flawedTranslationText: string;
+    seededErrors: ImportSeededErrorRequest[];
+  } | null;
+}

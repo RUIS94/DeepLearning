@@ -22,7 +22,12 @@ import {
 } from "@/lib/types/enums";
 import type {
   AssessmentDimension,
+  CreateAssessmentDimensionRequest,
+  CreateErrorTaxonomyRequest,
+  CreateExamTypeRequest,
   CreateFollowUpQuestionRequest,
+  CreatePromptTemplateRequest,
+  CreateQuestionBankCategoryRequest,
   CreateSubmissionRequest,
   DeepLearningContent,
   ErrorTaxonomy,
@@ -30,7 +35,11 @@ import type {
   FollowUpQuestionResult,
   GenerateDeepLearningContentResponse,
   GenerateQuestionRequest,
+  ImportUserQuestionRequest,
+  LlmProviderModel,
+  LlmProviderSettings,
   ProgressSnapshot,
+  PromptTemplate,
   QuestionBankCategory,
   ProblemDetails,
   QuestionDetail,
@@ -39,6 +48,7 @@ import type {
   ReviewVocabItem,
   StandardOverride,
   SubmissionDetail,
+  UpdateLlmProviderSettingsRequest,
   WeakPoint,
 } from "@/lib/types/dtos";
 
@@ -437,6 +447,392 @@ export async function listCategories() {
   return categories;
 }
 
+/* --------------------------- 内容管理后台（Admin） --------------------------- */
+
+const examTypes: ExamType[] = [examType];
+
+export async function listExamTypes(): Promise<ExamType[]> {
+  await delay(100);
+  return [...examTypes];
+}
+
+export async function createExamType(req: CreateExamTypeRequest): Promise<ExamType> {
+  await delay(200);
+  const created: ExamType = {
+    id: nextId("exam"),
+    code: req.code,
+    name: req.name,
+    subjectCategory: req.subjectCategory,
+    sourceLanguage: req.sourceLanguage ?? null,
+    targetLanguage: req.targetLanguage ?? null,
+    gradeLevel: req.gradeLevel ?? null,
+    description: req.description ?? null,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+  };
+  examTypes.push(created);
+  return created;
+}
+
+export async function listAssessmentDimensions(examTypeId: string): Promise<AssessmentDimension[]> {
+  await delay(100);
+  const now = new Date().toISOString();
+  return dimensions.filter(
+    (d) =>
+      d.examTypeId === examTypeId &&
+      d.effectiveFrom <= now &&
+      (d.effectiveTo === null || d.effectiveTo > now),
+  );
+}
+
+/** 新建评分维度版本：语义上是“修订生效日期”，自动关闭上一条仍生效的记录（方案 3.8 节）。 */
+export async function createAssessmentDimension(
+  req: CreateAssessmentDimensionRequest,
+): Promise<AssessmentDimension> {
+  await delay(200);
+  const current = dimensions.find(
+    (d) =>
+      d.examTypeId === req.examTypeId &&
+      d.dimensionKey === req.dimensionKey &&
+      d.effectiveTo === null,
+  );
+  if (current && req.effectiveFrom <= current.effectiveFrom) {
+    throw new ApiError(400, {
+      status: 400,
+      title: "New version's effectiveFrom must be after the current version's.",
+      errors: { effectiveFrom: ["必须晚于当前生效版本的 effectiveFrom。"] },
+    });
+  }
+  const created: AssessmentDimension = {
+    id: nextId("dim"),
+    examTypeId: req.examTypeId,
+    dimensionKey: req.dimensionKey,
+    dimensionName: req.dimensionName,
+    scaleType: req.scaleType,
+    passThreshold: req.passThreshold ?? null,
+    applicableTaskType: req.applicableTaskType ?? null,
+    levelDescriptions: req.levelDescriptions,
+    rubricVersion: req.rubricVersion,
+    effectiveFrom: req.effectiveFrom,
+    effectiveTo: null,
+    sourceReference: req.sourceReference ?? null,
+    verifiedAt: null,
+  };
+  if (current) current.effectiveTo = req.effectiveFrom;
+  dimensions.push(created);
+  return created;
+}
+
+export async function listErrorTaxonomiesByExamType(examTypeId: string): Promise<ErrorTaxonomy[]> {
+  await delay(100);
+  return errorTaxonomies.filter((t) => t.examTypeId === examTypeId);
+}
+
+export async function createErrorTaxonomy(req: CreateErrorTaxonomyRequest): Promise<ErrorTaxonomy> {
+  await delay(200);
+  const created: ErrorTaxonomy = {
+    id: nextId("tax"),
+    examTypeId: req.examTypeId,
+    categoryKey: req.categoryKey,
+    categoryName: req.categoryName,
+    description: req.description ?? null,
+    exampleCases: req.exampleCases ?? null,
+  };
+  errorTaxonomies.push(created);
+  return created;
+}
+
+const promptTemplates: PromptTemplate[] = [
+  {
+    id: "pt-1",
+    examTypeId: null,
+    subjectCategory: 0,
+    templateType: 0,
+    layer: 0,
+    templateContent:
+      "You are generating a {{ task_type }} exam question... Output ONLY the JSON shape described below.",
+    version: 1,
+    isActive: true,
+    createdAt: "2026-02-01T00:00:00Z",
+  },
+  {
+    id: "pt-2",
+    examTypeId: examType.id,
+    subjectCategory: null,
+    templateType: 1,
+    layer: 1,
+    templateContent:
+      "Grade the submission strictly against {{ dimension.dimension_name }} using the Band descriptions below...",
+    version: 3,
+    isActive: true,
+    createdAt: "2026-01-15T00:00:00Z",
+  },
+];
+
+export async function listPromptTemplates(filter?: {
+  examTypeId?: string | undefined;
+  subjectCategory?: number | undefined;
+  templateType?: number | undefined;
+}): Promise<PromptTemplate[]> {
+  await delay(120);
+  return promptTemplates
+    .filter((t) => (filter?.examTypeId ? t.examTypeId === filter.examTypeId : true))
+    .filter((t) =>
+      filter?.subjectCategory === undefined ? true : t.subjectCategory === filter.subjectCategory,
+    )
+    .filter((t) =>
+      filter?.templateType === undefined ? true : t.templateType === filter.templateType,
+    );
+}
+
+export async function createPromptTemplate(
+  req: CreatePromptTemplateRequest,
+): Promise<PromptTemplate> {
+  await delay(200);
+  const sameFamily = promptTemplates.filter(
+    (t) =>
+      t.examTypeId === (req.examTypeId ?? null) &&
+      t.subjectCategory === (req.subjectCategory ?? null) &&
+      t.templateType === req.templateType &&
+      t.layer === req.layer,
+  );
+  const created: PromptTemplate = {
+    id: nextId("pt"),
+    examTypeId: req.examTypeId ?? null,
+    subjectCategory: req.subjectCategory ?? null,
+    templateType: req.templateType,
+    layer: req.layer,
+    templateContent: req.templateContent,
+    version: sameFamily.length + 1,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+  };
+  promptTemplates.push(created);
+  return created;
+}
+
+const llmProviderModels: LlmProviderModel[] = [
+  {
+    providerKey: "claude",
+    model: "claude-opus-5",
+    label: "Opus 5",
+    isCurrent: true,
+    createdAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    providerKey: "claude",
+    model: "claude-sonnet-5",
+    label: "Sonnet 5",
+    isCurrent: false,
+    createdAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    providerKey: "openai",
+    model: "gpt-4o-mini",
+    label: null,
+    isCurrent: true,
+    createdAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    providerKey: "deepseek",
+    model: "deepseek-v4-flash",
+    label: null,
+    isCurrent: true,
+    createdAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    providerKey: "mimo",
+    model: "mimo-v2.5-pro",
+    label: null,
+    isCurrent: true,
+    createdAt: "2026-01-01T00:00:00Z",
+  },
+];
+
+const llmProviderSettingsList: Omit<LlmProviderSettings, "currentModel">[] = [
+  {
+    providerKey: "claude",
+    isActive: false,
+    thinkingEnabled: true,
+    effort: "medium",
+    extraSettingsJson: null,
+  },
+  {
+    providerKey: "openai",
+    isActive: false,
+    thinkingEnabled: false,
+    effort: null,
+    extraSettingsJson: null,
+  },
+  {
+    providerKey: "deepseek",
+    isActive: false,
+    thinkingEnabled: false,
+    effort: null,
+    extraSettingsJson: null,
+  },
+  {
+    providerKey: "mimo",
+    isActive: true,
+    thinkingEnabled: false,
+    effort: null,
+    extraSettingsJson: null,
+  },
+];
+
+function withCurrentModel(s: Omit<LlmProviderSettings, "currentModel">): LlmProviderSettings {
+  return {
+    ...s,
+    currentModel:
+      llmProviderModels.find((m) => m.providerKey === s.providerKey && m.isCurrent) ?? null,
+  };
+}
+
+export async function listLlmProviderSettings(): Promise<LlmProviderSettings[]> {
+  await delay(120);
+  return llmProviderSettingsList.map(withCurrentModel);
+}
+
+export async function updateLlmProviderSettings(
+  providerKey: string,
+  patch: UpdateLlmProviderSettingsRequest,
+): Promise<LlmProviderSettings> {
+  await delay(200);
+  const row = llmProviderSettingsList.find((s) => s.providerKey === providerKey);
+  if (!row)
+    throw new ApiError(404, { status: 404, title: `Provider '${providerKey}' was not found.` });
+  if (patch.thinkingEnabled !== undefined && patch.thinkingEnabled !== null)
+    row.thinkingEnabled = patch.thinkingEnabled;
+  if (patch.effort !== undefined) row.effort = patch.effort;
+  if (patch.extraSettingsJson !== undefined) row.extraSettingsJson = patch.extraSettingsJson;
+  return withCurrentModel(row);
+}
+
+export async function activateLlmProvider(providerKey: string): Promise<LlmProviderSettings> {
+  await delay(200);
+  const row = llmProviderSettingsList.find((s) => s.providerKey === providerKey);
+  if (!row)
+    throw new ApiError(404, { status: 404, title: `Provider '${providerKey}' was not found.` });
+  llmProviderSettingsList.forEach((s) => (s.isActive = s.providerKey === providerKey));
+  return withCurrentModel(row);
+}
+
+export async function listLlmProviderModels(providerKey: string): Promise<LlmProviderModel[]> {
+  await delay(100);
+  return llmProviderModels.filter((m) => m.providerKey === providerKey);
+}
+
+export async function addLlmProviderModel(
+  providerKey: string,
+  model: string,
+  label?: string | null,
+): Promise<LlmProviderModel> {
+  await delay(200);
+  if (llmProviderModels.some((m) => m.providerKey === providerKey && m.model === model)) {
+    throw new ApiError(409, {
+      status: 409,
+      title: `Model '${model}' is already cataloged for provider '${providerKey}'.`,
+    });
+  }
+  const created: LlmProviderModel = {
+    providerKey,
+    model,
+    label: label ?? null,
+    isCurrent: false,
+    createdAt: new Date().toISOString(),
+  };
+  llmProviderModels.push(created);
+  return created;
+}
+
+export async function selectLlmProviderModel(
+  providerKey: string,
+  model: string,
+): Promise<LlmProviderModel> {
+  await delay(200);
+  const target = llmProviderModels.find((m) => m.providerKey === providerKey && m.model === model);
+  if (!target)
+    throw new ApiError(404, {
+      status: 404,
+      title: `Model '${model}' is not cataloged for provider '${providerKey}' yet.`,
+    });
+  llmProviderModels.forEach((m) => {
+    if (m.providerKey === providerKey) m.isCurrent = m === target;
+  });
+  return target;
+}
+
+export async function createQuestionBankCategory(
+  req: CreateQuestionBankCategoryRequest,
+): Promise<QuestionBankCategory> {
+  await delay(200);
+  const created: QuestionBankCategory = {
+    id: nextId("cat"),
+    categoryType: req.categoryType,
+    name: req.name,
+    parentId: req.parentId ?? null,
+  };
+  categories.push(created);
+  return created;
+}
+
+export async function tagQuestionWithCategory(categoryId: string, questionId: string) {
+  await delay(150);
+  const question = questions.find((q) => q.id === questionId);
+  if (!question)
+    throw new ApiError(404, {
+      status: 404,
+      title: `Question with id ${questionId} was not found.`,
+    });
+  if (!question.categoryIds.includes(categoryId)) question.categoryIds.push(categoryId);
+  return question;
+}
+
+export async function importUserQuestion(req: ImportUserQuestionRequest): Promise<QuestionDetail> {
+  await delay(250);
+  const created: QuestionDetail = {
+    id: nextId("q"),
+    taskType: req.taskType,
+    difficulty: req.difficulty,
+    title: req.title,
+    brief: req.brief ?? null,
+    sourceText: req.sourceText,
+    wordCount: req.wordCount ?? req.sourceText.split(/\s+/).filter(Boolean).length,
+    origin: QuestionOrigin.user_uploaded,
+    sourceType: SourceType.user_generated,
+    isSeedReference: req.isSeedReference ?? false,
+    inBank: true,
+    visibility: req.visibility ?? Visibility.Private,
+    createdBy: req.createdBy ?? MOCK_USER.id,
+    createdAt: new Date().toISOString(),
+    isActive: true,
+    meaningCheckpoints: (req.meaningCheckpoints ?? []).map((c) => ({
+      id: nextId("mc"),
+      checkpointText: c.checkpointText,
+      checkpointType: c.checkpointType ?? null,
+      importance: c.importance,
+    })),
+    taskB: req.taskB
+      ? {
+          flawedTranslationText: req.taskB.flawedTranslationText,
+          seededErrors: req.taskB.seededErrors.map((e) => ({
+            id: nextId("se"),
+            positionStart: e.positionStart,
+            positionEnd: e.positionEnd,
+            errorTaxonomyId: e.errorTaxonomyId,
+            errorCategoryKey:
+              errorTaxonomies.find((t) => t.id === e.errorTaxonomyId)?.categoryKey ?? "",
+            correctReferenceText: e.correctReferenceText,
+            note: e.note ?? null,
+          })),
+        }
+      : null,
+    categoryIds: [],
+  };
+  questions.unshift(created);
+  return created;
+}
+
 export async function listQuestions(filter?: {
   taskType?: number | undefined;
   difficulty?: number | undefined;
@@ -652,6 +1048,17 @@ export async function createFollowUp(
 export async function listStandardOverrides() {
   await delay(120);
   return overrides;
+}
+
+export async function getStandardOverrideById(id: string): Promise<StandardOverride> {
+  await delay(100);
+  const found = overrides.find((o) => o.id === id);
+  if (!found)
+    throw new ApiError(404, {
+      status: 404,
+      title: `Standard override with id ${id} was not found.`,
+    });
+  return found;
 }
 
 /* ------------------------------ 深入学习 ------------------------------ */

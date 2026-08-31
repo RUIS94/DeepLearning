@@ -27,6 +27,7 @@ import {
   MOCK_USER,
 } from "@/lib/mock/store";
 import { DifficultyLabel, PriorityLabel, TaskTypeLabel, WeakPointStatus } from "@/lib/types/enums";
+import { generateQuestionFormSchema } from "@/lib/validation/question-generate";
 
 export function GeneratePage() {
   const router = useRouter();
@@ -44,6 +45,16 @@ export function GeneratePage() {
   const seeds = useQuery({
     queryKey: ["questions", "seeds"],
     queryFn: () => listQuestions({ inBank: true }),
+  });
+
+  // 镜像后端 GenerateQuestionCommand 校验规则（方案 §11）：seedQuestionIds 最多 5 个、不能重复。
+  const requestValidation = generateQuestionFormSchema.safeParse({
+    examTypeId: examType.id,
+    taskType: Number(taskType),
+    difficulty: Number(difficulty),
+    categoryId,
+    seedQuestionIds: seedIds.length ? seedIds : null,
+    targetWeakPoints,
   });
 
   const mutation = useMutation({
@@ -159,10 +170,18 @@ export function GeneratePage() {
             </div>
 
             <div className="space-y-3">
-              <Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+              <Button
+                disabled={mutation.isPending || !requestValidation.success}
+                onClick={() => mutation.mutate()}
+              >
                 <Sparkles className="size-4" />
                 {mutation.isPending ? "生成中…" : "生成题目"}
               </Button>
+              {!requestValidation.success ? (
+                <p className="text-xs text-destructive">
+                  {requestValidation.error.issues[0]?.message}
+                </p>
+              ) : null}
               <AiLoadingState
                 status={mutation.status}
                 error={mutation.error}

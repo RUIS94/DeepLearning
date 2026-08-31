@@ -30,6 +30,24 @@ export const Priority = { high: 0, medium: 1, low: 2 } as const;
 export const ScaleType = { band_1_5: 0, score_0_100: 1, rubric_level: 2 } as const;
 export const CategoryType = { domain: 0, scenario: 1 } as const;
 export const MasteryLevel = { New: 0, Familiar: 1, Mastered: 2 } as const;
+export const SubjectCategory = {
+  translation: 0,
+  language_arts: 1,
+  math: 2,
+  science: 3,
+  other: 4,
+} as const;
+export const TemplateLayer = { shared_methodology: 0, exam_specific: 1 } as const;
+export const CheckpointImportance = { core: 0, peripheral: 1 } as const;
+// ⚠️ 后端 Domain/Enums 里的声明顺序未逐条核对（对接后端前请核实）：
+// design doc §6.24 只给了取值集合 question_gen/grading/followup/standard_revision，
+// 未明确声明顺序，这里按“出题在最前”的直觉排列，接后端时务必对照源码修正。
+export const TemplateType = {
+  question_gen: 0,
+  grading: 1,
+  followup: 2,
+  standard_revision: 3,
+} as const;
 
 export const TaskTypeLabel: Record<number, string> = {
   [TaskType.A]: "TaskA · 翻译",
@@ -82,4 +100,40 @@ export const MasteryLevelLabel: Record<number, string> = {
   [MasteryLevel.New]: "新接触",
   [MasteryLevel.Familiar]: "熟悉",
   [MasteryLevel.Mastered]: "已掌握",
+};
+
+export const SubjectCategoryLabel: Record<number, string> = {
+  [SubjectCategory.translation]: "翻译",
+  [SubjectCategory.language_arts]: "语言文学",
+  [SubjectCategory.math]: "数学",
+  [SubjectCategory.science]: "科学",
+  [SubjectCategory.other]: "其他",
+};
+
+export const TemplateLayerLabel: Record<number, string> = {
+  [TemplateLayer.shared_methodology]: "共享方法论",
+  [TemplateLayer.exam_specific]: "考试类型专属",
+};
+
+export const CheckpointImportanceLabel: Record<number, string> = {
+  [CheckpointImportance.core]: "核心",
+  [CheckpointImportance.peripheral]: "边缘",
+};
+
+export const TemplateTypeLabel: Record<number, string> = {
+  [TemplateType.question_gen]: "出题",
+  [TemplateType.grading]: "评分",
+  [TemplateType.followup]: "追问",
+  [TemplateType.standard_revision]: "标准修订",
+};
+
+export const ScaleTypeLabel: Record<number, string> = {
+  [ScaleType.band_1_5]: "Band 1-5",
+  [ScaleType.score_0_100]: "百分制",
+  [ScaleType.rubric_level]: "等级制",
+};
+
+export const CategoryTypeLabel: Record<number, string> = {
+  [CategoryType.domain]: "领域",
+  [CategoryType.scenario]: "应用场景",
 };

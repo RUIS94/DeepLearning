@@ -25,6 +25,7 @@ import {
 import { createSubmission, errorTaxonomies, getQuestionById, MOCK_USER } from "@/lib/mock/store";
 import { TaskType } from "@/lib/types/enums";
 import type { TaskBAnnotation } from "@/lib/types/dtos";
+import { taskAContentSchema, taskBContentSchema } from "@/lib/validation/submission";
 
 export function AnswerPage() {
   const { questionId } = useParams<{ questionId: string }>();
@@ -72,7 +73,11 @@ export function AnswerPage() {
   const q = question.data;
   const isTaskB = q.taskType === TaskType.B;
   const flawed = q.taskB?.flawedTranslationText ?? "";
-  const canSubmit = isTaskB ? annotations.length > 0 : translation.trim().length > 0;
+  // 提交前的前端校验镜像后端 CreateSubmissionValidator（方案 §11），提前拦截而非等后端 400。
+  const contentValidation = isTaskB
+    ? taskBContentSchema.safeParse(annotations)
+    : taskAContentSchema.safeParse(translation);
+  const canSubmit = contentValidation.success;
 
   return (
     <AppShell

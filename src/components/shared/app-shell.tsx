@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { BookOpen, GraduationCap, LineChart, Library, Sparkles, Target, Scale } from "lucide-react";
+import {
+  BookOpen,
+  GraduationCap,
+  LineChart,
+  Library,
+  Settings,
+  Sparkles,
+  Target,
+  Scale,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MOCK_USER } from "@/lib/mock/store";
 
@@ -54,7 +63,14 @@ export function AppShell({
               );
             })}
           </nav>
-          <div className="hidden shrink-0 items-center gap-2 sm:flex">
+          <div className="hidden shrink-0 items-center gap-3 sm:flex">
+            <Link
+              href="/admin"
+              title="内容管理后台"
+              className="text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Settings className="size-4" />
+            </Link>
             <span className="text-xs text-muted-foreground">{MOCK_USER.email}</span>
             <span className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
               {MOCK_USER.name.slice(0, 1)}
