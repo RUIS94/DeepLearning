@@ -60,7 +60,9 @@ export const MOCK_USER = {
 
 export const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-let seq = 1000;
+// The seeded mock dataset already contains IDs such as q-1001, so generated
+// records must begin above that range to avoid collisions in React list keys.
+let seq = 2000;
 const nextId = (prefix: string) => `${prefix}-${++seq}`;
 
 /* ----------------------------- 考试配置 ----------------------------- */

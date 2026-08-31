@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- 禁用无用的默认 C# 编译动作 -->
+    <EnableDefaultItems>false</EnableDefaultItems>
+  </PropertyGroup>
+
+  <!-- 包含 Next.js 代码文件，同时自动屏蔽 node_modules 和构建缓存 -->
+  <ItemGroup>
+    <None Include="**\*" Exclude="node_modules\**;.next\**;out\**;.git\**;bin\**;obj\**;*.csproj" />
+  </ItemGroup>
+</Project>

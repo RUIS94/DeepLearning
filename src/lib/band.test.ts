@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bandLabel, bandToColor, formatDate } from "./band";
+import { generateQuestion, listQuestions } from "./mock/store";
 
 describe("bandToColor", () => {
   it("maps each Band 1-5 to its dedicated CSS variable", () => {
@@ -41,5 +42,16 @@ describe("formatDate", () => {
 
   it("returns the original string when it cannot be parsed as a date", () => {
     expect(formatDate("not-a-date")).toBe("not-a-date");
+  });
+});
+
+describe("mock question IDs", () => {
+  it("never reuses a seeded question id when creating a generated question", async () => {
+    const seedIds = (await listQuestions()).map((q) => q.id);
+    const generated = await generateQuestion({ examTypeId: "exam-naati-ct", taskType: 0 });
+
+    expect(new Set(seedIds).size).toBe(seedIds.length);
+    expect(generated.id).not.toBe("q-1001");
+    expect(new Set([...seedIds, generated.id]).size).toBe(seedIds.length + 1);
   });
 });
