@@ -20,6 +20,15 @@ describe("importUserQuestionSchema — TaskA", () => {
     expect(importUserQuestionSchema.safeParse(baseTaskA).success).toBe(true);
   });
 
+  it("ignores an empty taskB placeholder for TaskA", () => {
+    expect(
+      importUserQuestionSchema.safeParse({
+        ...baseTaskA,
+        taskB: { flawedTranslationText: "", seededErrors: [] },
+      }).success,
+    ).toBe(true);
+  });
+
   it("rejects an empty title or sourceText", () => {
     expect(importUserQuestionSchema.safeParse({ ...baseTaskA, title: "" }).success).toBe(false);
     expect(importUserQuestionSchema.safeParse({ ...baseTaskA, sourceText: "" }).success).toBe(

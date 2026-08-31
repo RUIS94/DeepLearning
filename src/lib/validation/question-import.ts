@@ -34,8 +34,8 @@ export const importUserQuestionSchema = z
     meaningCheckpoints: z.array(meaningCheckpointSchema).optional(),
     taskB: z
       .object({
-        flawedTranslationText: z.string().trim().min(1, "含错译文不能为空"),
-        seededErrors: z.array(seededErrorSchema).min(1, "TaskB 至少需要一条种子错误"),
+        flawedTranslationText: z.string().trim(),
+        seededErrors: z.array(seededErrorSchema).optional(),
       })
       .nullable()
       .optional(),
@@ -51,8 +51,24 @@ export const importUserQuestionSchema = z
       });
       return;
     }
-    const len = taskB.flawedTranslationText.length;
-    taskB.seededErrors.forEach((e, i) => {
+    const flawedTranslationText = taskB.flawedTranslationText.trim();
+    if (!flawedTranslationText) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "含错译文不能为空",
+        path: ["taskB", "flawedTranslationText"],
+      });
+    }
+    const seededErrors = taskB.seededErrors ?? [];
+    if (seededErrors.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "TaskB 至少需要一条种子错误",
+        path: ["taskB", "seededErrors"],
+      });
+    }
+    const len = flawedTranslationText.length;
+    seededErrors.forEach((e, i) => {
       if (e.positionStart >= e.positionEnd) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -68,7 +84,7 @@ export const importUserQuestionSchema = z
         });
       }
     });
-    const overlap = findOverlappingAnnotations(taskB.seededErrors);
+    const overlap = findOverlappingAnnotations(seededErrors);
     if (overlap) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

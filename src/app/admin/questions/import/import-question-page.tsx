@@ -46,7 +46,10 @@ const defaultValues: ImportUserQuestionFormInput = {
   isSeedReference: false,
   visibility: Visibility.Private,
   meaningCheckpoints: [],
-  taskB: null,
+  taskB: {
+    flawedTranslationText: "",
+    seededErrors: [],
+  },
 };
 
 export function ImportQuestionPage() {
@@ -91,24 +94,24 @@ export function ImportQuestionPage() {
         // 只在构造请求体这一步展开。
         flawedTranslationText: values.taskB?.flawedTranslationText ?? null,
         seededErrors:
-          values.taskB?.seededErrors.map((e) => ({
+          (values.taskB?.seededErrors ?? []).map((e) => ({
             positionStart: e.positionStart,
             positionEnd: e.positionEnd,
             errorTaxonomyId: e.errorTaxonomyId,
             correctReferenceText: e.correctReferenceText,
             note: e.note ?? null,
-          })) ?? [],
+          })),
       }),
     onSuccess: (question) => router.push(`/practice/${question.id}`),
   });
 
   function switchTaskType(next: number) {
     form.setValue("taskType", next);
-    if (next === TaskType.B && !form.getValues("taskB")) {
+    if (!form.getValues("taskB")) {
       form.setValue("taskB", { flawedTranslationText: "", seededErrors: [] });
     }
     if (next === TaskType.A) {
-      form.setValue("taskB", null);
+      form.setValue("taskB", { flawedTranslationText: "", seededErrors: [] });
     }
   }
 
