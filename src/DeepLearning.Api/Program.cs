@@ -90,7 +90,12 @@ if (app.Environment.IsDevelopment())
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseExceptionHandler();
 
-app.UseHttpsRedirection();
+// Server-to-server callers in local dev (Next.js proxy, Server Components) hit http://localhost:5255
+// and cannot accept ASP.NET's dev self-signed cert when this middleware redirects them to https://7046.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseAuthentication();
 app.UseMiddleware<EnsureUserProfileMiddleware>();
