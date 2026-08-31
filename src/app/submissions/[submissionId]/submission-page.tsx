@@ -12,13 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  examType,
-  getQuestionById,
-  getSubmissionById,
-  gradeSubmission,
-  listFollowUps,
-} from "@/lib/mock/store";
+import { getQuestionById } from "@/lib/api/questions";
+import { getSubmissionById, gradeSubmission } from "@/lib/api/submissions";
+import { listFollowUps } from "@/lib/api/follow-ups";
+import { useExamType } from "@/hooks/use-exam-config";
 import {
   SubmissionStatus,
   SubmissionStatusLabel,
@@ -45,10 +42,11 @@ export function SubmissionPage() {
     queryFn: () => listFollowUps(submissionId),
   });
 
+  const examType = useExamType();
   const grade = useMutation({
     // examTypeId 镜像后端 GradeSubmissionRequest 的必填字段——题库目前只有一个 examType，
-    // 真实接入后会由方案 §9.1 的"ExamTypeId 全局引导"提供，而不是硬编码这一个 mock 值。
-    mutationFn: () => gradeSubmission(submissionId, examType.id),
+    // 由方案 §9.1 的"ExamTypeId 全局引导"（useExamType hook）提供。
+    mutationFn: () => gradeSubmission(submissionId, examType.data!.id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["submission", submissionId] }),
   });
 
@@ -114,7 +112,7 @@ export function SubmissionPage() {
                     ? "上一次批改未完成，可以重新发起。"
                     : "提交已记录，点击下方按钮开始 AI 批改。"}
                 </p>
-                <Button disabled={grade.isPending} onClick={() => grade.mutate()}>
+                <Button disabled={grade.isPending || !examType.data} onClick={() => grade.mutate()}>
                   <Gavel className="size-4" />
                   {grade.isPending
                     ? "批改中…"

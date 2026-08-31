@@ -1,5 +1,5 @@
 import { AlertTriangle, Loader2, WifiOff } from "lucide-react";
-import { ApiError } from "@/lib/mock/store";
+import { ApiError } from "@/lib/api/fetcher";
 
 export function AiLoadingState({
   status,

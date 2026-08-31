@@ -34,7 +34,7 @@ import type {
   CreateSubmissionResult,
   DeepLearningContent,
   ErrorTaxonomy,
-  ExamType,
+  ExamTypeDetail,
   FollowUpQuestionDetail,
   FollowUpQuestionResult,
   GenerateDeepLearningContentResponse,
@@ -90,7 +90,7 @@ const nextId = (prefix: string) => `${prefix}-${++seq}`;
 
 /* ----------------------------- 考试配置 ----------------------------- */
 
-export const examType: ExamType = {
+export const examType: ExamTypeDetail = {
   id: "exam-naati-ct",
   code: "NAATI_CT",
   name: "NAATI 认证笔译（中英）",
@@ -509,16 +509,16 @@ export async function listCategories() {
 
 /* --------------------------- 内容管理后台（Admin） --------------------------- */
 
-const examTypes: ExamType[] = [examType];
+const examTypes: ExamTypeDetail[] = [examType];
 
-export async function listExamTypes(): Promise<ExamType[]> {
+export async function listExamTypes(): Promise<ExamTypeDetail[]> {
   await delay(100);
   return [...examTypes];
 }
 
-export async function createExamType(req: CreateExamTypeRequest): Promise<ExamType> {
+export async function createExamType(req: CreateExamTypeRequest): Promise<ExamTypeDetail> {
   await delay(200);
-  const created: ExamType = {
+  const created: ExamTypeDetail = {
     id: nextId("exam"),
     code: req.code,
     name: req.name,

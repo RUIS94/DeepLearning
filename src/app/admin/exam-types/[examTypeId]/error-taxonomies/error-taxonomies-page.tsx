@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminShell } from "@/components/shared/admin-shell";
 import { CrudTable, type CrudColumn, type CrudField } from "@/components/admin/crud-table";
-import { createErrorTaxonomy, listErrorTaxonomiesByExamType } from "@/lib/mock/store";
+import { createErrorTaxonomy, listErrorTaxonomiesByExamType } from "@/lib/api/exam-config";
 import { errorTaxonomyFormSchema, type ErrorTaxonomyFormInput } from "@/lib/validation/admin";
 import type { ErrorTaxonomy } from "@/lib/types/dtos";
 

@@ -18,9 +18,9 @@ import {
 import {
   createQuestionBankCategory,
   listCategories,
-  listQuestions,
   tagQuestionWithCategory,
-} from "@/lib/mock/store";
+} from "@/lib/api/exam-config";
+import { listQuestions } from "@/lib/api/questions";
 import { CategoryTypeLabel } from "@/lib/types/enums";
 import {
   questionBankCategoryFormSchema,

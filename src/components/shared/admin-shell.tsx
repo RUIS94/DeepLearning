@@ -14,21 +14,31 @@ import {
   Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { examType } from "@/lib/mock/store";
+import { useExamType } from "@/hooks/use-exam-config";
 
-const NAV = [
-  { href: "/admin/exam-types", label: "考试类型", icon: GraduationCap },
-  { href: `/admin/exam-types/${examType.id}/dimensions`, label: "评分维度", icon: Sliders },
-  {
-    href: `/admin/exam-types/${examType.id}/error-taxonomies`,
-    label: "错误分类",
-    icon: ShieldAlert,
-  },
-  { href: "/admin/prompt-templates", label: "Prompt 模板", icon: FileJson },
-  { href: "/admin/llm-providers", label: "AI 供应商", icon: BookMarked },
-  { href: "/admin/question-bank-categories", label: "题库分类", icon: FolderTree },
-  { href: "/admin/questions/import", label: "导入题目", icon: Upload },
-] as const;
+/** examTypeId 以前是同步导入的 mock 常量，现在要异步查询才能拿到（方案 §9.1），
+ * 所以 dimensions/error-taxonomies 两条导航项只有 examType 加载完之后才有真实 href。 */
+function useNavItems() {
+  const examType = useExamType();
+  const examTypeId = examType.data?.id;
+  return [
+    { href: "/admin/exam-types", label: "考试类型", icon: GraduationCap },
+    {
+      href: examTypeId ? `/admin/exam-types/${examTypeId}/dimensions` : "/admin/exam-types",
+      label: "评分维度",
+      icon: Sliders,
+    },
+    {
+      href: examTypeId ? `/admin/exam-types/${examTypeId}/error-taxonomies` : "/admin/exam-types",
+      label: "错误分类",
+      icon: ShieldAlert,
+    },
+    { href: "/admin/prompt-templates", label: "Prompt 模板", icon: FileJson },
+    { href: "/admin/llm-providers", label: "AI 供应商", icon: BookMarked },
+    { href: "/admin/question-bank-categories", label: "题库分类", icon: FolderTree },
+    { href: "/admin/questions/import", label: "导入题目", icon: Upload },
+  ] as const;
+}
 
 /**
  * 内容管理后台布局（方案 §7.2）。
@@ -47,6 +57,7 @@ export function AdminShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const NAV = useNavItems();
 
   return (
     <div className="min-h-screen bg-background">

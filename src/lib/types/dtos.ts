@@ -7,16 +7,29 @@ export interface ProblemDetails {
   errors?: Record<string, string[]>;
 }
 
+/** 对应后端 ListExamTypesResultItem（GET /exam-types 列表项）——发现于真实联调：以前这里被错误地
+ * 当成了 GetExamTypeByIdResult 的完整形状，实际 List 接口根本不返回 sourceLanguage/targetLanguage/
+ * gradeLevel/description/createdAt，这几个字段只有 GetById 才有（见下面的 ExamTypeDetail）。 */
 export interface ExamType {
   id: string;
   code: string;
   name: string;
   subjectCategory: number;
+  isActive: boolean;
+}
+
+/** 对应后端 GetExamTypeByIdResult（GET /exam-types/{id}）。 */
+export interface ExamTypeDetail extends ExamType {
   sourceLanguage: string | null;
   targetLanguage: string | null;
   gradeLevel: string | null;
   description: string | null;
-  isActive: boolean;
+  createdAt: string;
+}
+
+/** 对应后端 CreateExamTypeResult——比 ExamTypeDetail 少 sourceLanguage/targetLanguage/gradeLevel/
+ * description，比 ExamType 列表项多一个 createdAt。 */
+export interface CreateExamTypeResult extends ExamType {
   createdAt: string;
 }
 
@@ -419,6 +432,30 @@ export interface UpdateLlmProviderSettingsRequest {
   thinkingEnabled?: boolean | null;
   effort?: string | null;
   extraSettingsJson?: string | null;
+}
+
+/** 对应后端 UpdateLlmProviderSettingsResult——比 LlmProviderSettings 少 currentModel（PATCH 这个
+ * 接口根本不碰 currentModel，见 LlmProviderSettingsController 的注释）。 */
+export interface UpdateLlmProviderSettingsResult {
+  providerKey: string;
+  isActive: boolean;
+  thinkingEnabled: boolean;
+  effort: string | null;
+  extraSettings: string | null;
+  updatedAt: string;
+}
+
+/** 对应后端 ActivateLlmProviderResult——很薄，只有两个字段。 */
+export interface ActivateLlmProviderResult {
+  providerKey: string;
+  isActive: boolean;
+}
+
+/** 对应后端 SelectLlmProviderModelResult——很薄，不是完整的 LlmProviderModel。 */
+export interface SelectLlmProviderModelResult {
+  providerKey: string;
+  model: string;
+  isCurrent: boolean;
 }
 
 export interface CreateQuestionBankCategoryRequest {

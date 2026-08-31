@@ -21,7 +21,8 @@ import {
   listReviewVocab,
   reviewPattern,
   reviewVocabItem,
-} from "@/lib/mock/store";
+} from "@/lib/api/review-library";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { MasteryLevel, MasteryLevelLabel } from "@/lib/types/enums";
 import { formatDate } from "@/lib/band";
 
@@ -57,16 +58,26 @@ export function ReviewLibraryPage() {
   const queryClient = useQueryClient();
   const [mastery, setMastery] = useState(ALL);
   const [domain, setDomain] = useState(ALL);
+  const currentUser = useCurrentUser();
+  const userId = currentUser.data?.id;
 
-  const patterns = useQuery({ queryKey: ["review-patterns"], queryFn: listReviewPatterns });
-  const vocab = useQuery({ queryKey: ["review-vocab"], queryFn: listReviewVocab });
+  const patterns = useQuery({
+    queryKey: ["review-patterns", userId],
+    queryFn: () => listReviewPatterns(userId!),
+    enabled: !!userId,
+  });
+  const vocab = useQuery({
+    queryKey: ["review-vocab", userId],
+    queryFn: () => listReviewVocab(userId!),
+    enabled: !!userId,
+  });
 
   const markPattern = useMutation({
-    mutationFn: (v: { id: string; level: number }) => reviewPattern(v.id, v.level),
+    mutationFn: (v: { id: string; level: number }) => reviewPattern(userId!, v.id, v.level),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["review-patterns"] }),
   });
   const markVocab = useMutation({
-    mutationFn: (v: { id: string; level: number }) => reviewVocabItem(v.id, v.level),
+    mutationFn: (v: { id: string; level: number }) => reviewVocabItem(userId!, v.id, v.level),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["review-vocab"] }),
   });
 

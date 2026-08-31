@@ -18,14 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  examType,
-  generateQuestion,
-  listCategories,
-  listQuestions,
-  listWeakPoints,
-  MOCK_USER,
-} from "@/lib/mock/store";
+import { generateQuestion, listQuestions } from "@/lib/api/questions";
+import { listCategories } from "@/lib/api/exam-config";
+import { listWeakPoints } from "@/lib/api/weak-points";
+import { useExamType } from "@/hooks/use-exam-config";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { DifficultyLabel, PriorityLabel, TaskTypeLabel, WeakPointStatus } from "@/lib/types/enums";
 import { generateQuestionFormSchema } from "@/lib/validation/question-generate";
 
@@ -37,10 +34,13 @@ export function GeneratePage() {
   const [targetWeakPoints, setTargetWeakPoints] = useState(true);
   const [seedIds, setSeedIds] = useState<string[]>([]);
 
+  const examType = useExamType();
+  const currentUser = useCurrentUser();
   const categories = useQuery({ queryKey: ["categories"], queryFn: listCategories });
   const weakPoints = useQuery({
-    queryKey: ["weak-points", WeakPointStatus.active],
-    queryFn: () => listWeakPoints(WeakPointStatus.active),
+    queryKey: ["weak-points", currentUser.data?.id, WeakPointStatus.active],
+    queryFn: () => listWeakPoints(currentUser.data!.id, WeakPointStatus.active),
+    enabled: !!currentUser.data,
   });
   const seeds = useQuery({
     queryKey: ["questions", "seeds"],
@@ -49,7 +49,7 @@ export function GeneratePage() {
 
   // 镜像后端 GenerateQuestionCommand 校验规则（方案 §11）：seedQuestionIds 最多 5 个、不能重复。
   const requestValidation = generateQuestionFormSchema.safeParse({
-    examTypeId: examType.id,
+    examTypeId: examType.data?.id ?? "",
     taskType: Number(taskType),
     difficulty: Number(difficulty),
     categoryId,
@@ -60,12 +60,12 @@ export function GeneratePage() {
   const mutation = useMutation({
     mutationFn: () =>
       generateQuestion({
-        examTypeId: examType.id,
+        examTypeId: examType.data!.id,
         taskType: Number(taskType),
         difficulty: Number(difficulty),
         categoryId,
         seedQuestionIds: seedIds.length ? seedIds : null,
-        createdBy: MOCK_USER.id,
+        createdBy: currentUser.data?.id ?? null,
         targetWeakPoints,
       }),
     onSuccess: (question) => router.push(`/practice/${question.id}`),

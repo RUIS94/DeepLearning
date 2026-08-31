@@ -23,13 +23,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  createSubmission,
-  errorTaxonomies,
-  getQuestionById,
-  listSeedReferences,
-  MOCK_USER,
-} from "@/lib/mock/store";
+import { getQuestionById, listSeedReferences } from "@/lib/api/questions";
+import { createSubmission } from "@/lib/api/submissions";
+import { useErrorTaxonomies, useExamType } from "@/hooks/use-exam-config";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { QuestionOrigin, TaskType } from "@/lib/types/enums";
 import type { TaskBAnnotation } from "@/lib/types/dtos";
 import { taskAContentSchema, taskBContentSchema } from "@/lib/validation/submission";
@@ -37,6 +34,9 @@ import { taskAContentSchema, taskBContentSchema } from "@/lib/validation/submiss
 export function AnswerPage() {
   const { questionId } = useParams<{ questionId: string }>();
   const router = useRouter();
+  const examType = useExamType();
+  const currentUser = useCurrentUser();
+  const errorTaxonomies = useErrorTaxonomies(examType.data?.id);
   const question = useQuery({
     queryKey: ["question", questionId],
     queryFn: () => getQuestionById(questionId),
@@ -51,15 +51,18 @@ export function AnswerPage() {
   const [translation, setTranslation] = useState("");
   const [annotations, setAnnotations] = useState<TaskBAnnotation[]>([]);
   const [draft, setDraft] = useState<{ start: number; end: number } | null>(null);
-  const [draftCategory, setDraftCategory] = useState(errorTaxonomies[0]!.categoryKey);
+  // 以前是 useState(errorTaxonomies[0]!.categoryKey) 同步初始化——现在 errorTaxonomies 要异步查询
+  // 才能拿到，所以初始为空字符串，渲染 Select 时 fallback 到已加载数据的第一项。
+  const [draftCategory, setDraftCategory] = useState("");
   const [draftCorrected, setDraftCorrected] = useState("");
+  const selectedDraftCategory = draftCategory || errorTaxonomies.data?.[0]?.categoryKey || "";
 
   const submit = useMutation({
     mutationFn: () => {
       const isTaskB = question.data?.taskType === TaskType.B;
       return createSubmission({
         questionId,
-        userId: MOCK_USER.id,
+        userId: currentUser.data!.id,
         taskType: question.data?.taskType ?? TaskType.A,
         content: JSON.stringify(isTaskB ? annotations : translation),
       });
@@ -185,12 +188,12 @@ export function AnswerPage() {
                     </p>
                     <div className="space-y-2">
                       <Label>错误类型</Label>
-                      <Select value={draftCategory} onValueChange={setDraftCategory}>
+                      <Select value={selectedDraftCategory} onValueChange={setDraftCategory}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {errorTaxonomies.map((t) => (
+                          {(errorTaxonomies.data ?? []).map((t) => (
                             <SelectItem key={t.id} value={t.categoryKey}>
                               {t.categoryName}
                             </SelectItem>
@@ -208,13 +211,14 @@ export function AnswerPage() {
                     <div className="flex gap-2">
                       <Button
                         size="sm"
+                        disabled={!selectedDraftCategory}
                         onClick={() => {
                           setAnnotations((prev) => [
                             ...prev,
                             {
                               positionStart: draft.start,
                               positionEnd: draft.end,
-                              errorCategory: draftCategory,
+                              errorCategory: selectedDraftCategory,
                               correctedText: draftCorrected,
                             },
                           ]);
@@ -242,7 +246,7 @@ export function AnswerPage() {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="border-accent/40 text-accent">
-                            {errorTaxonomies.find((t) => t.categoryKey === a.errorCategory)
+                            {errorTaxonomies.data?.find((t) => t.categoryKey === a.errorCategory)
                               ?.categoryName ?? a.errorCategory}
                           </Badge>
                           <span className="text-numeric text-xs text-muted-foreground">
@@ -292,7 +296,7 @@ export function AnswerPage() {
           <div className="space-y-3">
             <Button
               className="w-full"
-              disabled={!canSubmit || submit.isPending}
+              disabled={!canSubmit || submit.isPending || !currentUser.data}
               onClick={() => submit.mutate()}
             >
               <Send className="size-4" />

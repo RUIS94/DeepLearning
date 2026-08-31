@@ -14,7 +14,7 @@ import {
   Scale,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MOCK_USER } from "@/lib/mock/store";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 const NAV = [
   { href: "/practice", label: "练习", icon: BookOpen, exact: true },
@@ -37,6 +37,7 @@ export function AppShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const currentUser = useCurrentUser();
 
   return (
     <div className="min-h-screen bg-background">
@@ -71,9 +72,9 @@ export function AppShell({
             >
               <Settings className="size-4" />
             </Link>
-            <span className="text-xs text-muted-foreground">{MOCK_USER.email}</span>
+            <span className="text-xs text-muted-foreground">{currentUser.data?.email ?? " "}</span>
             <span className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-              {MOCK_USER.name.slice(0, 1)}
+              {(currentUser.data?.displayName ?? currentUser.data?.email ?? "?").slice(0, 1)}
             </span>
           </div>
         </div>

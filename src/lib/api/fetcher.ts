@@ -1,13 +1,11 @@
 import type { ProblemDetails } from "@/lib/types/dtos";
 
 /**
- * 统一 fetcher（方案 §5.3）。Server Component 用 `createApiClient(process.env.BACKEND_API_BASE_URL!, getServerAccessTokenHeader)`
- * 直连后端；Client Component 用 `createApiClient("/api/backend")` 走同源代理，代理层自己注入 token，
- * 客户端不需要重复处理认证。
- *
- * 目前还没有任何 `lib/api/*.ts` 资源模块在用这个 fetcher——页面仍然直接 import `lib/mock/store.ts`
- * （见 进度跟踪.md）。接后端时按方案 §5.4 的模式，把 mock 函数体逐个换成 `api<T>(path, options)` 调用，
- * 函数签名保持不变，页面不需要改动。
+ * 统一 fetcher（方案 §5.3）。`lib/api/*.ts` 资源模块统一用 `api("/questions")` 这种不带
+ * `/api/v1` 前缀的资源路径调用——两种 client 都在各自的 baseUrl 里把 `/api/v1` 前缀补好：
+ * 代理层 `route.ts` 转发时自己拼 `/api/v1/`（浏览器请求走 `/api/backend/...`，同源，无 CORS 问题）；
+ * `createServerApiClient` 的 baseUrl 直接是 `${BACKEND_API_BASE_URL}/api/v1`（Server Component
+ * 服务端到服务端直连，不经代理，发起方不是浏览器所以没有 CORS 问题，见方案 §5.1）。
  */
 
 export type FetchOptions = {
@@ -66,7 +64,7 @@ export function createServerApiClient(): ApiClient {
   if (!baseUrl) {
     throw new Error("BACKEND_API_BASE_URL is not set — copy .env.local.example to .env.local.");
   }
-  return createApiClient(baseUrl);
+  return createApiClient(`${baseUrl}/api/v1`);
 }
 
 /** 客户端组件用：经同源代理 /api/backend，代理层自己注入 token。 */

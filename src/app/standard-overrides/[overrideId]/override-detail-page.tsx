@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { activateStandardOverride, getStandardOverrideById } from "@/lib/mock/store";
+import { activateStandardOverride, getStandardOverrideById } from "@/lib/api/standard-overrides";
 import { OverrideScope, OverrideStatus, OverrideStatusLabel } from "@/lib/types/enums";
 import { formatDate } from "@/lib/band";
 import { cn } from "@/lib/utils";

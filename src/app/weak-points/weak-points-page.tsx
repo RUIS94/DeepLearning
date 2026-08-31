@@ -6,15 +6,18 @@ import { AppShell } from "@/components/shared/app-shell";
 import { EnumSelect } from "@/components/shared/enum-select";
 import { WeakPointCard } from "@/components/weak-points/weak-point-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { listWeakPoints } from "@/lib/mock/store";
+import { listWeakPoints } from "@/lib/api/weak-points";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { WeakPointStatusLabel } from "@/lib/types/enums";
 
 export function WeakPointsPage() {
   const [status, setStatus] = useState<number | "all">("all");
+  const currentUser = useCurrentUser();
 
   const weakPoints = useQuery({
-    queryKey: ["weak-points", status],
-    queryFn: () => listWeakPoints(status === "all" ? undefined : status),
+    queryKey: ["weak-points", currentUser.data?.id, status],
+    queryFn: () => listWeakPoints(currentUser.data!.id, status === "all" ? undefined : status),
+    enabled: !!currentUser.data,
   });
 
   return (

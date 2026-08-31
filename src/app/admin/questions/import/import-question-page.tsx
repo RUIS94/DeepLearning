@@ -23,7 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { errorTaxonomies, importUserQuestion } from "@/lib/mock/store";
+import { importUserQuestion } from "@/lib/api/questions";
+import { useErrorTaxonomies, useExamType } from "@/hooks/use-exam-config";
 import {
   CheckpointImportanceLabel,
   DifficultyLabel,
@@ -50,9 +51,14 @@ const defaultValues: ImportUserQuestionFormInput = {
 
 export function ImportQuestionPage() {
   const router = useRouter();
+  const examType = useExamType();
+  const errorTaxonomies = useErrorTaxonomies(examType.data?.id);
   const [draft, setDraft] = useState<{ start: number; end: number } | null>(null);
-  const [draftTaxonomyId, setDraftTaxonomyId] = useState(errorTaxonomies[0]!.id);
+  // 以前是 useState(errorTaxonomies[0]!.id) 同步初始化——现在要异步查询才能拿到，
+  // 初始为空字符串，渲染 Select 时 fallback 到已加载数据的第一项（同 answer-page.tsx 的处理）。
+  const [draftTaxonomyId, setDraftTaxonomyId] = useState("");
   const [draftCorrected, setDraftCorrected] = useState("");
+  const selectedDraftTaxonomyId = draftTaxonomyId || errorTaxonomies.data?.[0]?.id || "";
 
   const form = useForm<ImportUserQuestionFormInput>({
     resolver: zodResolver(importUserQuestionSchema),
@@ -315,12 +321,12 @@ export function ImportQuestionPage() {
                     <p className="text-numeric text-xs text-muted-foreground">
                       选区 [{draft.start}, {draft.end})
                     </p>
-                    <Select value={draftTaxonomyId} onValueChange={setDraftTaxonomyId}>
+                    <Select value={selectedDraftTaxonomyId} onValueChange={setDraftTaxonomyId}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {errorTaxonomies.map((t) => (
+                        {(errorTaxonomies.data ?? []).map((t) => (
                           <SelectItem key={t.id} value={t.id}>
                             {t.categoryName}
                           </SelectItem>
@@ -336,11 +342,12 @@ export function ImportQuestionPage() {
                       <Button
                         type="button"
                         size="sm"
+                        disabled={!selectedDraftTaxonomyId}
                         onClick={() => {
                           seededErrors.append({
                             positionStart: draft.start,
                             positionEnd: draft.end,
-                            errorTaxonomyId: draftTaxonomyId,
+                            errorTaxonomyId: selectedDraftTaxonomyId,
                             correctReferenceText: draftCorrected,
                           });
                           setDraft(null);
@@ -372,7 +379,10 @@ export function ImportQuestionPage() {
                       <div className="space-y-1 text-sm">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="border-accent/40 text-accent">
-                            {errorTaxonomies.find((t) => t.id === f.errorTaxonomyId)?.categoryName}
+                            {
+                              errorTaxonomies.data?.find((t) => t.id === f.errorTaxonomyId)
+                                ?.categoryName
+                            }
                           </Badge>
                           <span className="text-numeric text-xs text-muted-foreground">
                             [{f.positionStart}, {f.positionEnd})

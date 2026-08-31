@@ -8,18 +8,36 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { MOCK_USER } from "@/lib/mock/store";
+import { getSupabaseBrowserClient } from "@/lib/auth/supabase-client";
 
 export function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState(MOCK_USER.email);
-  const [password, setPassword] = useState("demo1234");
+  const supabase = getSupabaseBrowserClient();
+  const [email, setEmail] = useState(supabase ? "" : "learner@example.com");
+  const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError(null);
     setPending(true);
-    setTimeout(() => router.push("/practice"), 500);
+
+    if (!supabase) {
+      // Supabase 还没配置（NEXT_PUBLIC_SUPABASE_ANON_KEY 缺失）——保留原型阶段的占位行为，
+      // 之后各页面会用 FALLBACK_USER_ID（见 hooks/use-current-user.ts）当作当前用户。
+      setTimeout(() => router.push("/practice"), 500);
+      return;
+    }
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    setPending(false);
+    if (signInError) {
+      setError(signInError.message);
+      return;
+    }
+    router.push("/practice");
+    router.refresh();
   }
 
   return (
@@ -54,7 +72,9 @@ export function LoginPage() {
             </div>
           </dl>
         </div>
-        <p className="text-xs opacity-60">UI 原型 · 数据为演示用 Mock</p>
+        <p className="text-xs opacity-60">
+          {supabase ? "数据来自真实后端" : "UI 原型 · 数据为演示用 Mock"}
+        </p>
       </div>
 
       <div className="flex items-center justify-center p-6">
@@ -62,7 +82,9 @@ export function LoginPage() {
           <CardContent className="p-8">
             <h1 className="text-2xl font-semibold">登录</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              原型阶段：任意信息即可进入，正式版将接入 Supabase Auth。
+              {supabase
+                ? "使用 Supabase 账号登录。"
+                : "Supabase Auth 还没配置（缺 NEXT_PUBLIC_SUPABASE_ANON_KEY），任意信息即可进入占位状态。"}
             </p>
             <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-2">
@@ -85,17 +107,20 @@ export function LoginPage() {
                   required
                 />
               </div>
+              {error ? <p className="text-xs text-destructive">{error}</p> : null}
               <Button type="submit" className="w-full" disabled={pending}>
                 {pending ? <Loader2 className="size-4 animate-spin" /> : null}
                 {pending ? "登录中…" : "登录并开始练习"}
               </Button>
             </form>
-            <p className="mt-4 text-center text-xs text-muted-foreground">
-              也可以直接
-              <Link href="/practice" className="ml-1 text-primary underline underline-offset-2">
-                浏览题库
-              </Link>
-            </p>
+            {!supabase ? (
+              <p className="mt-4 text-center text-xs text-muted-foreground">
+                也可以直接
+                <Link href="/practice" className="ml-1 text-primary underline underline-offset-2">
+                  浏览题库
+                </Link>
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       </div>

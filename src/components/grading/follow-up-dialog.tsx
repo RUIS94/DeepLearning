@@ -16,7 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { AiLoadingState } from "@/components/shared/ai-loading-state";
-import { createFollowUp, examType, MOCK_USER } from "@/lib/mock/store";
+import { createFollowUp } from "@/lib/api/follow-ups";
+import { useExamType } from "@/hooks/use-exam-config";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { FollowUpVerdict, FollowUpVerdictLabel, OverrideStatusLabel } from "@/lib/types/enums";
 import type { FollowUpQuestionResult } from "@/lib/types/dtos";
 
@@ -30,13 +32,15 @@ export function FollowUpDialog({
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [result, setResult] = useState<FollowUpQuestionResult | null>(null);
+  const examType = useExamType();
+  const currentUser = useCurrentUser();
 
   const mutation = useMutation({
     mutationFn: () =>
       createFollowUp({
         submissionId,
-        userId: MOCK_USER.id,
-        examTypeId: examType.id,
+        userId: currentUser.data!.id,
+        examTypeId: examType.data!.id,
         contextRef: null,
         questionText: text,
       }),
@@ -116,7 +120,9 @@ export function FollowUpDialog({
             <Button onClick={() => setOpen(false)}>知道了</Button>
           ) : (
             <Button
-              disabled={mutation.isPending || text.trim().length < 5}
+              disabled={
+                mutation.isPending || text.trim().length < 5 || !examType.data || !currentUser.data
+              }
               onClick={() => mutation.mutate()}
             >
               {mutation.isPending ? "复核中…" : "提交追问"}

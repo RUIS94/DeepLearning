@@ -26,7 +26,7 @@ import {
   listLlmProviderSettings,
   selectLlmProviderModel,
   updateLlmProviderSettings,
-} from "@/lib/mock/store";
+} from "@/lib/api/llm-providers";
 import type { LlmProviderSettings } from "@/lib/types/dtos";
 
 const PROVIDER_LABEL: Record<string, string> = {

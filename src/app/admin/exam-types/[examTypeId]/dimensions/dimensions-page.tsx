@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminShell } from "@/components/shared/admin-shell";
 import { CrudTable, type CrudColumn, type CrudField } from "@/components/admin/crud-table";
 import { Badge } from "@/components/ui/badge";
-import { createAssessmentDimension, listAssessmentDimensions } from "@/lib/mock/store";
+import { createAssessmentDimension, listAssessmentDimensions } from "@/lib/api/exam-config";
 import { ScaleTypeLabel, TaskTypeLabel } from "@/lib/types/enums";
 import {
   assessmentDimensionFormSchema,

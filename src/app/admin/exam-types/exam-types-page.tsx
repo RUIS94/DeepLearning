@@ -4,12 +4,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminShell } from "@/components/shared/admin-shell";
 import { CrudTable, type CrudColumn, type CrudField } from "@/components/admin/crud-table";
 import { Badge } from "@/components/ui/badge";
-import { createExamType, listExamTypes } from "@/lib/mock/store";
+import { createExamType, listExamTypes } from "@/lib/api/exam-config";
 import { SubjectCategoryLabel } from "@/lib/types/enums";
 import { examTypeFormSchema, type ExamTypeFormInput } from "@/lib/validation/admin";
 import type { ExamType } from "@/lib/types/dtos";
-import { formatDate } from "@/lib/band";
 
+// 只有这几个字段——GET /exam-types 列表接口本身就很薄（ListExamTypesResultItem），不含
+// sourceLanguage/targetLanguage/gradeLevel/description/createdAt，那些字段只有 GetById 才有。
 const columns: CrudColumn<ExamType>[] = [
   {
     key: "code",
@@ -22,14 +23,7 @@ const columns: CrudColumn<ExamType>[] = [
     header: "学科类别",
     render: (e) => <Badge variant="outline">{SubjectCategoryLabel[e.subjectCategory]}</Badge>,
   },
-  {
-    key: "languages",
-    header: "语言方向",
-    render: (e) =>
-      e.sourceLanguage && e.targetLanguage ? `${e.sourceLanguage} → ${e.targetLanguage}` : "—",
-  },
   { key: "isActive", header: "状态", render: (e) => (e.isActive ? "启用" : "停用") },
-  { key: "createdAt", header: "创建时间", render: (e) => formatDate(e.createdAt) },
 ];
 
 const fields: CrudField<ExamTypeFormInput>[] = [

@@ -7,7 +7,7 @@ import { AppShell } from "@/components/shared/app-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { listStandardOverrides } from "@/lib/mock/store";
+import { listStandardOverrides } from "@/lib/api/standard-overrides";
 import { OverrideScope, OverrideStatus, OverrideStatusLabel } from "@/lib/types/enums";
 import { formatDate } from "@/lib/band";
 import { cn } from "@/lib/utils";

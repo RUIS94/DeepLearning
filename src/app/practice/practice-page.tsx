@@ -15,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { listCategories, listQuestions } from "@/lib/mock/store";
+import { listCategories } from "@/lib/api/exam-config";
+import { listQuestions } from "@/lib/api/questions";
 import { DifficultyLabel, TaskTypeLabel } from "@/lib/types/enums";
 
 const ALL = "all";

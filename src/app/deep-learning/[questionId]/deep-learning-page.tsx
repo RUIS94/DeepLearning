@@ -7,17 +7,21 @@ import { AppShell } from "@/components/shared/app-shell";
 import { AiLoadingState, ErrorBanner } from "@/components/shared/ai-loading-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { generateDeepLearning, getQuestionById } from "@/lib/mock/store";
+import { generateDeepLearning } from "@/lib/api/deep-learning";
+import { getQuestionById } from "@/lib/api/questions";
+import { useExamType } from "@/hooks/use-exam-config";
 
 export function DeepLearningPage() {
   const { questionId } = useParams<{ questionId: string }>();
+  const examType = useExamType();
   const question = useQuery({
     queryKey: ["question", questionId],
     queryFn: () => getQuestionById(questionId),
   });
   const content = useQuery({
     queryKey: ["deep-learning", questionId],
-    queryFn: () => generateDeepLearning(questionId),
+    queryFn: () => generateDeepLearning(questionId, examType.data!.id),
+    enabled: !!examType.data,
   });
 
   return (

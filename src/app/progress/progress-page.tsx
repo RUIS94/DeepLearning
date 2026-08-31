@@ -15,17 +15,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { listProgress } from "@/lib/mock/store";
+import { listProgress } from "@/lib/api/progress";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { formatDate } from "@/lib/band";
 
 const ALL = "all";
 
 export function ProgressPage() {
   const [difficultyTier, setDifficultyTier] = useState(ALL);
+  const currentUser = useCurrentUser();
 
   const snapshots = useQuery({
-    queryKey: ["progress", difficultyTier],
-    queryFn: () => listProgress(difficultyTier === ALL ? undefined : difficultyTier),
+    queryKey: ["progress", currentUser.data?.id, difficultyTier],
+    queryFn: () =>
+      listProgress(currentUser.data!.id, difficultyTier === ALL ? undefined : difficultyTier),
+    enabled: !!currentUser.data,
   });
 
   const latest = snapshots.data?.[snapshots.data.length - 1];

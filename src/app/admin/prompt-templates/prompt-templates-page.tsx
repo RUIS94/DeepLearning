@@ -6,7 +6,7 @@ import { AdminShell } from "@/components/shared/admin-shell";
 import { CrudTable, type CrudColumn, type CrudField } from "@/components/admin/crud-table";
 import { EnumSelect } from "@/components/shared/enum-select";
 import { Badge } from "@/components/ui/badge";
-import { createPromptTemplate, listExamTypes, listPromptTemplates } from "@/lib/mock/store";
+import { createPromptTemplate, listExamTypes, listPromptTemplates } from "@/lib/api/exam-config";
 import { AiOperationTypeLabel, SubjectCategoryLabel, TemplateLayerLabel } from "@/lib/types/enums";
 import { promptTemplateFormSchema, type PromptTemplateFormInput } from "@/lib/validation/admin";
 import type { PromptTemplate } from "@/lib/types/dtos";
