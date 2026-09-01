@@ -24,6 +24,11 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
                 .HasForeignKey(x => x.TriggeredByFollowupId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            builder.HasOne(x => x.TriggeredByFollowUpThread)
+                .WithMany()
+                .HasForeignKey(x => x.TriggeredByFollowUpThreadId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             builder.HasOne(x => x.PreviousOverride)
                 .WithMany()
                 .HasForeignKey(x => x.PreviousOverrideId)

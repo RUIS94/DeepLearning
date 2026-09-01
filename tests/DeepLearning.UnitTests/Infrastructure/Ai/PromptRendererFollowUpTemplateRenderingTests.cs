@@ -47,5 +47,54 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
             Assert.Contains("误判(false positive)", result);
             Assert.Contains("结束。", result);
         }
+
+        // Mirrors add_followup_thread_history_prompt_template.sql's 【本线程此前的对话】 block —
+        // multi-round follow-up threads (2026-09-02) replay prior turns to the AI as `history`,
+        // a list of { role, content } exactly as FollowUpThreadSupport.BuildTemplateModel emits it.
+        private const string HistoryTemplate = """
+            {{ if history.size > 0 }}
+            此前的对话:
+            {{ for m in history }}
+            {{ if m.role == "user" }}用户: {{ else }}AI: {{ end }}{{ m.content }}
+            {{ end }}
+            {{ end }}
+            当前追问: {{ question_text }}
+            """;
+
+        [Fact]
+        public void Renders_the_thread_history_block_in_role_order()
+        {
+            var renderer = new PromptRenderer();
+
+            var result = renderer.Render(HistoryTemplate, new
+            {
+                QuestionText = "第三轮问题",
+                History = new[]
+                {
+                    new { Role = "user", Content = "第一轮问题" },
+                    new { Role = "ai", Content = "第一轮回答" },
+                },
+            });
+
+            Assert.Contains("用户: 第一轮问题", result);
+            Assert.Contains("AI: 第一轮回答", result);
+            Assert.Contains("当前追问: 第三轮问题", result);
+            Assert.True(result.IndexOf("第一轮问题", StringComparison.Ordinal) < result.IndexOf("第一轮回答", StringComparison.Ordinal));
+        }
+
+        [Fact]
+        public void Omits_the_history_block_on_the_first_round()
+        {
+            var renderer = new PromptRenderer();
+
+            var result = renderer.Render(HistoryTemplate, new
+            {
+                QuestionText = "第一轮问题",
+                History = Array.Empty<object>(),
+            });
+
+            Assert.DoesNotContain("此前的对话", result);
+            Assert.Contains("当前追问: 第一轮问题", result);
+        }
     }
 }

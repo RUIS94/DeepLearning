@@ -22,21 +22,40 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
                 x => x.Scope == scope && x.DimensionOrRule == dimensionOrRule && x.Status == OverrideStatus.active,
                 cancellationToken);
 
-        public Task<int> CountDistinctQuestionsPendingAsync(
+        public async Task<int> CountDistinctQuestionsPendingAsync(
             OverrideScope scope,
             string dimensionOrRule,
             Guid? baselineOverrideId,
             CancellationToken cancellationToken = default)
-            => (from o in _context.StandardOverrides
+        {
+            // Two independent confirmation sources, unioned by distinct Question id: the legacy
+            // single-shot FollowUpQuestion path (TriggeredByFollowupId — historical rows only,
+            // CreateFollowUpQuestionCommand no longer exists) and the current FollowUpThread path
+            // (TriggeredByFollowUpThreadId — CloseFollowUpThreadCommandHandler). Without the
+            // union, the activation threshold would silently forget every confirmation recorded
+            // before the thread model existed.
+            var fromLegacyFollowUps =
+                from o in _context.StandardOverrides
                 join f in _context.FollowUpQuestions on o.TriggeredByFollowupId equals f.Id
                 join s in _context.Submissions on f.SubmissionId equals s.Id
                 where o.Scope == scope
                     && o.DimensionOrRule == dimensionOrRule
                     && o.Status == OverrideStatus.observing
                     && o.PreviousOverrideId == baselineOverrideId
-                select s.QuestionId)
-                .Distinct()
-                .CountAsync(cancellationToken);
+                select s.QuestionId;
+
+            var fromThreads =
+                from o in _context.StandardOverrides
+                join t in _context.FollowUpThreads on o.TriggeredByFollowUpThreadId equals t.Id
+                join s in _context.Submissions on t.SubmissionId equals s.Id
+                where o.Scope == scope
+                    && o.DimensionOrRule == dimensionOrRule
+                    && o.Status == OverrideStatus.observing
+                    && o.PreviousOverrideId == baselineOverrideId
+                select s.QuestionId;
+
+            return await fromLegacyFollowUps.Union(fromThreads).Distinct().CountAsync(cancellationToken);
+        }
 
         public Task<List<StandardOverride>> ListAsync(OverrideStatus? status, CancellationToken cancellationToken = default)
         {

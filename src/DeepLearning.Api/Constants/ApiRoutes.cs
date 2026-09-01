@@ -49,6 +49,11 @@ namespace DeepLearning.Api.Constants
             public const string Base = $"{Prefix}/follow-ups";
         }
 
+        public static class FollowUpThreads
+        {
+            public const string Base = $"{Prefix}/follow-up-threads";
+        }
+
         public static class StandardOverrides
         {
             public const string Base = $"{Prefix}/standard-overrides";

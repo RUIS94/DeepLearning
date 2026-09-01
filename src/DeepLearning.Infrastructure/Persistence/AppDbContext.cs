@@ -25,6 +25,8 @@ namespace DeepLearning.Infrastructure.Persistence
         public DbSet<GradingResult> GradingResults => Set<GradingResult>();
         public DbSet<ErrorListItem> ErrorList => Set<ErrorListItem>();
         public DbSet<FollowUpQuestion> FollowUpQuestions => Set<FollowUpQuestion>();
+        public DbSet<FollowUpThread> FollowUpThreads => Set<FollowUpThread>();
+        public DbSet<FollowUpMessage> FollowUpMessages => Set<FollowUpMessage>();
         public DbSet<StandardOverride> StandardOverrides => Set<StandardOverride>();
         public DbSet<SentencePattern> SentencePatterns => Set<SentencePattern>();
         public DbSet<VocabExpression> VocabExpressions => Set<VocabExpression>();
@@ -60,6 +62,8 @@ namespace DeepLearning.Infrastructure.Persistence
             modelBuilder.HasPostgresEnum<Visibility>(name: "visibility_enum", nameTranslator: new NpgsqlSnakeCaseNameTranslator());
             modelBuilder.HasPostgresEnum<SubmissionStatus>(name: "submission_status_enum", nameTranslator: new NpgsqlNullNameTranslator());
             modelBuilder.HasPostgresEnum<FollowUpVerdict>(name: "followup_verdict_enum", nameTranslator: new NpgsqlNullNameTranslator());
+            modelBuilder.HasPostgresEnum<FollowUpThreadStatus>(name: "follow_up_thread_status_enum", nameTranslator: new NpgsqlNullNameTranslator());
+            modelBuilder.HasPostgresEnum<FollowUpMessageRole>(name: "follow_up_message_role_enum", nameTranslator: new NpgsqlNullNameTranslator());
             modelBuilder.HasPostgresEnum<OverrideScope>(name: "override_scope_enum", nameTranslator: new NpgsqlNullNameTranslator());
             modelBuilder.HasPostgresEnum<OverrideStatus>(name: "override_status_enum", nameTranslator: new NpgsqlNullNameTranslator());
             modelBuilder.HasPostgresEnum<WeakPointStatus>(name: "weak_point_status_enum", nameTranslator: new NpgsqlNullNameTranslator());

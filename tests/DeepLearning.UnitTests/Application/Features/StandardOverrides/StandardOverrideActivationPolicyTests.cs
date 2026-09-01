@@ -1,6 +1,6 @@
-using DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQuestion;
+using DeepLearning.Application.Features.StandardOverrides;
 
-namespace DeepLearning.UnitTests.Application.Features.FollowUps
+namespace DeepLearning.UnitTests.Application.Features.StandardOverrides
 {
     public class StandardOverrideActivationPolicyTests
     {

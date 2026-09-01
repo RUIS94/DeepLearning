@@ -268,22 +268,29 @@ namespace DeepLearning.UnitTests.Api
     {
         public const string GradingMarker = "GRADING_MARKER";
         public const string FollowUpMarker = "FOLLOWUP_MARKER";
+        public const string SummaryMarker = "FOLLOWUP_SUMMARY_MARKER";
 
         private readonly string _dimensionKey;
         private readonly string _followUpResponseJson;
+        private readonly string? _summaryResponseJson;
 
-        public FakeFollowUpFlowLlmClient(string dimensionKey, string followUpResponseJson)
+        public FakeFollowUpFlowLlmClient(string dimensionKey, string followUpResponseJson, string? summaryResponseJson = null)
         {
             _dimensionKey = dimensionKey;
             _followUpResponseJson = followUpResponseJson;
+            _summaryResponseJson = summaryResponseJson;
         }
 
         /// <summary>
-        /// The actual prompt sent for the most recent non-grading (i.e. follow-up) call — lets a
-        /// test assert on what CreateFollowUpQuestionCommandHandler actually sent the LLM, e.g.
-        /// that a Question's reference translation made it into the prompt.
+        /// The actual prompt sent for the most recent per-round follow-up call — lets a test
+        /// assert on what AddFollowUpMessageCommandHandler / CreateFollowUpThreadCommandHandler
+        /// actually sent the LLM, e.g. that a Question's reference translation made it into the
+        /// prompt, or that prior rounds were replayed as history.
         /// </summary>
         public string? LastFollowUpPrompt { get; private set; }
+
+        /// <summary>The prompt sent for the most recent closing summary call (AiOperationType.followup_summary).</summary>
+        public string? LastSummaryPrompt { get; private set; }
 
         public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
         {
@@ -300,6 +307,14 @@ namespace DeepLearning.UnitTests.Api
                 return Task.FromResult(new LlmCompletionResult(gradingJson, 10, 20, "fake-model", 5));
             }
 
+            if (request.UserPrompt.Contains(SummaryMarker, StringComparison.Ordinal))
+            {
+                LastSummaryPrompt = request.UserPrompt;
+                return Task.FromResult(new LlmCompletionResult(
+                    _summaryResponseJson ?? throw new InvalidOperationException("This FakeFollowUpFlowLlmClient was constructed without a summaryResponseJson."),
+                    10, 20, "fake-model", 5));
+            }
+
             LastFollowUpPrompt = request.UserPrompt;
             return Task.FromResult(new LlmCompletionResult(_followUpResponseJson, 10, 20, "fake-model", 5));
         }
@@ -309,9 +324,9 @@ namespace DeepLearning.UnitTests.Api
     {
         private readonly ILlmClient _client;
 
-        public FakeFollowUpFlowLlmClientResolver(string dimensionKey, string followUpResponseJson)
+        public FakeFollowUpFlowLlmClientResolver(string dimensionKey, string followUpResponseJson, string? summaryResponseJson = null)
         {
-            _client = new FakeFollowUpFlowLlmClient(dimensionKey, followUpResponseJson);
+            _client = new FakeFollowUpFlowLlmClient(dimensionKey, followUpResponseJson, summaryResponseJson);
         }
 
         public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)

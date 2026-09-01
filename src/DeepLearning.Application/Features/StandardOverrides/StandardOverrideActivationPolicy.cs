@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQuestion
+namespace DeepLearning.Application.Features.StandardOverrides
 {
     /// <summary>
     /// Design doc §10.6: an observing standard_overrides row (an AI-judgment correction note —
@@ -8,7 +8,9 @@ namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQue
     /// promoted to active once the same correction has been independently confirmed (by a
     /// follow-up whose verdict was user_correct) on this many distinct questions. Pure/static so
     /// the threshold judgment itself is testable without a database — same convention as
-    /// DifficultyDistributionSelector.
+    /// DifficultyDistributionSelector. Originally lived under FollowUps/Commands/
+    /// CreateFollowUpQuestion; moved here when that single-shot command was retired in favor of
+    /// FollowUpThreads (CloseFollowUpThreadCommandHandler is now the sole caller).
     /// </summary>
     public static class StandardOverrideActivationPolicy
     {

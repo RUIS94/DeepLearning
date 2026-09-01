@@ -33,6 +33,8 @@ namespace DeepLearning.Infrastructure.Persistence
             o.MapEnum<Visibility>("visibility_enum", nameTranslator: snake);
             o.MapEnum<SubmissionStatus>("submission_status_enum", nameTranslator: t);
             o.MapEnum<FollowUpVerdict>("followup_verdict_enum", nameTranslator: t);
+            o.MapEnum<FollowUpThreadStatus>("follow_up_thread_status_enum", nameTranslator: t);
+            o.MapEnum<FollowUpMessageRole>("follow_up_message_role_enum", nameTranslator: t);
             o.MapEnum<OverrideScope>("override_scope_enum", nameTranslator: t);
             o.MapEnum<OverrideStatus>("override_status_enum", nameTranslator: t);
             o.MapEnum<WeakPointStatus>("weak_point_status_enum", nameTranslator: t);

@@ -1,10 +1,10 @@
 using FluentValidation;
 
-namespace DeepLearning.Application.Features.FollowUps.Commands.CreateFollowUpQuestion
+namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CreateFollowUpThread
 {
-    public class CreateFollowUpQuestionValidator : AbstractValidator<CreateFollowUpQuestionCommand>
+    public class CreateFollowUpThreadValidator : AbstractValidator<CreateFollowUpThreadCommand>
     {
-        public CreateFollowUpQuestionValidator()
+        public CreateFollowUpThreadValidator()
         {
             RuleFor(x => x.SubmissionId).NotEmpty();
             RuleFor(x => x.UserId).NotEmpty();
