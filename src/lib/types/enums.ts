@@ -50,7 +50,13 @@ export const AiOperationType = {
   standard_revision: 3,
   deep_learning: 4,
   progress_trend: 5,
+  followup_summary: 6,
 } as const;
+
+// 追问线程（design decision, 2026-09-02）：一个 submission 最多一条线程，存续期间
+// submission 停在 under_dispute，用户点“结束追问”才结算——见 FollowUpThread.cs 的注释。
+export const FollowUpThreadStatus = { open: 0, closed: 1 } as const;
+export const FollowUpMessageRole = { user: 0, ai: 1 } as const;
 
 export const TaskTypeLabel: Record<number, string> = {
   [TaskType.A]: "TaskA · 翻译",
@@ -130,6 +136,12 @@ export const AiOperationTypeLabel: Record<number, string> = {
   [AiOperationType.standard_revision]: "标准修订",
   [AiOperationType.deep_learning]: "深入学习",
   [AiOperationType.progress_trend]: "进度趋势",
+  [AiOperationType.followup_summary]: "追问总结",
+};
+
+export const FollowUpThreadStatusLabel: Record<number, string> = {
+  [FollowUpThreadStatus.open]: "追问中",
+  [FollowUpThreadStatus.closed]: "已结束",
 };
 
 export const ScaleTypeLabel: Record<number, string> = {

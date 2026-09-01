@@ -7,21 +7,15 @@ import { BookOpenCheck, Gavel } from "lucide-react";
 import { AppShell } from "@/components/shared/app-shell";
 import { AiLoadingState, ErrorBanner } from "@/components/shared/ai-loading-state";
 import { GradingResultPanel } from "@/components/grading/grading-result-panel";
-import { FollowUpDialog } from "@/components/grading/follow-up-dialog";
+import { FollowUpPanel } from "@/components/grading/follow-up-panel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getQuestionById } from "@/lib/api/questions";
 import { getSubmissionById, gradeSubmission } from "@/lib/api/submissions";
-import { listFollowUps } from "@/lib/api/follow-ups";
 import { useExamType } from "@/hooks/use-exam-config";
-import {
-  SubmissionStatus,
-  SubmissionStatusLabel,
-  TaskType,
-  FollowUpVerdictLabel,
-} from "@/lib/types/enums";
+import { SubmissionStatus, SubmissionStatusLabel, TaskType } from "@/lib/types/enums";
 import type { TaskBAnnotation } from "@/lib/types/dtos";
 
 export function SubmissionPage() {
@@ -37,11 +31,6 @@ export function SubmissionPage() {
     queryFn: () => getQuestionById(submission.data!.questionId),
     enabled: !!submission.data,
   });
-  const followUps = useQuery({
-    queryKey: ["follow-ups", submissionId],
-    queryFn: () => listFollowUps(submissionId),
-  });
-
   const examType = useExamType();
   const grade = useMutation({
     // examTypeId 镜像后端 GradeSubmissionRequest 的必填字段——题库目前只有一个 examType，
@@ -66,8 +55,12 @@ export function SubmissionPage() {
   }
 
   const s = submission.data;
+  // under_dispute 也算“已出批改结果”：一条追问线程存续期间 submission 会停在
+  // under_dispute（见 follow-up-panel.tsx），此时批改结果区域和追问入口都要照常显示。
   const graded =
-    s.status === SubmissionStatus.graded || s.status === SubmissionStatus.standard_revised;
+    s.status === SubmissionStatus.graded ||
+    s.status === SubmissionStatus.standard_revised ||
+    s.status === SubmissionStatus.under_dispute;
   const archived = s.status === SubmissionStatus.archived;
 
   let parsedContent: string | TaskBAnnotation[] = "";
@@ -95,12 +88,11 @@ export function SubmissionPage() {
             </Button>
           ) : null}
           {graded && !archived ? (
-            <FollowUpDialog
+            <FollowUpPanel
               submissionId={submissionId}
-              onResolved={() => {
-                queryClient.invalidateQueries({ queryKey: ["submission", submissionId] });
-                queryClient.invalidateQueries({ queryKey: ["follow-ups", submissionId] });
-              }}
+              onChanged={() =>
+                queryClient.invalidateQueries({ queryKey: ["submission", submissionId] })
+              }
             />
           ) : null}
         </>
@@ -213,23 +205,7 @@ export function SubmissionPage() {
             </Card>
           ) : null}
 
-          {graded && !archived && followUps.data?.length ? (
-            <Card className="flex min-h-0 shrink-0 flex-col border-border shadow-none lg:max-h-[40vh]">
-              <CardHeader className="shrink-0">
-                <CardTitle className="text-base">追问记录</CardTitle>
-              </CardHeader>
-              <CardContent className="min-h-0 space-y-3 overflow-y-auto">
-                {followUps.data.map((f) => (
-                  <div key={f.id} className="rounded-md border border-border p-3">
-                    <Badge variant="outline" className="border-border text-muted-foreground">
-                      {FollowUpVerdictLabel[f.verdict]}
-                    </Badge>
-                    <p className="mt-2 text-sm leading-relaxed">{f.aiResponse}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          ) : null}
+          {/* 追问历史现在完整呈现在 FollowUpPanel（SidePanel）里，页面不再单独放一份记录卡片。 */}
         </div>
       </div>
     </AppShell>

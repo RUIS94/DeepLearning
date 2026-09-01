@@ -258,6 +258,49 @@ export interface FollowUpQuestionDetail {
   createdAt: string;
 }
 
+export interface CreateFollowUpThreadRequest {
+  submissionId: string;
+  userId: string;
+  examTypeId: string;
+  contextRef: string | null;
+  questionText: string;
+}
+
+export interface AddFollowUpMessageRequest {
+  userId: string;
+  questionText: string;
+}
+
+/** 对应后端 FollowUpMessageResult。role/verdict 是数字序数——见 enums.ts 的 FollowUpMessageRole/FollowUpVerdict。verdict 仅 AI 消息非空，且只是这一轮的看法，不驱动任何副作用（见后端 FollowUpMessage 的注释）。 */
+export interface FollowUpMessageDetail {
+  id: string;
+  role: number;
+  content: string;
+  verdict: number | null;
+  createdAt: string;
+}
+
+/**
+ * 对应后端 FollowUpThreadResult（POST /follow-up-threads、POST /follow-up-threads/{id}/messages、
+ * POST /follow-up-threads/{id}/close、GET /follow-up-threads/by-submission/{submissionId} 共用同一形状）。
+ * 一个 submission 最多一条线程；线程存续期间 submission 停在 under_dispute，finalVerdict/
+ * standardOverrideId 只在 status=closed 后才有值。
+ */
+export interface FollowUpThreadDetail {
+  id: string;
+  submissionId: string;
+  userId: string;
+  contextRef: string | null;
+  status: number;
+  finalVerdict: number | null;
+  standardOverrideId: string | null;
+  standardOverrideStatus: number | null;
+  submissionStatus: number;
+  createdAt: string;
+  closedAt: string | null;
+  messages: FollowUpMessageDetail[];
+}
+
 /** 对应后端 StandardOverrideResultItem（GET /standard-overrides 列表项）。没有 submissionId——
  * 与提交的关联是间接的，经 triggeredByFollowupId → follow-up 的 submissionId。 */
 export interface StandardOverride {
