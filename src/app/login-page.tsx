@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { GraduationCap, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,26 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 已登录还落在 "/"（比如手动输入 localhost:3000）时，直接进应用。
+  // 用浏览器端 client 判断——比只靠 middleware 的服务端 getUser() 更可靠（后者可能因
+  // 服务端拿不到 cookie / 校验请求失败而误判为未登录）。
+  const [checkingSession, setCheckingSession] = useState(Boolean(supabase));
+
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      if (data.session) {
+        router.replace("/practice");
+      } else {
+        setCheckingSession(false);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [supabase, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,6 +58,14 @@ export function LoginPage() {
     }
     router.push("/practice");
     router.refresh();
+  }
+
+  if (checkingSession) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
   return (

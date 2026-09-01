@@ -34,14 +34,20 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // 重定向时把 supabase 可能刚刷新过的 session cookie 一并带上,否则下一跳会丢会话。
+  const redirectTo = (path: string) => {
+    const res = NextResponse.redirect(new URL(path, request.url));
+    response.cookies.getAll().forEach((c) => res.cookies.set(c));
+    return res;
+  };
+
   const isLoginPage = request.nextUrl.pathname === "/";
   if (!user && !isLoginPage) {
-    const loginUrl = new URL("/", request.url);
-    return NextResponse.redirect(loginUrl);
+    return redirectTo("/");
   }
   // 已登录还停在登录页 → 直接进应用,避免"登录后回车/刷新又看到登录界面"。
   if (user && isLoginPage) {
-    return NextResponse.redirect(new URL("/practice", request.url));
+    return redirectTo("/practice");
   }
 
   return response;
