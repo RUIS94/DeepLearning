@@ -35,7 +35,9 @@ function DimensionBandRow({
           <p className="text-sm font-medium">{name}</p>
           <p className="text-xs text-muted-foreground">
             Band {band} · {bandLabel(band)}
-            {probability !== null ? ` · 预估通过概率 ${Math.round(probability * 100)}%` : ""}
+            {probability !== null
+              ? ` · 预估通过概率 ${Math.round((probability > 1 ? probability / 100 : probability) * 100)}%`
+              : ""}
           </p>
         </div>
         <Badge
