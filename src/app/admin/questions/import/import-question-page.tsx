@@ -79,7 +79,8 @@ export function ImportQuestionPage() {
         taskType: values.taskType,
         difficulty: values.difficulty,
         title: values.title,
-        brief: values.brief ?? null,
+        // brief 是后端 jsonb 列：留空必须传 null，传 "" 会绕过校验后在写库时抛 22P02。
+        brief: values.brief && values.brief.trim() ? values.brief.trim() : null,
         sourceText: values.sourceText,
         wordCount: values.wordCount ?? null,
         isSeedReference: values.isSeedReference ?? false,
@@ -190,8 +191,14 @@ export function ImportQuestionPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>简介（可选）</Label>
-                <Input {...form.register("brief")} placeholder="公共卫生类通知，注意语域" />
+                <Label>简介（可选，JSON）</Label>
+                <Input
+                  {...form.register("brief")}
+                  placeholder='{"领域":"公共卫生","文本类型":"通知","目的":"告知","受众":"社区居民"}'
+                />
+                {form.formState.errors.brief ? (
+                  <p className="text-xs text-destructive">{form.formState.errors.brief.message}</p>
+                ) : null}
               </div>
 
               <div className="space-y-2">

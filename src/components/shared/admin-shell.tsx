@@ -21,22 +21,26 @@ import { useExamType } from "@/hooks/use-exam-config";
 function useNavItems() {
   const examType = useExamType();
   const examTypeId = examType.data?.id;
+  // key 用固定标识，不用 href——examType 未加载时 dimensions/error-taxonomies 会 fallback 到
+  // /admin/exam-types，与第一项 href 相同，直接拿 href 当 key 会撞成重复 key（React 报警）。
   return [
-    { href: "/admin/exam-types", label: "考试类型", icon: GraduationCap },
+    { key: "exam-types", href: "/admin/exam-types", label: "考试类型", icon: GraduationCap },
     {
+      key: "dimensions",
       href: examTypeId ? `/admin/exam-types/${examTypeId}/dimensions` : "/admin/exam-types",
       label: "评分维度",
       icon: Sliders,
     },
     {
+      key: "error-taxonomies",
       href: examTypeId ? `/admin/exam-types/${examTypeId}/error-taxonomies` : "/admin/exam-types",
       label: "错误分类",
       icon: ShieldAlert,
     },
-    { href: "/admin/prompt-templates", label: "Prompt 模板", icon: FileJson },
-    { href: "/admin/llm-providers", label: "AI 供应商", icon: BookMarked },
-    { href: "/admin/question-bank-categories", label: "题库分类", icon: FolderTree },
-    { href: "/admin/questions/import", label: "导入题目", icon: Upload },
+    { key: "prompt-templates", href: "/admin/prompt-templates", label: "Prompt 模板", icon: FileJson },
+    { key: "llm-providers", href: "/admin/llm-providers", label: "AI 供应商", icon: BookMarked },
+    { key: "question-bank-categories", href: "/admin/question-bank-categories", label: "题库分类", icon: FolderTree },
+    { key: "questions-import", href: "/admin/questions/import", label: "导入题目", icon: Upload },
   ] as const;
 }
 
@@ -62,7 +66,7 @@ export function AdminShell({
   return (
     <div className="min-h-screen bg-background">
       <div className="bg-primary/10 px-4 py-1.5 text-center text-xs text-primary">
-        内容管理后台 · 仅供内部使用，当前无角色鉴权保护（见开发方案 §16）
+        内容管理后台 · 仅供内部使用，当前无角色鉴权保护 - 见开发方案 §16
       </div>
       <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4">
@@ -78,7 +82,7 @@ export function AdminShell({
               const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link
-                  key={item.href}
+                  key={item.key}
                   href={item.href}
                   className={cn(
                     "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",

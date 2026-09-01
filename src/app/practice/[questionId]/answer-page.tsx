@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Highlighter, Send, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/shared/app-shell";
+import { ArticleText } from "@/components/shared/article-text";
 import { ErrorBanner } from "@/components/shared/ai-loading-state";
 import { SelectableSourceText } from "@/components/practice/selectable-source-text";
 import { DifficultyBadge, TaskTypeBadge } from "@/components/practice/difficulty-badge";
@@ -113,7 +114,7 @@ export function AnswerPage() {
               <CardTitle className="text-base">原文</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="source-text text-[15px]">{q.sourceText}</p>
+              <ArticleText text={q.sourceText} className="text-[15px]" />
               {q.meaningCheckpoints.length ? (
                 <div className="mt-6 space-y-2 border-t border-border pt-4">
                   <p className="text-xs font-medium text-muted-foreground">核心意义点</p>

@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpenCheck, Quote } from "lucide-react";
 import { AppShell } from "@/components/shared/app-shell";
+import { ArticleText } from "@/components/shared/article-text";
 import { AiLoadingState, ErrorBanner } from "@/components/shared/ai-loading-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,7 +55,7 @@ export function DeepLearningPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="source-text text-[15px]">{content.data.referenceText}</p>
+                <ArticleText text={content.data.referenceText} className="text-[15px]" />
                 {content.data.comparisonNotes ? (
                   <div className="rounded-lg border border-border bg-secondary/50 p-4 text-sm leading-relaxed">
                     <p className="mb-1 font-medium">对照要点</p>
