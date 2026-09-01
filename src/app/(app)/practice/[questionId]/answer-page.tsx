@@ -148,8 +148,8 @@ export function AnswerPage() {
     : taskAContentSchema.safeParse(translation);
   const canSubmit = contentValidation.success;
 
-  // PageHeader 把 title 包在 <h1> 里，只能放 phrasing content，所以这里一律用 <span>
-  // （<dl>/<p> 嵌进 <h1> 会被浏览器拆出去，触发 Next.js hydration 不一致）。
+  // PageHeader 把 description 包在 <p> 里，只能放 phrasing content，所以这里一律用 <span>
+  // （<dl>/<p> 嵌进 <p> 会被浏览器拆出去，触发 Next.js hydration 不一致）。
   const briefNode = briefEntries ? (
     <span className="grid max-w-3xl gap-x-6 gap-y-1 font-sans text-xs font-normal text-muted-foreground sm:grid-cols-[max-content_max-content]">
       {briefEntries.map((e) => (
@@ -163,13 +163,12 @@ export function AnswerPage() {
     <span className="block max-w-3xl font-sans text-xs font-normal text-muted-foreground">
       {q.brief}
     </span>
-  ) : (
-    <span className="font-sans text-sm font-normal text-muted-foreground">{q.title}</span>
-  );
+  ) : null;
 
   return (
     <PageShell
-      title={briefNode}
+      title={q.title}
+      description={briefNode}
       actions={
         <>
           <TaskTypeBadge taskType={q.taskType} />
@@ -187,7 +186,6 @@ export function AnswerPage() {
               <CardTitle className="text-base">原文</CardTitle>
             </CardHeader>
             <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-              <p className="source-text text-base font-bold">{q.title}</p>
               <ArticleText text={q.sourceText} className="text-[15px]" />
             </CardContent>
           </Card>

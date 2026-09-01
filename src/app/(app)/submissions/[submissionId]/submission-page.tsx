@@ -94,45 +94,66 @@ export function SubmissionPage() {
               </Link>
             </Button>
           ) : null}
+          {graded && !archived ? (
+            <FollowUpDialog
+              submissionId={submissionId}
+              onResolved={() => {
+                queryClient.invalidateQueries({ queryKey: ["submission", submissionId] });
+                queryClient.invalidateQueries({ queryKey: ["follow-ups", submissionId] });
+              }}
+            />
+          ) : null}
         </>
       }
     >
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-        <div className="space-y-6">
+      {/* 高度链见 AGENTS.md「Full-height page layout」：grid lg:h-full 让左右两列等高、
+          与答题页原文卡片同高；每列的主卡片 flex-1 撑满，内容在 CardContent 内滚动，
+          内容不足时用 min-h-full + justify-center 居中。次级卡片 shrink-0 + 限高滚动。 */}
+      <div className="grid gap-6 lg:h-full lg:min-h-0 lg:grid-cols-[1fr_380px]">
+        <div className="flex min-h-0 flex-col gap-6 lg:overflow-hidden">
           {!graded ? (
-            <Card className="border-border shadow-none">
-              <CardHeader>
+            <Card className="flex min-h-0 flex-1 flex-col border-border shadow-none">
+              <CardHeader className="shrink-0">
                 <CardTitle className="text-base">
                   {s.status === SubmissionStatus.grading_failed ? "批改失败" : "尚未批改"}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  {s.status === SubmissionStatus.grading_failed
-                    ? "上一次批改未完成，可以重新发起。"
-                    : "提交已记录，点击下方按钮开始 AI 批改。"}
-                </p>
-                <Button disabled={grade.isPending || !examType.data} onClick={() => grade.mutate()}>
-                  <Gavel className="size-4" />
-                  {grade.isPending
-                    ? "批改中…"
-                    : s.status === SubmissionStatus.grading_failed
-                      ? "重新批改"
-                      : "开始批改"}
-                </Button>
-                <AiLoadingState
-                  status={grade.status}
-                  error={grade.error}
-                  pendingHint="AI 正在批改，可能需要几秒到十几秒"
-                />
+              <CardContent className="min-h-0 flex-1 overflow-y-auto">
+                <div className="flex flex-col items-start gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    {s.status === SubmissionStatus.grading_failed
+                      ? "上一次批改未完成，可以重新发起。"
+                      : "提交已记录，点击下方按钮开始 AI 批改。"}
+                  </p>
+                  <Button
+                    disabled={grade.isPending || !examType.data}
+                    onClick={() => grade.mutate()}
+                  >
+                    <Gavel className="size-4" />
+                    {grade.isPending
+                      ? "批改中…"
+                      : s.status === SubmissionStatus.grading_failed
+                        ? "重新批改"
+                        : "开始批改"}
+                  </Button>
+                  <AiLoadingState
+                    status={grade.status}
+                    error={grade.error}
+                    pendingHint="AI 正在批改，可能需要几秒到十几秒"
+                  />
+                </div>
               </CardContent>
             </Card>
           ) : (
-            <GradingResultPanel submission={s} />
+            <div className="min-h-0 flex-1 lg:overflow-y-auto">
+              <div className="flex min-h-full flex-col justify-center">
+                <GradingResultPanel submission={s} />
+              </div>
+            </div>
           )}
 
           {s.status === SubmissionStatus.standard_revised ? (
-            <div className="rounded-lg border border-success/40 bg-success/8 p-4 text-sm">
+            <div className="shrink-0 rounded-lg border border-success/40 bg-success/8 p-4 text-sm">
               该判定已确认修正，相关评分标准已更新。可在
               <Link
                 href="/standard-overrides"
@@ -145,31 +166,33 @@ export function SubmissionPage() {
           ) : null}
         </div>
 
-        <div className="space-y-6">
-          <Card className="border-border shadow-none">
-            <CardHeader>
+        <div className="flex min-h-0 flex-col gap-6 lg:overflow-hidden">
+          <Card className="flex min-h-0 flex-1 flex-col border-border shadow-none">
+            <CardHeader className="shrink-0">
               <CardTitle className="text-base">你的作答</CardTitle>
             </CardHeader>
-            <CardContent>
-              {s.taskType === TaskType.B && Array.isArray(parsedContent) ? (
-                <ul className="space-y-3">
-                  {parsedContent.map((a, i) => (
-                    <li key={i} className="rounded-md border border-border p-3 text-sm">
-                      <span className="text-numeric text-xs text-muted-foreground">
-                        [{a.positionStart}, {a.positionEnd}) · {a.errorCategory}
-                      </span>
-                      <p className="mt-1 text-primary">{a.correctedText}</p>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="source-text whitespace-pre-wrap text-sm">{String(parsedContent)}</p>
-              )}
+            <CardContent className="min-h-0 flex-1 overflow-y-auto">
+              <div className="flex min-h-full flex-col justify-center">
+                {s.taskType === TaskType.B && Array.isArray(parsedContent) ? (
+                  <ul className="space-y-3">
+                    {parsedContent.map((a, i) => (
+                      <li key={i} className="rounded-md border border-border p-3 text-sm">
+                        <span className="text-numeric text-xs text-muted-foreground">
+                          [{a.positionStart}, {a.positionEnd}) · {a.errorCategory}
+                        </span>
+                        <p className="mt-1 text-primary">{a.correctedText}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="source-text whitespace-pre-wrap text-sm">{String(parsedContent)}</p>
+                )}
+              </div>
             </CardContent>
           </Card>
 
           {question.data?.meaningCheckpoints.length ? (
-            <Card className="border-border shadow-none">
+            <Card className="shrink-0 border-border shadow-none lg:max-h-[32%] lg:overflow-y-auto">
               <CardHeader>
                 <CardTitle className="text-base">核心意义点</CardTitle>
               </CardHeader>
@@ -190,33 +213,22 @@ export function SubmissionPage() {
             </Card>
           ) : null}
 
-          {graded && !archived ? (
-            <div className="space-y-3">
-              <FollowUpDialog
-                submissionId={submissionId}
-                onResolved={() => {
-                  queryClient.invalidateQueries({ queryKey: ["submission", submissionId] });
-                  queryClient.invalidateQueries({ queryKey: ["follow-ups", submissionId] });
-                }}
-              />
-              {followUps.data?.length ? (
-                <Card className="border-border shadow-none">
-                  <CardHeader>
-                    <CardTitle className="text-base">追问记录</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {followUps.data.map((f) => (
-                      <div key={f.id} className="rounded-md border border-border p-3">
-                        <Badge variant="outline" className="border-border text-muted-foreground">
-                          {FollowUpVerdictLabel[f.verdict]}
-                        </Badge>
-                        <p className="mt-2 text-sm leading-relaxed">{f.aiResponse}</p>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              ) : null}
-            </div>
+          {graded && !archived && followUps.data?.length ? (
+            <Card className="flex min-h-0 shrink-0 flex-col border-border shadow-none lg:max-h-[40vh]">
+              <CardHeader className="shrink-0">
+                <CardTitle className="text-base">追问记录</CardTitle>
+              </CardHeader>
+              <CardContent className="min-h-0 space-y-3 overflow-y-auto">
+                {followUps.data.map((f) => (
+                  <div key={f.id} className="rounded-md border border-border p-3">
+                    <Badge variant="outline" className="border-border text-muted-foreground">
+                      {FollowUpVerdictLabel[f.verdict]}
+                    </Badge>
+                    <p className="mt-2 text-sm leading-relaxed">{f.aiResponse}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
           ) : null}
         </div>
       </div>

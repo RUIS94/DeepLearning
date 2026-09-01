@@ -64,25 +64,6 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
     <div className="space-y-6">
       <Card className="border-border shadow-none">
         <CardHeader>
-          <CardTitle className="text-base">维度评分</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {submission.gradingResults.map((r) => (
-            <DimensionBandRow
-              key={r.id}
-              name={r.dimensionName}
-              band={r.band}
-              pass={r.passBool}
-              rationale={r.rationale}
-              densityNote={r.cumulativeDensityNote}
-              probability={r.estimatedPassProbability}
-            />
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card className="border-border shadow-none">
-        <CardHeader>
           <CardTitle className="text-base">
             错误清单
             <span className="text-numeric ml-2 text-sm font-normal text-muted-foreground">
@@ -123,6 +104,25 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
                 <p className="mt-1 text-sm text-primary">建议：{e.suggestion}</p>
               ) : null}
             </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card className="border-border shadow-none">
+        <CardHeader>
+          <CardTitle className="text-base">维度评分</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {submission.gradingResults.map((r) => (
+            <DimensionBandRow
+              key={r.id}
+              name={r.dimensionName}
+              band={r.band}
+              pass={r.passBool}
+              rationale={r.rationale}
+              densityNote={r.cumulativeDensityNote}
+              probability={r.estimatedPassProbability}
+            />
           ))}
         </CardContent>
       </Card>
