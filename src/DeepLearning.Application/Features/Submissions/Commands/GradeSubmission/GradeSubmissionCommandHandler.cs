@@ -240,6 +240,11 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             List<ErrorTaxonomy> errorTaxonomies) => new
             {
                 TaskType = submission.TaskType.ToString(),
+                // The source article's own title. Without it the AI sees only the body and
+                // reads the user's translated title as invented ("无中生有的信息增添"),
+                // penalising a faithful rendering of a title the source actually had. Empty
+                // when the source genuinely has no title — the template branches on that.
+                SourceTitle = question.Title,
                 SourceText = question.SourceText,
                 // TaskB only (null for TaskA) — TaskBSeededError.PositionStart/PositionEnd are
                 // character offsets into this text, so without it the AI has no way to check
