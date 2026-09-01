@@ -38,6 +38,8 @@ namespace DeepLearning.UnitTests.Integration
 
             public Task<Submission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
+            public Task<List<Submission>> ListByUserAsync(Guid userId, Guid? questionId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
             public Task<List<GradingResult>> GetGradingResultsAsync(Guid submissionId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
             public Task<List<ErrorListItem>> GetErrorListAsync(Guid submissionId, CancellationToken cancellationToken = default) => Task.FromResult(_errors);

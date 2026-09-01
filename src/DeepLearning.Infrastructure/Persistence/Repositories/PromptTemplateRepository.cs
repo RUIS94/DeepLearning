@@ -21,9 +21,15 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
             Guid? examTypeId,
             SubjectCategory? subjectCategory,
             AiOperationType? templateType,
+            bool? isActive,
             CancellationToken cancellationToken = default)
         {
-            var query = _context.PromptTemplates.Where(x => x.IsActive);
+            var query = _context.PromptTemplates.AsQueryable();
+
+            if (isActive.HasValue)
+            {
+                query = query.Where(x => x.IsActive == isActive.Value);
+            }
 
             if (examTypeId.HasValue)
             {
@@ -45,5 +51,8 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
 
         public async Task AddAsync(PromptTemplate template, CancellationToken cancellationToken = default)
             => await _context.PromptTemplates.AddAsync(template, cancellationToken);
+
+        public void Remove(PromptTemplate template)
+            => _context.PromptTemplates.Remove(template);
     }
 }

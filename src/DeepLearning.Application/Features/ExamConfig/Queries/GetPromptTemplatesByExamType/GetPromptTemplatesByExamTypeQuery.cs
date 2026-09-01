@@ -6,5 +6,6 @@ namespace DeepLearning.Application.Features.ExamConfig.Queries.GetPromptTemplate
     public record GetPromptTemplatesByExamTypeQuery(
         Guid? ExamTypeId,
         SubjectCategory? SubjectCategory,
-        AiOperationType? TemplateType) : IRequest<List<PromptTemplateResultItem>>;
+        AiOperationType? TemplateType,
+        bool? IsActive = null) : IRequest<List<PromptTemplateResultItem>>;
 }

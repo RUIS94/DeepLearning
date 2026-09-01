@@ -7,5 +7,6 @@ namespace DeepLearning.Application.Features.ExamConfig.Queries.ListExamTypes
         string Code,
         string Name,
         SubjectCategory SubjectCategory,
+        string? Description,
         bool IsActive);
 }

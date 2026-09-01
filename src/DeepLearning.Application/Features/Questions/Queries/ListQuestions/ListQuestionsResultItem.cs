@@ -9,5 +9,7 @@ namespace DeepLearning.Application.Features.Questions.Queries.ListQuestions
         string Title,
         int? WordCount,
         bool InBank,
-        DateTimeOffset CreatedAt);
+        DateTimeOffset CreatedAt,
+        int MyAttemptCount,
+        Guid? MyLatestSubmissionId);
 }

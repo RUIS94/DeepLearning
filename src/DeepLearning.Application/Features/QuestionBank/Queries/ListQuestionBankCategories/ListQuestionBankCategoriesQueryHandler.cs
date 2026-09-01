@@ -16,7 +16,9 @@ namespace DeepLearning.Application.Features.QuestionBank.Queries.ListQuestionBan
         {
             var categories = await _categoryRepository.ListAsync(request.CategoryType, cancellationToken);
 
-            return categories.Select(x => new ListQuestionBankCategoriesResultItem(x.Id, x.CategoryType, x.Name, x.ParentId)).ToList();
+            return categories
+                .Select(x => new ListQuestionBankCategoriesResultItem(x.Id, x.CategoryType, x.Name, x.ParentId, x.Description))
+                .ToList();
         }
     }
 }

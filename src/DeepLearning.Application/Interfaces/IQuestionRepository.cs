@@ -12,6 +12,7 @@ namespace DeepLearning.Application.Interfaces
             Difficulty? difficulty,
             bool? inBank,
             Guid? categoryId,
+            bool? isSeedReference,
             CancellationToken cancellationToken = default);
 
         /// <summary>

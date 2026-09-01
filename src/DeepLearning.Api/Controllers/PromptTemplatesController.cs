@@ -1,5 +1,7 @@
 using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.ExamConfig.Commands.CreatePromptTemplate;
+using DeepLearning.Application.Features.ExamConfig.Commands.DeletePromptTemplate;
+using DeepLearning.Application.Features.ExamConfig.Commands.UpdatePromptTemplate;
 using DeepLearning.Application.Features.ExamConfig.Queries.GetPromptTemplatesByExamType;
 using DeepLearning.Domain.Enums;
 using MediatR;
@@ -40,7 +42,26 @@ namespace DeepLearning.Api.Controllers
 
         [HttpGet]
         public async Task<ActionResult<List<PromptTemplateResultItem>>> List(
-            Guid? examTypeId, SubjectCategory? subjectCategory, AiOperationType? templateType, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new GetPromptTemplatesByExamTypeQuery(examTypeId, subjectCategory, templateType), cancellationToken));
+            Guid? examTypeId, SubjectCategory? subjectCategory, AiOperationType? templateType, bool? isActive,
+            CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(
+                new GetPromptTemplatesByExamTypeQuery(examTypeId, subjectCategory, templateType, isActive),
+                cancellationToken));
+
+        public record UpdatePromptTemplateRequest(string TemplateContent, int Version, bool IsActive);
+
+        [HttpPut("{id:guid}")]
+        public async Task<ActionResult<UpdatePromptTemplateResult>> Update(
+            Guid id, UpdatePromptTemplateRequest request, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(
+                new UpdatePromptTemplateCommand(id, request.TemplateContent, request.Version, request.IsActive),
+                cancellationToken));
+
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+        {
+            await _mediator.Send(new DeletePromptTemplateCommand(id), cancellationToken);
+            return NoContent();
+        }
     }
 }

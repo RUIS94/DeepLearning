@@ -36,7 +36,7 @@ namespace DeepLearning.UnitTests.Integration
 
             await using var readContext = _fixture.CreateContext();
             var readRepository = new PromptTemplateRepository(readContext);
-            var results = await readRepository.ListAsync(null, SubjectCategory.translation, AiOperationType.grading);
+            var results = await readRepository.ListAsync(null, SubjectCategory.translation, AiOperationType.grading, null);
 
             Assert.Contains(results, x => x.TemplateContent == "test content");
         }

@@ -16,6 +16,12 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
         public Task<Submission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
             => _context.Submissions.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
+        public Task<List<Submission>> ListByUserAsync(Guid userId, Guid? questionId, CancellationToken cancellationToken = default)
+            => _context.Submissions
+                .Where(x => x.UserId == userId && (questionId == null || x.QuestionId == questionId))
+                .OrderByDescending(x => x.CreatedAt)
+                .ToListAsync(cancellationToken);
+
         public Task<List<GradingResult>> GetGradingResultsAsync(Guid submissionId, CancellationToken cancellationToken = default)
             => _context.GradingResults
                 .Where(x => x.SubmissionId == submissionId)

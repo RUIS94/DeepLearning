@@ -35,9 +35,9 @@ namespace DeepLearning.Infrastructure.Ai
             // two calls naturally partition into "shared" and "specific" without filtering
             // by Layer explicitly.
             var sharedTemplates = await _promptTemplateRepository.ListAsync(
-                examTypeId: null, subjectCategory: examType.SubjectCategory, templateType: templateType, cancellationToken);
+                examTypeId: null, subjectCategory: examType.SubjectCategory, templateType: templateType, isActive: true, cancellationToken);
             var specificTemplates = await _promptTemplateRepository.ListAsync(
-                examTypeId: examTypeId, subjectCategory: null, templateType: templateType, cancellationToken);
+                examTypeId: examTypeId, subjectCategory: null, templateType: templateType, isActive: true, cancellationToken);
 
             var segments = sharedTemplates
                 .Concat(specificTemplates)

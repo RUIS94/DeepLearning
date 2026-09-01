@@ -11,8 +11,11 @@ namespace DeepLearning.Application.Interfaces
             Guid? examTypeId,
             SubjectCategory? subjectCategory,
             AiOperationType? templateType,
+            bool? isActive,
             CancellationToken cancellationToken = default);
 
         Task AddAsync(PromptTemplate template, CancellationToken cancellationToken = default);
+
+        void Remove(PromptTemplate template);
     }
 }

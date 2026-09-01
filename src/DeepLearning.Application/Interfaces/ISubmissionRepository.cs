@@ -11,6 +11,13 @@ namespace DeepLearning.Application.Interfaces
     {
         Task<Submission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// A user's submissions, newest first, optionally scoped to one question. Backs both the
+        /// "打开做过的记录" list (GET /submissions?userId=&amp;questionId=) and the per-question
+        /// attempt-count badge on the question bank list (grouped in the handler).
+        /// </summary>
+        Task<List<Submission>> ListByUserAsync(Guid userId, Guid? questionId, CancellationToken cancellationToken = default);
+
         Task<List<GradingResult>> GetGradingResultsAsync(Guid submissionId, CancellationToken cancellationToken = default);
 
         Task<List<ErrorListItem>> GetErrorListAsync(Guid submissionId, CancellationToken cancellationToken = default);

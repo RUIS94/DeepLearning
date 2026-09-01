@@ -31,5 +31,14 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
 
         public async Task AddAsync(QuestionBankCategory category, CancellationToken cancellationToken = default)
             => await _context.QuestionBankCategories.AddAsync(category, cancellationToken);
+
+        public void Remove(QuestionBankCategory category)
+            => _context.QuestionBankCategories.Remove(category);
+
+        public Task<bool> HasChildrenAsync(Guid id, CancellationToken cancellationToken = default)
+            => _context.QuestionBankCategories.AnyAsync(x => x.ParentId == id, cancellationToken);
+
+        public Task<bool> IsReferencedByQuestionsAsync(Guid id, CancellationToken cancellationToken = default)
+            => _context.QuestionCategoryMap.AnyAsync(x => x.CategoryId == id, cancellationToken);
     }
 }

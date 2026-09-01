@@ -22,6 +22,7 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
             Difficulty? difficulty,
             bool? inBank,
             Guid? categoryId,
+            bool? isSeedReference,
             CancellationToken cancellationToken = default)
         {
             var query = _context.Questions.Where(x => x.IsActive);
@@ -29,6 +30,11 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
             if (taskType.HasValue)
             {
                 query = query.Where(x => x.TaskType == taskType.Value);
+            }
+
+            if (isSeedReference.HasValue)
+            {
+                query = query.Where(x => x.IsSeedReference == isSeedReference.Value);
             }
 
             if (difficulty.HasValue)

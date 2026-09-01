@@ -17,7 +17,8 @@ namespace DeepLearning.Application.Features.ExamConfig.Queries.ListExamTypes
             var examTypes = await _examTypeRepository.ListAsync(request.IsActive, cancellationToken);
 
             return examTypes
-                .Select(x => new ListExamTypesResultItem(x.Id, x.Code, x.Name, x.SubjectCategory, x.IsActive))
+                .Select(x => new ListExamTypesResultItem(
+                    x.Id, x.Code, x.Name, x.SubjectCategory, x.Description, x.IsActive))
                 .ToList();
         }
     }

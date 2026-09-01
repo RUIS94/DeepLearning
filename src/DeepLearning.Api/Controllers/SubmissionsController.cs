@@ -2,6 +2,7 @@ using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.Submissions.Commands.CreateSubmission;
 using DeepLearning.Application.Features.Submissions.Commands.GradeSubmission;
 using DeepLearning.Application.Features.Submissions.Queries.GetSubmissionById;
+using DeepLearning.Application.Features.Submissions.Queries.ListSubmissions;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Enums;
 using MediatR;
@@ -46,5 +47,14 @@ namespace DeepLearning.Api.Controllers
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<GetSubmissionByIdResult>> GetById(Guid id, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(new GetSubmissionByIdQuery(id), cancellationToken));
+
+        [HttpGet]
+        public async Task<ActionResult<List<ListSubmissionsResultItem>>> List(
+            Guid? userId, Guid? questionId, CancellationToken cancellationToken)
+        {
+            var effectiveUserId = _currentUser.UserId ?? userId ?? Guid.Empty;
+            return Ok(await _mediator.Send(
+                new ListSubmissionsQuery(effectiveUserId, questionId), cancellationToken));
+        }
     }
 }

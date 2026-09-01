@@ -1,6 +1,8 @@
 using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.QuestionBank.Commands.CreateQuestionBankCategory;
+using DeepLearning.Application.Features.QuestionBank.Commands.DeleteQuestionBankCategory;
 using DeepLearning.Application.Features.QuestionBank.Commands.TagQuestionWithCategory;
+using DeepLearning.Application.Features.QuestionBank.Commands.UpdateQuestionBankCategory;
 using DeepLearning.Application.Features.QuestionBank.Queries.GetQuestionBankCategoryById;
 using DeepLearning.Application.Features.QuestionBank.Queries.ListQuestionBankCategories;
 using DeepLearning.Domain.Enums;
@@ -35,6 +37,22 @@ namespace DeepLearning.Api.Controllers
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<GetQuestionBankCategoryByIdResult>> GetById(Guid id, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(new GetQuestionBankCategoryByIdQuery(id), cancellationToken));
+
+        public record UpdateQuestionBankCategoryRequest(string Name, Guid? ParentId, string? Description);
+
+        [HttpPut("{id:guid}")]
+        public async Task<ActionResult<UpdateQuestionBankCategoryResult>> Update(
+            Guid id, UpdateQuestionBankCategoryRequest request, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(
+                new UpdateQuestionBankCategoryCommand(id, request.Name, request.ParentId, request.Description),
+                cancellationToken));
+
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+        {
+            await _mediator.Send(new DeleteQuestionBankCategoryCommand(id), cancellationToken);
+            return NoContent();
+        }
 
         [HttpGet]
         public async Task<ActionResult<List<ListQuestionBankCategoriesResultItem>>> List(CategoryType? categoryType, CancellationToken cancellationToken)

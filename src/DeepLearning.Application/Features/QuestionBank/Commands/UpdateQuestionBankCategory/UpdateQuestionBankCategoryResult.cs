@@ -1,8 +1,8 @@
 using DeepLearning.Domain.Enums;
 
-namespace DeepLearning.Application.Features.QuestionBank.Queries.ListQuestionBankCategories
+namespace DeepLearning.Application.Features.QuestionBank.Commands.UpdateQuestionBankCategory
 {
-    public record ListQuestionBankCategoriesResultItem(
+    public record UpdateQuestionBankCategoryResult(
         Guid Id,
         CategoryType CategoryType,
         string Name,

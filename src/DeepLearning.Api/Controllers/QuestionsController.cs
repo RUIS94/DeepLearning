@@ -82,8 +82,15 @@ namespace DeepLearning.Api.Controllers
 
         [HttpGet]
         public async Task<ActionResult<List<ListQuestionsResultItem>>> List(
-            TaskType? taskType, Difficulty? difficulty, bool? inBank, Guid? categoryId, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new ListQuestionsQuery(taskType, difficulty, inBank, categoryId), cancellationToken));
+            TaskType? taskType, Difficulty? difficulty, bool? inBank, Guid? categoryId, Guid? userId,
+            bool? isSeedReference, CancellationToken cancellationToken)
+        {
+            // JWT identity wins over an explicit ?userId= (same opt-in convention as the write endpoints).
+            var effectiveUserId = _currentUser.UserId ?? userId;
+            return Ok(await _mediator.Send(
+                new ListQuestionsQuery(taskType, difficulty, inBank, categoryId, effectiveUserId, isSeedReference),
+                cancellationToken));
+        }
 
         // Design doc §11.2 Step 8: "记录了每次出题参考了哪些真题" traceability read.
         [HttpGet("{id:guid}/seed-references")]
