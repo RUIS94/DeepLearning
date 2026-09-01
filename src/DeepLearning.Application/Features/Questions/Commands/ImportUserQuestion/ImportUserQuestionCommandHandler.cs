@@ -45,7 +45,10 @@ namespace DeepLearning.Application.Features.Questions.Commands.ImportUserQuestio
                 TaskType = request.TaskType,
                 Difficulty = request.Difficulty,
                 Title = request.Title,
-                Brief = request.Brief,
+                // brief is a jsonb column: a blank/whitespace string is not valid JSON and
+                // makes SaveChanges throw 22P02. The validator deliberately lets an empty
+                // Brief through (treats it as "no brief"), so normalize it to null here.
+                Brief = string.IsNullOrWhiteSpace(request.Brief) ? null : request.Brief,
                 SourceText = request.SourceText,
                 FlawedTranslationText = request.FlawedTranslationText,
                 WordCount = request.WordCount,
