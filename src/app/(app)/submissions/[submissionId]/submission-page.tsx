@@ -168,6 +168,28 @@ export function SubmissionPage() {
             </CardContent>
           </Card>
 
+          {question.data?.meaningCheckpoints.length ? (
+            <Card className="border-border shadow-none">
+              <CardHeader>
+                <CardTitle className="text-base">核心意义点</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-1">
+                  {question.data.meaningCheckpoints.map((c) => (
+                    <li key={c.id} className="flex items-start gap-2 text-sm">
+                      <span
+                        className={`mt-1.5 size-1.5 shrink-0 rounded-full ${
+                          c.importance === 0 ? "bg-accent" : "bg-muted-foreground"
+                        }`}
+                      />
+                      {c.checkpointText}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {graded && !archived ? (
             <div className="space-y-3">
               <FollowUpDialog
