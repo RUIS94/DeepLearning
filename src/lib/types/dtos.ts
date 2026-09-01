@@ -15,6 +15,7 @@ export interface ExamType {
   code: string;
   name: string;
   subjectCategory: number;
+  description: string | null;
   isActive: boolean;
 }
 
@@ -63,6 +64,7 @@ export interface QuestionBankCategory {
   categoryType: number;
   name: string;
   parentId: string | null;
+  description: string | null;
 }
 
 export interface MeaningCheckpoint {
@@ -110,6 +112,20 @@ export interface QuestionListItem {
   title: string;
   wordCount: number | null;
   inBank: boolean;
+  createdAt: string;
+  /** 当前用户对这道题的提交次数(未带 userId 查询时为 0)。 */
+  myAttemptCount: number;
+  /** 当前用户对这道题最近一次提交的 id(没练过为 null)。 */
+  myLatestSubmissionId: string | null;
+}
+
+/** GET /submissions?userId=&questionId= 的列表项(不含评分明细,点开才拉 SubmissionDetail)。 */
+export interface SubmissionSummary {
+  id: string;
+  questionId: string;
+  taskType: number;
+  status: number;
+  submittedAt: string | null;
   createdAt: string;
 }
 

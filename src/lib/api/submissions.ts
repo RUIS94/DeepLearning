@@ -4,9 +4,18 @@ import type {
   CreateSubmissionResult,
   GradeSubmissionResult,
   SubmissionDetail,
+  SubmissionSummary,
 } from "@/lib/types/dtos";
 
 const api = createBrowserApiClient();
+
+/** 当前用户对某题的历史提交(最新在前)。用于题库页"打开做过的记录"。 */
+export async function listSubmissions(
+  userId: string,
+  questionId?: string,
+): Promise<SubmissionSummary[]> {
+  return api<SubmissionSummary[]>("/submissions", { query: { userId, questionId } });
+}
 
 export async function createSubmission(
   req: CreateSubmissionRequest,

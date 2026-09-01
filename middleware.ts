@@ -39,6 +39,10 @@ export async function middleware(request: NextRequest) {
     const loginUrl = new URL("/", request.url);
     return NextResponse.redirect(loginUrl);
   }
+  // 已登录还停在登录页 → 直接进应用,避免"登录后回车/刷新又看到登录界面"。
+  if (user && isLoginPage) {
+    return NextResponse.redirect(new URL("/practice", request.url));
+  }
 
   return response;
 }

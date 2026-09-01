@@ -23,3 +23,12 @@ export async function activateStandardOverride(
     method: "POST",
   });
 }
+
+/** 唯一允许的"修改":把一条修正标记为 deprecated(作废)。审计链不做编辑/物理删除。已作废再调返回 409。 */
+export async function deprecateStandardOverride(
+  id: string,
+): Promise<{ id: string; status: number }> {
+  return api<{ id: string; status: number }>(`/standard-overrides/${id}/deprecate`, {
+    method: "POST",
+  });
+}

@@ -27,6 +27,10 @@ export async function listQuestions(filter?: {
   difficulty?: number | undefined;
   categoryId?: string | undefined;
   inBank?: boolean | undefined;
+  /** 传了才会带回每题的 myAttemptCount / myLatestSubmissionId。 */
+  userId?: string | undefined;
+  /** 只列真题种子(供 AI 出题的种子选择列表用)。 */
+  isSeedReference?: boolean | undefined;
 }): Promise<QuestionListItem[]> {
   return api<QuestionListItem[]>("/questions", {
     query: {
@@ -34,6 +38,8 @@ export async function listQuestions(filter?: {
       difficulty: filter?.difficulty,
       categoryId: filter?.categoryId,
       inBank: filter?.inBank,
+      userId: filter?.userId,
+      isSeedReference: filter?.isSeedReference,
     },
   });
 }

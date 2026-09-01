@@ -13,10 +13,7 @@ import { cn } from "@/lib/utils";
  * 真正的分段要靠出题侧让 AI 输出 \n\n、导入时粘贴带空行的段落。
  */
 export function ArticleText({ text, className }: { text: string; className?: string }) {
-  const normalized = text
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .trim();
+  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
 
   const hasParagraphBreaks = /\n[ \t]*\n/.test(normalized);
 

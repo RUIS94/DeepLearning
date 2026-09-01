@@ -58,6 +58,8 @@ export const promptTemplateFormSchema = z
     templateContent: z.string().trim().min(1, "模板正文不能为空"),
     // 后端 CreatePromptTemplateCommand 要求显式传版本号，没有自动递增逻辑。
     version: z.number().int().min(1, "版本号至少为 1"),
+    // 仅编辑时有意义（PUT /prompt-templates/{id}）；新建时后端固定 IsActive=true。
+    isActive: z.boolean().optional(),
   })
   .refine(
     (v) => {

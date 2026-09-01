@@ -203,11 +203,11 @@ export const errorTaxonomies: ErrorTaxonomy[] = [
 ];
 
 export const categories: QuestionBankCategory[] = [
-  { id: "cat-health", categoryType: 0, name: "医疗健康", parentId: null },
-  { id: "cat-legal", categoryType: 0, name: "法律政务", parentId: null },
-  { id: "cat-business", categoryType: 0, name: "商务财经", parentId: null },
-  { id: "cat-notice", categoryType: 1, name: "公告通知", parentId: null },
-  { id: "cat-letter", categoryType: 1, name: "信函往来", parentId: null },
+  { id: "cat-health", categoryType: 0, name: "医疗健康", parentId: null, description: null },
+  { id: "cat-legal", categoryType: 0, name: "法律政务", parentId: null, description: null },
+  { id: "cat-business", categoryType: 0, name: "商务财经", parentId: null, description: null },
+  { id: "cat-notice", categoryType: 1, name: "公告通知", parentId: null, description: null },
+  { id: "cat-letter", categoryType: 1, name: "信函往来", parentId: null, description: null },
 ];
 
 /* ------------------------------- 题目 ------------------------------- */
@@ -841,6 +841,7 @@ export async function createQuestionBankCategory(
     categoryType: req.categoryType,
     name: req.name,
     parentId: req.parentId ?? null,
+    description: req.description ?? null,
   };
   categories.push(created);
   return created;
@@ -933,6 +934,8 @@ export async function listQuestions(filter?: {
       wordCount: q.wordCount,
       inBank: q.inBank,
       createdAt: q.createdAt,
+      myAttemptCount: 0,
+      myLatestSubmissionId: null,
     }));
 }
 
