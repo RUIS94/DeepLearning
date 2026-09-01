@@ -33,7 +33,6 @@ namespace DeepLearning.Api.Controllers
             string? Brief,
             string SourceText,
             string? FlawedTranslationText,
-            int? WordCount,
             Guid? CreatedBy,
             Visibility Visibility,
             List<MeaningCheckpointInput> MeaningCheckpoints,
@@ -47,7 +46,7 @@ namespace DeepLearning.Api.Controllers
             var result = await _mediator.Send(
                 new ImportUserQuestionCommand(
                     request.TaskType, request.Difficulty, request.Title, request.Brief, request.SourceText,
-                    request.FlawedTranslationText, request.WordCount, createdBy, request.Visibility,
+                    request.FlawedTranslationText, createdBy, request.Visibility,
                     request.MeaningCheckpoints, request.SeededErrors, request.IsSeedReference),
                 cancellationToken);
 

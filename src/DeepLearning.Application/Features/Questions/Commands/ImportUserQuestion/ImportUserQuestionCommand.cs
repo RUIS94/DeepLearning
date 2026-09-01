@@ -31,7 +31,6 @@ namespace DeepLearning.Application.Features.Questions.Commands.ImportUserQuestio
         string? Brief,
         string SourceText,
         string? FlawedTranslationText,
-        int? WordCount,
         Guid? CreatedBy,
         Visibility Visibility,
         List<MeaningCheckpointInput> MeaningCheckpoints,

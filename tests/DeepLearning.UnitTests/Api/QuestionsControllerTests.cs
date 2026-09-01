@@ -33,7 +33,6 @@ namespace DeepLearning.UnitTests.Api
                 Brief = (string?)null,
                 SourceText = "Some source text to translate.",
                 FlawedTranslationText = (string?)null,
-                WordCount = 200,
                 CreatedBy = (Guid?)null,
                 Visibility = Visibility.Private,
                 MeaningCheckpoints = new[] { new { CheckpointText = "Must convey X.", CheckpointType = (string?)null, Importance = CheckpointImportance.core } },
@@ -79,7 +78,6 @@ namespace DeepLearning.UnitTests.Api
                 Brief = (string?)null,
                 SourceText = "Original source text.",
                 FlawedTranslationText = flawedText,
-                WordCount = 200,
                 CreatedBy = (Guid?)null,
                 Visibility = Visibility.Private,
                 MeaningCheckpoints = Array.Empty<object>(),
@@ -110,7 +108,6 @@ namespace DeepLearning.UnitTests.Api
                 Brief = (string?)null,
                 SourceText = "Some source text.",
                 FlawedTranslationText = (string?)null,
-                WordCount = (int?)null,
                 CreatedBy = (Guid?)null,
                 Visibility = Visibility.Private,
                 MeaningCheckpoints = Array.Empty<object>(),
@@ -141,7 +138,6 @@ namespace DeepLearning.UnitTests.Api
                 Brief = (string?)null,
                 SourceText = "Some real-exam-shaped source text.",
                 FlawedTranslationText = (string?)null,
-                WordCount = 200,
                 CreatedBy = (Guid?)null,
                 Visibility = Visibility.Private,
                 MeaningCheckpoints = Array.Empty<object>(),
@@ -172,7 +168,6 @@ namespace DeepLearning.UnitTests.Api
                 Brief = (string?)null,
                 SourceText = "Some ordinary source text.",
                 FlawedTranslationText = (string?)null,
-                WordCount = 200,
                 CreatedBy = (Guid?)null,
                 Visibility = Visibility.Private,
                 MeaningCheckpoints = Array.Empty<object>(),
@@ -186,6 +181,33 @@ namespace DeepLearning.UnitTests.Api
             Assert.False(fetched!.IsSeedReference);
             Assert.Equal(QuestionOrigin.user_uploaded, fetched.Origin);
             Assert.Equal(SourceType.user_generated, fetched.SourceType);
+        }
+
+        [Fact]
+        public async Task Import_derives_word_count_from_the_source_text_ignoring_the_title()
+        {
+            var client = _factory.CreateClient();
+
+            var createResponse = await client.PostAsJsonAsync(ApiRoutes.Questions.Base, new
+            {
+                TaskType = TaskType.A,
+                Difficulty = Difficulty.medium,
+                Title = "A four word title here",
+                Brief = (string?)null,
+                SourceText = "The quick brown fox jumps over the lazy dog.",
+                FlawedTranslationText = (string?)null,
+                CreatedBy = (Guid?)null,
+                Visibility = Visibility.Private,
+                MeaningCheckpoints = Array.Empty<object>(),
+                SeededErrors = Array.Empty<object>(),
+            });
+            Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+            var created = await createResponse.Content.ReadFromJsonAsync<ImportUserQuestionResult>();
+
+            var getResponse = await client.GetAsync($"{ApiRoutes.Questions.Base}/{created!.Id}");
+            var fetched = await getResponse.Content.ReadFromJsonAsync<GetQuestionByIdResult>();
+
+            Assert.Equal(9, fetched!.WordCount);
         }
 
         [Fact]

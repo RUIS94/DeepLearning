@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
@@ -51,7 +52,11 @@ namespace DeepLearning.Application.Features.Questions.Commands.ImportUserQuestio
                 Brief = string.IsNullOrWhiteSpace(request.Brief) ? null : request.Brief,
                 SourceText = request.SourceText,
                 FlawedTranslationText = request.FlawedTranslationText,
-                WordCount = request.WordCount,
+                // word_count is always derived from the source passage (title/brief excluded),
+                // never taken from the request — a hand-entered question shouldn't require the
+                // importer to count words. TaskB's FlawedTranslationText is not counted: this
+                // field measures the passage to be translated.
+                WordCount = WordCountCalculator.Count(request.SourceText),
                 Origin = request.IsSeedReference ? QuestionOrigin.real_exam_seed : QuestionOrigin.user_uploaded,
                 SourceType = request.IsSeedReference ? SourceType.real_exam : SourceType.user_generated,
                 IsSeedReference = request.IsSeedReference,

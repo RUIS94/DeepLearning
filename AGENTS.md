@@ -41,6 +41,10 @@ The frontend (`src/DeepLearning.Web/`) went from "plan only" to "fully built UI"
 
 `questions.brief` is `jsonb`. `ImportUserQuestionValidator.BeValidJsonOrNull` deliberately treats `""` as OK (empty = "no brief"), but the handler then persisted `Brief = ""`, and Postgres rejects `''` for `jsonb` (`22P02`) → `DbUpdateException` → generic 500. Handler now normalizes: `Brief = string.IsNullOrWhiteSpace(request.Brief) ? null : request.Brief`. (`GenerateQuestionCommandHandler` was already fine — it stores the AI's JSON object.)
 
+### Change (2026-09-02, user-requested): manual import auto-derives `word_count`
+
+`ImportUserQuestionCommandHandler` no longer trusts a caller-supplied word count — it always sets `WordCount = WordCountCalculator.Count(request.SourceText)` (new `Application/Common/WordCountCalculator.cs`). Counting rule: one word per CJK ideograph/kana, otherwise one word per maximal letter-or-digit run (`state-of-the-art` = 4); punctuation/whitespace only separate. Only `SourceText` is counted — `Title`/`Brief` excluded, and TaskB's `FlawedTranslationText` is not counted (the field measures the passage to be translated). `WordCount` was removed from both `ImportUserQuestionCommand` and `QuestionsController.ImportUserQuestionRequest`. The AI path (`GenerateQuestionCommandHandler`) is untouched — it still stores the LLM payload's `wordCount`.
+
 ### New / extended endpoints
 
 **Questions (P2 — for the 题库 page's "已练 N 次" badge + "打开做过的记录"):**
