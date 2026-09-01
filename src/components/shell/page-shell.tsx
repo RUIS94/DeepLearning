@@ -32,7 +32,7 @@ export function PageShell({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 border-b border-border px-4 pb-4 pt-6 md:px-6">
+      <div className="shrink-0 px-4 pb-4 pt-6 md:px-6">
         <PageHeader
           title={title}
           description={description}

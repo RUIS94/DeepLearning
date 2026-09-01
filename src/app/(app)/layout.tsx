@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { AppSidebar } from "@/components/shell/app-sidebar";
 import { ImportPanelProvider } from "@/components/practice/import-question-panel";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import ToastStack from "@/components/ui/toast";
 
 /**
@@ -17,9 +17,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <ImportPanelProvider>
         <AppSidebar />
         <SidebarInset className="min-w-0 overflow-hidden">
-          <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
-            <SidebarTrigger />
-          </header>
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
         </SidebarInset>
       </ImportPanelProvider>

@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Upload } from "lucide-react";
 import { AppShell } from "@/components/shared/app-shell";
 import { QuestionCard } from "@/components/practice/question-card";
 import { AiGeneratePanel } from "@/components/practice/ai-generate-panel";
+import { useImportPanel } from "@/components/practice/import-question-panel";
 import { QuestionRecordsModal } from "@/components/practice/question-records-modal";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,6 +30,7 @@ const ALL = "all";
 
 export function PracticePage() {
   const router = useRouter();
+  const importPanel = useImportPanel();
   const currentUser = useCurrentUser();
   const userId = currentUser.data?.id;
 
@@ -62,10 +64,16 @@ export function PracticePage() {
       title="题库"
       description="挑一道题开始练习。列表按后端约定一次性返回全部结果，暂无分页。"
       actions={
-        <Button onClick={() => setGenOpen(true)}>
-          <Sparkles className="size-4" />
-          AI 出题
-        </Button>
+        <>
+          <Button variant="outline" onClick={() => importPanel.open()}>
+            <Upload className="size-4" />
+            导入题目
+          </Button>
+          <Button onClick={() => setGenOpen(true)}>
+            <Sparkles className="size-4" />
+            AI 出题
+          </Button>
+        </>
       }
     >
       <div className="mb-6 flex flex-wrap gap-3">
@@ -101,7 +109,7 @@ export function PracticePage() {
           <SelectTrigger className="w-44">
             <SelectValue placeholder="题材分类" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-h-72">
             <SelectItem value={ALL}>全部分类</SelectItem>
             {(categories.data ?? []).map((c) => (
               <SelectItem key={c.id} value={c.id}>

@@ -159,7 +159,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
               className="space-y-6"
               onSubmit={form.handleSubmit((values) => submit.mutate(values))}
             >
-              <Card className="border-border shadow-none">
+              <Card className="shadow-none">
                 <CardHeader>
                   <CardTitle className="text-base">基本信息</CardTitle>
                 </CardHeader>

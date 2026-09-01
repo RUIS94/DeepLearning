@@ -16,8 +16,8 @@ export function QuestionCard({
   const practiced = question.myAttemptCount > 0;
 
   return (
-    <Card className="group border-border shadow-none transition-shadow hover:shadow-[var(--shadow-paper)]">
-      <CardContent className="flex flex-col gap-4 p-5">
+    <Card className="group h-full border-border shadow-none transition-shadow hover:shadow-[var(--shadow-paper)]">
+      <CardContent className="flex h-full flex-col gap-4 p-5">
         <div className="flex flex-wrap items-center gap-2">
           <TaskTypeBadge taskType={question.taskType} />
           <DifficultyBadge difficulty={question.difficulty} />
@@ -32,7 +32,7 @@ export function QuestionCard({
             </Badge>
           ) : null}
         </div>
-        <h3 className="text-base font-semibold leading-snug">{question.title}</h3>
+        <h3 className="flex-1 text-base font-semibold leading-snug">{question.title}</h3>
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span className="text-numeric inline-flex items-center gap-1">
             <FileText className="size-3.5" />
