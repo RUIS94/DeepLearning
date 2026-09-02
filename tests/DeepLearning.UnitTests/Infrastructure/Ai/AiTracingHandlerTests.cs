@@ -12,9 +12,36 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
     /// ClaudeLlmClient/OpenAiCompatibleLlmClient read the response body themselves right after
     /// this handler runs, so if LoadIntoBufferAsync() were missing or misused, every real AI call
     /// would come back with an empty response the moment tracing is enabled.
+    ///
+    /// The transcript-file side effect is pointed at a throwaway temp dir via the AI_TRACE_DIR
+    /// override so the tests never write into the test host's working directory.
     /// </summary>
-    public class AiTracingHandlerTests
+    public class AiTracingHandlerTests : IDisposable
     {
+        private readonly string _traceDir;
+
+        public AiTracingHandlerTests()
+        {
+            _traceDir = Path.Combine(Path.GetTempPath(), "ai-trace-tests", Guid.NewGuid().ToString("N"));
+            Environment.SetEnvironmentVariable("AI_TRACE_DIR", _traceDir);
+        }
+
+        public void Dispose()
+        {
+            Environment.SetEnvironmentVariable("AI_TRACE_DIR", null);
+            try
+            {
+                if (Directory.Exists(_traceDir))
+                {
+                    Directory.Delete(_traceDir, recursive: true);
+                }
+            }
+            catch (IOException)
+            {
+                // best effort — a leaked temp dir is harmless
+            }
+        }
+
         private class FakeEnvironment : IHostEnvironment
         {
             public string EnvironmentName { get; set; } = Environments.Production;
@@ -80,6 +107,35 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
             var body = await response.Content.ReadAsStringAsync();
 
             Assert.Equal("{\"result\":\"ok\"}", body);
+        }
+
+        [Fact]
+        public async Task Writes_a_decoded_transcript_file_in_development()
+        {
+            using var client = CreateClient(Environments.Development, "{\"choices\":[{\"message\":{\"content\":\"回复内容\"}}]}");
+
+            await client.PostAsync(
+                "https://example.test/v1/chat/completions",
+                new StringContent("{\"model\":\"mimo-v2.5-pro\",\"messages\":[{\"role\":\"user\",\"content\":\"\\u4f60\\u597d\"}]}"));
+
+            var file = Assert.Single(Directory.GetFiles(_traceDir));
+            var text = await File.ReadAllTextAsync(file);
+
+            Assert.Contains("### USER", text);
+            Assert.Contains("你好", text);            // decoded, not 你好
+            Assert.Contains("### ASSISTANT", text);
+            Assert.Contains("回复内容", text);
+            Assert.Contains("RAW REQUEST JSON", text);
+        }
+
+        [Fact]
+        public async Task Does_not_write_a_transcript_file_when_not_development()
+        {
+            using var client = CreateClient(Environments.Production, "{\"result\":\"ok\"}");
+
+            await client.PostAsync("https://example.test/v1/messages", new StringContent("{\"prompt\":\"hi\"}"));
+
+            Assert.False(Directory.Exists(_traceDir));
         }
     }
 }

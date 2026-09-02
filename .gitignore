@@ -91,6 +91,8 @@ StyleCopReport.xml
 *.tmp_proj
 *_wpftmp.csproj
 *.log
+# AiTracingHandler decoded prompt/response transcripts (dev-only)
+logs/ai-trace/
 *.vspscc
 *.vssscc
 .builds
