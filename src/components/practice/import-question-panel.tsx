@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eraser, PlusCircle, Send, Trash2 } from "lucide-react";
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { showToast } from "@/components/ui/toast";
 import { importUserQuestion } from "@/lib/api/questions";
+import { listCategories, tagQuestionWithCategory } from "@/lib/api/exam-config";
 import { useErrorTaxonomies, useExamType } from "@/hooks/use-exam-config";
 import {
   CheckpointImportanceLabel,
@@ -90,14 +91,17 @@ export function useImportPanel() {
  */
 export function ImportPanelProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [draft, setDraft] = useState<{ start: number; end: number } | null>(null);
   const [draftTaxonomyId, setDraftTaxonomyId] = useState("");
   const [draftCorrected, setDraftCorrected] = useState("");
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
 
   const examType = useExamType();
   const errorTaxonomies = useErrorTaxonomies(examType.data?.id);
+  const categories = useQuery({ queryKey: ["categories"], queryFn: listCategories });
   const selectedDraftTaxonomyId = draftTaxonomyId || errorTaxonomies.data?.[0]?.id || "";
 
   const form = useForm<ImportUserQuestionFormInput>({
@@ -114,11 +118,12 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
     setDraft(null);
     setDraftTaxonomyId("");
     setDraftCorrected("");
+    setCategoryIds([]);
   }, [form]);
 
   const submit = useMutation({
-    mutationFn: (values: ImportUserQuestionFormInput) =>
-      importUserQuestion({
+    mutationFn: async (values: ImportUserQuestionFormInput) => {
+      const question = await importUserQuestion({
         taskType: values.taskType,
         difficulty: values.difficulty,
         title: values.title,
@@ -140,10 +145,17 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
           correctReferenceText: e.correctReferenceText,
           note: e.note ?? null,
         })),
-      }),
+      });
+      // 导入接口不收分类,成功后逐个补打标签,题库的分类筛选器才能筛到手工导入的题。
+      for (const categoryId of categoryIds) {
+        await tagQuestionWithCategory(categoryId, question.id);
+      }
+      return question;
+    },
     onSuccess: (question) => {
       setSubmitted(true);
       showToast({ variant: "success", title: "题目已导入", description: "正在进入答题页…" });
+      queryClient.invalidateQueries({ queryKey: ["questions"] });
       clearAll();
       setOpen(false);
       router.push(`/practice/${question.id}`);
@@ -273,6 +285,40 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                         {form.formState.errors.sourceText.message}
                       </p>
                     ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>题材分类（可选，可多选）</Label>
+                    <p className="text-xs text-muted-foreground">
+                      在「题库」页可按这些分类筛选到本题；分类在「考试管理 · 分类」维护。
+                    </p>
+                    {categories.data?.length ? (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {categories.data.map((c) => {
+                          const active = categoryIds.includes(c.id);
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() =>
+                                setCategoryIds((prev) =>
+                                  active ? prev.filter((id) => id !== c.id) : [...prev, c.id],
+                                )
+                              }
+                            >
+                              <Badge
+                                variant={active ? "default" : "outline"}
+                                className={active ? "" : "border-border text-muted-foreground"}
+                              >
+                                {c.name}
+                              </Badge>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">暂无分类可选。</p>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between rounded-lg border border-border p-3">
