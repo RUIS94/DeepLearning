@@ -32,6 +32,15 @@ namespace DeepLearning.Application.Interfaces
 
         Task<List<StandardOverride>> ListAsync(OverrideStatus? status, CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Active correction patches that apply to a given exam type — <c>status = active</c> and
+        /// (<c>exam_type_id = examTypeId</c> OR <c>exam_type_id IS NULL</c>, the latter being
+        /// legacy/global rows written before the column existed). This is what
+        /// GradeSubmissionCommandHandler feeds back into the grading prompt so a confirmed
+        /// misjudgement isn't repeated.
+        /// </summary>
+        Task<List<StandardOverride>> ListActiveByExamTypeAsync(Guid examTypeId, CancellationToken cancellationToken = default);
+
         Task AddAsync(StandardOverride standardOverride, CancellationToken cancellationToken = default);
     }
 }

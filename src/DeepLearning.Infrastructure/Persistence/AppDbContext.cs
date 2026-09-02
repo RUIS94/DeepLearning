@@ -23,6 +23,7 @@ namespace DeepLearning.Infrastructure.Persistence
         public DbSet<ReferenceTranslation> ReferenceTranslations => Set<ReferenceTranslation>();
         public DbSet<Submission> Submissions => Set<Submission>();
         public DbSet<GradingResult> GradingResults => Set<GradingResult>();
+        public DbSet<GradingSummary> GradingSummaries => Set<GradingSummary>();
         public DbSet<ErrorListItem> ErrorList => Set<ErrorListItem>();
         public DbSet<FollowUpQuestion> FollowUpQuestions => Set<FollowUpQuestion>();
         public DbSet<FollowUpThread> FollowUpThreads => Set<FollowUpThread>();
@@ -32,6 +33,7 @@ namespace DeepLearning.Infrastructure.Persistence
         public DbSet<VocabExpression> VocabExpressions => Set<VocabExpression>();
         public DbSet<WeakPoint> WeakPoints => Set<WeakPoint>();
         public DbSet<WeakPointOccurrence> WeakPointOccurrences => Set<WeakPointOccurrence>();
+        public DbSet<WeakPointCatalog> WeakPointCatalog => Set<WeakPointCatalog>();
         public DbSet<ProgressSnapshot> ProgressSnapshots => Set<ProgressSnapshot>();
         public DbSet<AiCallLog> AiCallLogs => Set<AiCallLog>();
         public DbSet<QuestionBankCategory> QuestionBankCategories => Set<QuestionBankCategory>();

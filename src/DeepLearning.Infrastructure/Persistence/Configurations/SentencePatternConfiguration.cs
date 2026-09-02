@@ -17,7 +17,10 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
             builder.Property(x => x.Domain).HasMaxLength(50);
             builder.Property(x => x.Scenario).HasMaxLength(100);
             builder.Property(x => x.FrequencyTag).HasMaxLength(20);
+            builder.Property(x => x.CanonicalKey).HasMaxLength(255);
             builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
+
+            builder.HasIndex(x => x.CanonicalKey).HasDatabaseName("idx_pattern_canonical");
 
             builder.HasOne(x => x.Question)
                 .WithMany()

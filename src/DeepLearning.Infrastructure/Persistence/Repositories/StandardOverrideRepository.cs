@@ -68,6 +68,13 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
             return query.OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);
         }
 
+        public Task<List<StandardOverride>> ListActiveByExamTypeAsync(Guid examTypeId, CancellationToken cancellationToken = default)
+            => _context.StandardOverrides
+                .Where(x => x.Status == OverrideStatus.active
+                    && (x.ExamTypeId == examTypeId || x.ExamTypeId == null))
+                .OrderByDescending(x => x.EffectiveFrom)
+                .ToListAsync(cancellationToken);
+
         public async Task AddAsync(StandardOverride standardOverride, CancellationToken cancellationToken = default)
             => await _context.StandardOverrides.AddAsync(standardOverride, cancellationToken);
     }

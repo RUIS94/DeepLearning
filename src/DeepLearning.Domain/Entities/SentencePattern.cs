@@ -12,6 +12,9 @@ namespace DeepLearning.Domain.Entities
         public string? Domain { get; set; }
         public string? Scenario { get; set; }
         public string? FrequencyTag { get; set; }
+
+        /// <summary>Normalised <see cref="PatternName"/> for cross-question dedup, mirroring <see cref="VocabExpression.CanonicalKey"/>.</summary>
+        public string? CanonicalKey { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
 
         public Question? Question { get; set; }

@@ -8,10 +8,14 @@ namespace DeepLearning.Application.Features.Submissions.Queries.GetSubmissionByI
     public class GetSubmissionByIdQueryHandler : IRequestHandler<GetSubmissionByIdQuery, GetSubmissionByIdResult>
     {
         private readonly ISubmissionRepository _submissionRepository;
+        private readonly IGradingSummaryRepository _gradingSummaryRepository;
 
-        public GetSubmissionByIdQueryHandler(ISubmissionRepository submissionRepository)
+        public GetSubmissionByIdQueryHandler(
+            ISubmissionRepository submissionRepository,
+            IGradingSummaryRepository gradingSummaryRepository)
         {
             _submissionRepository = submissionRepository;
+            _gradingSummaryRepository = gradingSummaryRepository;
         }
 
         public async Task<GetSubmissionByIdResult> Handle(GetSubmissionByIdQuery request, CancellationToken cancellationToken)
@@ -21,6 +25,7 @@ namespace DeepLearning.Application.Features.Submissions.Queries.GetSubmissionByI
 
             var gradingResults = await _submissionRepository.GetGradingResultsAsync(request.Id, cancellationToken);
             var errorList = await _submissionRepository.GetErrorListAsync(request.Id, cancellationToken);
+            var overallSummary = await _gradingSummaryRepository.GetBySubmissionIdAsync(request.Id, cancellationToken);
 
             return new GetSubmissionByIdResult(
                 submission.Id,
@@ -51,7 +56,15 @@ namespace DeepLearning.Application.Features.Submissions.Queries.GetSubmissionByI
                     e.Dimension!.DimensionKey,
                     e.ImpactsCore,
                     e.Explanation,
-                    e.Suggestion)).ToList());
+                    e.Suggestion)).ToList(),
+                overallSummary is null
+                    ? null
+                    : new GradingSummaryResult(
+                        overallSummary.OverallPassProbability,
+                        overallSummary.OverallPassBool,
+                        overallSummary.CumulativeDensityFlag,
+                        overallSummary.CumulativeDensityNote,
+                        overallSummary.ConclusionText));
         }
     }
 }

@@ -31,7 +31,7 @@ namespace DeepLearning.Application.Features.Questions.Queries.GetDeepLearningCon
                 referenceTranslation.ReferenceText,
                 referenceTranslation.ComparisonNotes,
                 patterns.Select(p => new SentencePatternResultItem(p.Id, p.PatternName, p.ExampleSentence, p.BreakdownSteps, p.Variants, p.Domain, p.Scenario, p.FrequencyTag)).ToList(),
-                vocab.Select(v => new VocabExpressionResultItem(v.Id, v.EnglishExpr, v.ChineseEquiv, v.ContextNote, v.Category, v.Domain, v.Scenario, v.FrequencyTag)).ToList());
+                vocab.Select(v => new VocabExpressionResultItem(v.Id, v.EnglishExpr, v.ChineseEquiv, v.ContextNote, v.Category, v.Domain, v.Scenario, v.FrequencyTag, v.LiteralTranslatable)).ToList());
         }
     }
 }

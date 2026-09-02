@@ -85,18 +85,30 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             // Persisted up front so the log survives even if the LLM call below never returns.
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // Deliberately just TaskType + SourceText — see the isolation note in the class
-            // doc comment. No submission content, no grading_results, no meaning_checkpoints.
-            var templateModel = new
-            {
-                TaskType = question.TaskType.ToString(),
-                SourceText = question.SourceText,
-            };
-            var prompt = await _examConfigLoader.BuildPromptAsync(request.ExamTypeId, AiOperationType.deep_learning, templateModel, cancellationToken);
-
             DeepLearningPayload payload;
             try
             {
+                // Deliberately just TaskType + SourceText + the cross-question dedup feed — see
+                // the isolation note in the class doc comment. No submission content, no
+                // grading_results, no meaning_checkpoints. PriorVocab is expressions accumulated
+                // from OTHER questions that literally recur in this source text (design doc §9):
+                // the prompt is told to re-explain them in this context, not repeat the old
+                // entry. Inside the try so a failure here (query, template render) still routes
+                // through FailAsync instead of leaving the call log stuck at 'calling'.
+                var priorVocab = await _reviewLibraryRepository.ListPriorVocabForSourceAsync(question.SourceText, 40, cancellationToken);
+                var templateModel = new
+                {
+                    TaskType = question.TaskType.ToString(),
+                    SourceText = question.SourceText,
+                    PriorVocab = priorVocab.Select(v => new
+                    {
+                        EnglishExpr = v.EnglishExpr,
+                        ChineseEquiv = v.ChineseEquiv,
+                        ContextNote = v.ContextNote,
+                    }),
+                };
+                var prompt = await _examConfigLoader.BuildPromptAsync(request.ExamTypeId, AiOperationType.deep_learning, templateModel, cancellationToken);
+
                 // Design doc §4.2's retry sub-state-machine: re-prompts (same prompt, fresh call)
                 // up to aiCallLog.MaxRetries times when the AI's response fails structured-output
                 // validation — distinct from Polly's transport-level retries inside CompleteAsync
@@ -105,7 +117,12 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                 {
                     var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
                     var completion = await llmClient.CompleteAsync(
-                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 4096),
+                        // Deep learning is the largest single response in the system — reference
+                        // translation + notes + sentence patterns + a full vocab list — and a
+                        // thinking-enabled model also spends budget on reasoning. 4096 truncated
+                        // the JSON mid-vocab-array (parse failure -> pointless retries); 8192
+                        // matches grading, and the v4 template caps list sizes so it fits.
+                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 8192),
                         cancellationToken);
                     aiCallLog.LatencyMs = completion.LatencyMs;
 
@@ -116,7 +133,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             }
             catch (Exception ex)
             {
-                await FailAsync(aiCallLog, $"Failed after {aiCallLog.AttemptCount} attempt(s): {ex.Message}", cancellationToken);
+                await FailAsync(aiCallLog, $"Failed after {aiCallLog.AttemptCount} attempt(s): {ex.Message}");
                 throw new AiCallFailedException($"Deep learning content could not be used: {ex.Message}", ex);
             }
 
@@ -146,6 +163,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                     Domain = p.Domain,
                     Scenario = p.Scenario,
                     FrequencyTag = p.FrequencyTag,
+                    CanonicalKey = NormalizeCanonicalKey(p.PatternName),
                     CreatedAt = DateTimeOffset.UtcNow,
                 }).ToList();
                 await _reviewLibraryRepository.AddPatternsAsync(patterns, cancellationToken);
@@ -161,6 +179,8 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                     Domain = v.Domain,
                     Scenario = v.Scenario,
                     FrequencyTag = v.FrequencyTag,
+                    LiteralTranslatable = v.LiteralTranslatable,
+                    CanonicalKey = NormalizeCanonicalKey(v.EnglishExpr),
                     CreatedAt = DateTimeOffset.UtcNow,
                 }).ToList();
                 await _reviewLibraryRepository.AddVocabAsync(vocab, cancellationToken);
@@ -172,19 +192,23 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             }
             catch (Exception ex)
             {
-                await FailAsync(aiCallLog, $"Failed to persist deep learning content: {ex.Message}", cancellationToken);
+                await FailAsync(aiCallLog, $"Failed to persist deep learning content: {ex.Message}");
                 throw new AiCallFailedException($"Deep learning content could not be used: {ex.Message}", ex);
             }
 
             return ToResult(referenceTranslation, patterns, vocab, wasCached: false);
         }
 
-        private async Task FailAsync(AiCallLog aiCallLog, string errorMessage, CancellationToken cancellationToken)
+        private async Task FailAsync(AiCallLog aiCallLog, string errorMessage)
         {
             aiCallLog.Status = CallStatus.final_failure;
             aiCallLog.LastErrorMessage = errorMessage;
             aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            // CancellationToken.None on purpose: the usual trigger for FailAsync is the request
+            // being cancelled (the browser aborting a slow generation / React Query retrying),
+            // and the failing token was that same one — passing it here would cancel the status
+            // write too and leave the ai_call_logs row stuck at 'calling' forever.
+            await _unitOfWork.SaveChangesAsync(CancellationToken.None);
         }
 
         private static GenerateDeepLearningContentResult ToResult(
@@ -196,7 +220,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                 referenceTranslation.ReferenceText,
                 referenceTranslation.ComparisonNotes,
                 patterns.Select(p => new SentencePatternItem(p.Id, p.PatternName, p.ExampleSentence, p.BreakdownSteps, p.Variants, p.Domain, p.Scenario, p.FrequencyTag)).ToList(),
-                vocab.Select(v => new VocabExpressionItem(v.Id, v.EnglishExpr, v.ChineseEquiv, v.ContextNote, v.Category, v.Domain, v.Scenario, v.FrequencyTag)).ToList(),
+                vocab.Select(v => new VocabExpressionItem(v.Id, v.EnglishExpr, v.ChineseEquiv, v.ContextNote, v.Category, v.Domain, v.Scenario, v.FrequencyTag, v.LiteralTranslatable)).ToList(),
                 wasCached);
 
         private static DeepLearningPayload ParsePayload(string rawText)
@@ -233,6 +257,22 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                     throw new InvalidOperationException("Every vocabExpressions item must have a non-empty englishExpr.");
                 }
             }
+        }
+
+        /// <summary>
+        /// lower-case, trim, collapse internal whitespace to single spaces, cap at the
+        /// canonical_key column length. Null/blank -&gt; null.
+        /// </summary>
+        private static string? NormalizeCanonicalKey(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            var collapsed = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+            var normalized = collapsed.ToLowerInvariant();
+            return normalized.Length > 255 ? normalized[..255] : normalized;
         }
 
         private static string StripMarkdownFence(string text)
@@ -291,6 +331,8 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             public string? Scenario { get; set; }
 
             public string? FrequencyTag { get; set; }
+
+            public bool? LiteralTranslatable { get; set; }
         }
     }
 }

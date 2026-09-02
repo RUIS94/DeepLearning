@@ -18,6 +18,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
         private readonly IUserRepository _userRepository;
         private readonly IQuestionRepository _questionRepository;
         private readonly IErrorTaxonomyRepository _errorTaxonomyRepository;
+        private readonly IQuestionBankCategoryRepository _questionBankCategoryRepository;
         private readonly IGenerationPolicyRepository _generationPolicyRepository;
         private readonly IWeakPointRepository _weakPointRepository;
         private readonly IAiCallLogRepository _aiCallLogRepository;
@@ -32,6 +33,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             IUserRepository userRepository,
             IQuestionRepository questionRepository,
             IErrorTaxonomyRepository errorTaxonomyRepository,
+            IQuestionBankCategoryRepository questionBankCategoryRepository,
             IGenerationPolicyRepository generationPolicyRepository,
             IWeakPointRepository weakPointRepository,
             IAiCallLogRepository aiCallLogRepository,
@@ -45,6 +47,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             _userRepository = userRepository;
             _questionRepository = questionRepository;
             _errorTaxonomyRepository = errorTaxonomyRepository;
+            _questionBankCategoryRepository = questionBankCategoryRepository;
             _generationPolicyRepository = generationPolicyRepository;
             _weakPointRepository = weakPointRepository;
             _aiCallLogRepository = aiCallLogRepository;
@@ -66,11 +69,21 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                     ?? throw new NotFoundException(nameof(User), createdBy);
             }
 
+            // An explicit CategoryId is mapped to the generated question (question_category_map)
+            // below, so it must resolve to a real row — reject early rather than let the FK blow
+            // up mid-persist.
+            if (request.CategoryId is { } categoryId)
+            {
+                _ = await _questionBankCategoryRepository.GetByIdAsync(categoryId, cancellationToken)
+                    ?? throw new NotFoundException(nameof(QuestionBankCategory), categoryId);
+            }
+
             var difficulty = request.Difficulty ?? await ResolveDifficultyAsync(request.ExamTypeId, cancellationToken);
             var errorTaxonomies = await _errorTaxonomyRepository.ListByExamTypeAsync(request.ExamTypeId, cancellationToken);
 
             var (seedSamples, seedSelectionReason) = await ResolveSeedSamplesAsync(request, difficulty, cancellationToken);
             var weakPointHint = await ResolveWeakPointHintAsync(request, cancellationToken);
+            var topicHint = await ResolveTopicHintAsync(request, cancellationToken);
 
             var aiCallLog = new AiCallLog
             {
@@ -101,6 +114,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                     SourceText = s.SourceText,
                 }),
                 WeakPointHint = weakPointHint,
+                TopicHint = topicHint,
             };
             var prompt = await _examConfigLoader.BuildPromptAsync(
                 request.ExamTypeId, AiOperationType.question_gen, templateModel, cancellationToken);
@@ -134,6 +148,8 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                 throw new AiCallFailedException($"Claude response could not be used: {ex.Message}", ex);
             }
 
+            var briefFields = ParseBriefFields(payload.Brief);
+
             var question = new Question
             {
                 Id = Guid.NewGuid(),
@@ -141,6 +157,10 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                 Difficulty = difficulty,
                 Title = payload.Title,
                 Brief = payload.Brief.ValueKind == JsonValueKind.Undefined ? null : payload.Brief.GetRawText(),
+                BriefDomain = briefFields.Domain,
+                BriefTextType = briefFields.TextType,
+                BriefPurpose = briefFields.Purpose,
+                BriefAudience = briefFields.Audience,
                 SourceText = payload.SourceText,
                 // Only meaningful for TaskB — payload.FlawedTranslationText is validated
                 // non-empty by ValidateAndBuildTaskBSeededErrors above when TaskType==B.
@@ -173,6 +193,8 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                 seededError.QuestionId = question.Id;
             }
             await _questionRepository.AddSeededErrorsAsync(seededErrors, cancellationToken);
+
+            await MapCategoriesAsync(question, request.CategoryId, briefFields.Domain, cancellationToken);
 
             if (seedSamples.Count > 0)
             {
@@ -240,6 +262,131 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                 .FirstOrDefault();
 
             return topWeakPoint?.Category;
+        }
+
+        /// <summary>
+        /// Design doc §11.2 Step 8's "题材可随机". Only kicks in when the caller did NOT pin a
+        /// CategoryId. A pinned CategoryId returns that category's own name (so an explicit pick
+        /// also nudges the generated content, not just the seed-sample filter). Otherwise a
+        /// topic_distribution-weighted roll decides whether to pick one existing domain category
+        /// at random as a soft hint; returns null (AI chooses freely) when the roll misses or no
+        /// domain categories exist yet.
+        /// </summary>
+        private async Task<string?> ResolveTopicHintAsync(GenerateQuestionCommand request, CancellationToken cancellationToken)
+        {
+            if (request.CategoryId is { } categoryId)
+            {
+                var pinned = await _questionBankCategoryRepository.GetByIdAsync(categoryId, cancellationToken);
+                return pinned?.Name;
+            }
+
+            var policy = await _generationPolicyRepository.GetByKeyAsync(request.ExamTypeId, "topic_distribution", cancellationToken);
+            var ratio = policy is not null
+                ? TopicDistributionSelector.ParseRatio(policy.PolicyValue)
+                : TopicDistributionSelector.DefaultTopicRandomRatio;
+
+            if (!TopicDistributionSelector.ShouldPick(ratio, Random.Shared.NextDouble()))
+            {
+                return null;
+            }
+
+            var domains = await _questionBankCategoryRepository.ListAsync(CategoryType.domain, cancellationToken);
+            return domains.Count == 0 ? null : domains[Random.Shared.Next(domains.Count)].Name;
+        }
+
+        /// <summary>
+        /// Wires the generated question into question_category_map: the caller's explicit
+        /// CategoryId (already validated to exist) plus a domain category matched from the AI's
+        /// brief.domain, created on the fly if the bank doesn't have it yet. Deduped so an
+        /// explicit CategoryId that equals the brief-derived one is written once.
+        /// </summary>
+        private async Task MapCategoriesAsync(Question question, Guid? explicitCategoryId, string? briefDomain, CancellationToken cancellationToken)
+        {
+            var categoryIds = new HashSet<Guid>();
+
+            if (explicitCategoryId is { } id)
+            {
+                categoryIds.Add(id);
+            }
+
+            var domainName = briefDomain?.Trim();
+            // Only turn a domain into a bank category when it reads like a label, not a
+            // paragraph — an over-long value is still stored in questions.brief_domain, it just
+            // doesn't pollute question_bank_categories.
+            if (!string.IsNullOrEmpty(domainName) && domainName.Length <= CategoryNameMaxLength)
+            {
+                var existing = await _questionBankCategoryRepository.ListAsync(CategoryType.domain, cancellationToken);
+                var match = existing.FirstOrDefault(c => string.Equals(c.Name.Trim(), domainName, StringComparison.OrdinalIgnoreCase));
+                if (match is null)
+                {
+                    match = new QuestionBankCategory
+                    {
+                        Id = Guid.NewGuid(),
+                        CategoryType = CategoryType.domain,
+                        Name = domainName,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                    };
+                    await _questionBankCategoryRepository.AddAsync(match, cancellationToken);
+                }
+
+                categoryIds.Add(match.Id);
+            }
+
+            foreach (var categoryId in categoryIds)
+            {
+                await _questionRepository.AddCategoryMapAsync(new QuestionCategoryMap
+                {
+                    Id = Guid.NewGuid(),
+                    QuestionId = question.Id,
+                    CategoryId = categoryId,
+                }, cancellationToken);
+            }
+        }
+
+        // Column limits from QuestionConfiguration — the AI's brief text is untrusted and can
+        // exceed them, which would otherwise surface as a DbUpdateException on the final save.
+        private const int BriefDomainMaxLength = 100;
+        private const int BriefTextTypeMaxLength = 100;
+        private const int BriefAudienceMaxLength = 200;
+        private const int BriefPurposeMaxLength = 4000;
+        private const int CategoryNameMaxLength = 100;
+
+        /// <summary>
+        /// Pulls domain / text type / purpose / audience out of the AI's brief JSON into the
+        /// structured columns. Tolerates both the English keys the current template asks for
+        /// (domain/textType/purpose/audience) and the Chinese keys older rows used
+        /// (领域/文本类型/目的/受众). All fields optional; each is trimmed and hard-capped to its
+        /// column length so an over-verbose AI response can't fail the whole generation.
+        /// </summary>
+        private static (string? Domain, string? TextType, string? Purpose, string? Audience) ParseBriefFields(JsonElement brief)
+        {
+            if (brief.ValueKind != JsonValueKind.Object)
+            {
+                return (null, null, null, null);
+            }
+
+            string? Read(int maxLength, params string[] keys)
+            {
+                foreach (var key in keys)
+                {
+                    if (brief.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String)
+                    {
+                        var text = value.GetString()?.Trim();
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            return text.Length > maxLength ? text[..maxLength] : text;
+                        }
+                    }
+                }
+
+                return null;
+            }
+
+            return (
+                Read(BriefDomainMaxLength, "domain", "topic", "领域"),
+                Read(BriefTextTypeMaxLength, "textType", "text_type", "文本类型"),
+                Read(BriefPurposeMaxLength, "purpose", "目的"),
+                Read(BriefAudienceMaxLength, "audience", "受众"));
         }
 
         /// <summary>

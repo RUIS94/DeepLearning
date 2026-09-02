@@ -6,6 +6,13 @@ namespace DeepLearning.Domain.Entities
     public class StandardOverride : AggregateRoot
     {
         public OverrideScope Scope { get; set; }
+
+        /// <summary>
+        /// Which exam type this correction applies to. Nullable: rows written before this
+        /// column existed are treated as global and still apply to every exam type
+        /// (see IStandardOverrideRepository.ListActiveByExamTypeAsync).
+        /// </summary>
+        public Guid? ExamTypeId { get; set; }
         public string DimensionOrRule { get; set; } = string.Empty;
         public string? OriginalRuleText { get; set; }
         public string RevisedRuleText { get; set; } = string.Empty;
@@ -29,5 +36,6 @@ namespace DeepLearning.Domain.Entities
         public FollowUpQuestion? TriggeredByFollowup { get; set; }
         public FollowUpThread? TriggeredByFollowUpThread { get; set; }
         public StandardOverride? PreviousOverride { get; set; }
+        public ExamType? ExamType { get; set; }
     }
 }

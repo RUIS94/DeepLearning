@@ -29,6 +29,9 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         private readonly IQuestionRepository _questionRepository;
         private readonly IAssessmentDimensionRepository _assessmentDimensionRepository;
         private readonly IErrorTaxonomyRepository _errorTaxonomyRepository;
+        private readonly IWeakPointRepository _weakPointRepository;
+        private readonly IStandardOverrideRepository _standardOverrideRepository;
+        private readonly IGradingSummaryRepository _gradingSummaryRepository;
         private readonly IAiCallLogRepository _aiCallLogRepository;
         private readonly IExamConfigLoader _examConfigLoader;
         private readonly ILlmClientResolver _llmClientResolver;
@@ -42,6 +45,9 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             IQuestionRepository questionRepository,
             IAssessmentDimensionRepository assessmentDimensionRepository,
             IErrorTaxonomyRepository errorTaxonomyRepository,
+            IWeakPointRepository weakPointRepository,
+            IStandardOverrideRepository standardOverrideRepository,
+            IGradingSummaryRepository gradingSummaryRepository,
             IAiCallLogRepository aiCallLogRepository,
             IExamConfigLoader examConfigLoader,
             ILlmClientResolver llmClientResolver,
@@ -54,6 +60,9 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             _questionRepository = questionRepository;
             _assessmentDimensionRepository = assessmentDimensionRepository;
             _errorTaxonomyRepository = errorTaxonomyRepository;
+            _weakPointRepository = weakPointRepository;
+            _standardOverrideRepository = standardOverrideRepository;
+            _gradingSummaryRepository = gradingSummaryRepository;
             _aiCallLogRepository = aiCallLogRepository;
             _examConfigLoader = examConfigLoader;
             _llmClientResolver = llmClientResolver;
@@ -105,7 +114,16 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             var dimensions = await _assessmentDimensionRepository.ListByExamTypeAsync(request.ExamTypeId, submission.TaskType, cancellationToken);
             var errorTaxonomies = await _errorTaxonomyRepository.ListByExamTypeAsync(request.ExamTypeId, cancellationToken);
 
-            var templateModel = BuildTemplateModel(submission, question, checkpoints, seededErrors, dimensions, errorTaxonomies);
+            // Design doc §10.4/§10.6 — the two accumulation loops the grader must apply:
+            // this user's still-active weak points (so recurrences get flagged in the rationale)
+            // and the exam type's active correction patches distilled from past disputes (so a
+            // confirmed misjudgement isn't repeated). Both are injected into the grading prompt
+            // via BuildTemplateModel; neither changes the official rubric text.
+            var weakPoints = await _weakPointRepository.ListActiveWithCatalogByUserAsync(submission.UserId, cancellationToken);
+            var activeOverrides = await _standardOverrideRepository.ListActiveByExamTypeAsync(request.ExamTypeId, cancellationToken);
+
+            var templateModel = BuildTemplateModel(
+                submission, question, checkpoints, seededErrors, dimensions, errorTaxonomies, weakPoints, activeOverrides);
             var prompt = await _examConfigLoader.BuildPromptAsync(request.ExamTypeId, AiOperationType.grading, templateModel, cancellationToken);
 
             GradingPayload payload;
@@ -185,6 +203,44 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 }).ToList();
                 await _submissionRepository.AddErrorListItemsAsync(errorItems, cancellationToken);
 
+                // Design doc §11 (c): one holistic row above the per-dimension results. Derived
+                // deterministically here, not asked of the AI — overall pass probability is the
+                // product of the per-dimension estimates (a missing one counts as 1.0), overall
+                // pass is true only if every dimension passed, and the cumulative-density note is
+                // rolled up from whichever dimensions raised one. Upserted so a re-grade after a
+                // GradingFailed retry updates the row instead of tripping its unique index.
+                var overallProbability = ComputeOverallPassProbability(gradingResults);
+                var overallPass = gradingResults.All(r => r.PassBool);
+                var densityFlag = gradingResults.Any(r => r.CumulativeDensityFlag);
+                var densityNote = string.Join(
+                    " ",
+                    gradingResults
+                        .Where(r => !string.IsNullOrWhiteSpace(r.CumulativeDensityNote))
+                        .Select(r => r.CumulativeDensityNote!.Trim()));
+
+                var existingSummary = await _gradingSummaryRepository.GetBySubmissionIdAsync(submission.Id, cancellationToken);
+                if (existingSummary is null)
+                {
+                    await _gradingSummaryRepository.AddAsync(new GradingSummary
+                    {
+                        Id = Guid.NewGuid(),
+                        SubmissionId = submission.Id,
+                        OverallPassProbability = overallProbability,
+                        OverallPassBool = overallPass,
+                        CumulativeDensityFlag = densityFlag,
+                        CumulativeDensityNote = string.IsNullOrEmpty(densityNote) ? null : densityNote,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                    }, cancellationToken);
+                }
+                else
+                {
+                    existingSummary.OverallPassProbability = overallProbability;
+                    existingSummary.OverallPassBool = overallPass;
+                    existingSummary.CumulativeDensityFlag = densityFlag;
+                    existingSummary.CumulativeDensityNote = string.IsNullOrEmpty(densityNote) ? null : densityNote;
+                    existingSummary.CreatedAt = DateTimeOffset.UtcNow;
+                }
+
                 submission.TransitionTo(SubmissionStatus.graded);
                 submission.AddDomainEvent(new SubmissionGradedEvent
                 {
@@ -237,7 +293,9 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             List<MeaningCheckpoint> checkpoints,
             List<TaskBSeededError> seededErrors,
             List<AssessmentDimension> dimensions,
-            List<ErrorTaxonomy> errorTaxonomies) => new
+            List<ErrorTaxonomy> errorTaxonomies,
+            List<WeakPoint> weakPoints,
+            List<StandardOverride> activeOverrides) => new
             {
                 TaskType = submission.TaskType.ToString(),
                 // The source article's own title. Without it the AI sees only the body and
@@ -276,7 +334,47 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                     CategoryName = t.CategoryName,
                     Description = t.Description,
                 }),
+                // This learner's still-active weak points (Scriban: weak_points). Name/Description
+                // come from the matched weak_point_catalog row, falling back to the legacy
+                // free-text bucket. Recurring = has resurfaced after being resolved at least once.
+                WeakPoints = weakPoints.Select(w => new
+                {
+                    Name = w.Catalog is not null ? w.Catalog.Name : w.Category,
+                    Description = w.Catalog is not null ? w.Catalog.Description : (w.Description ?? string.Empty),
+                    Recurring = w.RecurrenceCount > 0,
+                }),
+                // Active correction patches for this exam type (Scriban: active_overrides) —
+                // distilled from past disputes, applied on top of (never replacing) the rubric.
+                ActiveOverrides = activeOverrides.Select(o => new
+                {
+                    Scope = o.Scope.ToString(),
+                    DimensionOrRule = o.DimensionOrRule,
+                    RevisedRuleText = o.RevisedRuleText,
+                }),
             };
+
+        /// <summary>
+        /// P(all dimensions pass) ≈ the product of the per-dimension estimates. A dimension the
+        /// AI gave no estimate for contributes 1.0 (no information) rather than collapsing the
+        /// whole product. Clamped to [0,1] and rounded to 4 dp to fit numeric(5,4). Returns 0
+        /// only if the AI supplied an explicit 0 somewhere; no estimates at all -> 1.0.
+        /// </summary>
+        private static decimal ComputeOverallPassProbability(IEnumerable<GradingResult> gradingResults)
+        {
+            var product = 1m;
+            foreach (var result in gradingResults)
+            {
+                if (result.EstimatedPassProbability is not { } p)
+                {
+                    continue;
+                }
+
+                var clamped = p < 0m ? 0m : p > 1m ? 1m : p;
+                product *= clamped;
+            }
+
+            return Math.Round(product, 4, MidpointRounding.AwayFromZero);
+        }
 
         private static GradingPayload ParsePayload(string rawText)
         {

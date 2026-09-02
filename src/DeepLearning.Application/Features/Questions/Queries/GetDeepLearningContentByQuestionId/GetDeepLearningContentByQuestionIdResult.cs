@@ -25,5 +25,6 @@ namespace DeepLearning.Application.Features.Questions.Queries.GetDeepLearningCon
         string? Category,
         string? Domain,
         string? Scenario,
-        string? FrequencyTag);
+        string? FrequencyTag,
+        bool? LiteralTranslatable);
 }

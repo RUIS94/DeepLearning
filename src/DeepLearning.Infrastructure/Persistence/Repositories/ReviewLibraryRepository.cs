@@ -71,6 +71,41 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
             return query.OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);
         }
 
+        public async Task<List<VocabExpression>> ListPriorVocabForSourceAsync(string sourceText, int take, CancellationToken cancellationToken = default)
+        {
+            // "does canonical_key appear as a substring of the source text" is a
+            // parameter-on-the-left LIKE that not every provider translates cleanly — and the
+            // review library stays small for a single learner — so pull a lightweight
+            // (id, key, createdAt) projection and do the substring test in memory, then load
+            // the matched rows by id. canonical_key is stored lower-cased; lower-case the
+            // source to match. Keys shorter than 3 chars would match almost anything.
+            var loweredSource = sourceText.ToLowerInvariant();
+
+            var candidates = await _context.VocabExpressions
+                .Where(x => x.CanonicalKey != null && x.CanonicalKey.Length >= 3)
+                .Select(x => new { x.Id, x.CanonicalKey, x.CreatedAt })
+                .ToListAsync(cancellationToken);
+
+            var matchedIds = candidates
+                .Where(c => loweredSource.Contains(c.CanonicalKey!, StringComparison.Ordinal))
+                .OrderByDescending(c => c.CreatedAt)
+                .Take(take)
+                .Select(c => c.Id)
+                .ToList();
+
+            if (matchedIds.Count == 0)
+            {
+                return [];
+            }
+
+            var rows = await _context.VocabExpressions
+                .Where(x => matchedIds.Contains(x.Id))
+                .ToListAsync(cancellationToken);
+
+            var rank = matchedIds.Select((id, index) => (id, index)).ToDictionary(t => t.id, t => t.index);
+            return rows.OrderBy(r => rank[r.Id]).ToList();
+        }
+
         public Task<List<UserPatternReview>> ListUserPatternReviewsAsync(Guid userId, IEnumerable<Guid> patternIds, CancellationToken cancellationToken = default)
             => _context.UserPatternReview.Where(x => x.UserId == userId && patternIds.Contains(x.PatternId)).ToListAsync(cancellationToken);
 

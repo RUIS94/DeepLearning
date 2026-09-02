@@ -33,6 +33,11 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
                 .WithMany()
                 .HasForeignKey(x => x.PreviousOverrideId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne(x => x.ExamType)
+                .WithMany()
+                .HasForeignKey(x => x.ExamTypeId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

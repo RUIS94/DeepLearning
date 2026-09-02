@@ -21,7 +21,7 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                 .HasAnnotation("ProductVersion", "10.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "ai_operation_type_enum", new[] { "question_gen", "grading", "followup", "standard_revision", "deep_learning", "progress_trend", "followup_summary" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "ai_operation_type_enum", new[] { "question_gen", "grading", "followup", "standard_revision", "deep_learning", "progress_trend", "followup_summary", "weak_point_classification" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "call_status_enum", new[] { "pending", "calling", "success", "failed", "final_failure" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "category_type_enum", new[] { "domain", "scenario" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "checkpoint_importance_enum", new[] { "core", "peripheral" });
@@ -680,6 +680,56 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("DeepLearning.Domain.Entities.GradingSummary", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("ConclusionText")
+                        .HasColumnType("text")
+                        .HasColumnName("conclusion_text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<bool>("CumulativeDensityFlag")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("cumulative_density_flag");
+
+                    b.Property<string>("CumulativeDensityNote")
+                        .HasColumnType("text")
+                        .HasColumnName("cumulative_density_note");
+
+                    b.Property<bool>("OverallPassBool")
+                        .HasColumnType("boolean")
+                        .HasColumnName("overall_pass_bool");
+
+                    b.Property<decimal>("OverallPassProbability")
+                        .HasColumnType("numeric(5,4)")
+                        .HasColumnName("overall_pass_probability");
+
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_grading_summaries");
+
+                    b.HasIndex("SubmissionId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_grading_summaries_submission");
+
+                    b.ToTable("grading_summaries", (string)null);
+                });
+
             modelBuilder.Entity("DeepLearning.Domain.Entities.KnowledgePoint", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1039,6 +1089,25 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("brief");
 
+                    b.Property<string>("BriefAudience")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("brief_audience");
+
+                    b.Property<string>("BriefDomain")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("brief_domain");
+
+                    b.Property<string>("BriefPurpose")
+                        .HasColumnType("text")
+                        .HasColumnName("brief_purpose");
+
+                    b.Property<string>("BriefTextType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("brief_text_type");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -1279,6 +1348,11 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("breakdown_steps");
 
+                    b.Property<string>("CanonicalKey")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("canonical_key");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -1321,6 +1395,9 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_sentence_patterns");
 
+                    b.HasIndex("CanonicalKey")
+                        .HasDatabaseName("idx_pattern_canonical");
+
                     b.HasIndex("QuestionId")
                         .HasDatabaseName("ix_sentence_patterns_question_id");
 
@@ -1350,6 +1427,10 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("EffectiveFrom")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("effective_from");
+
+                    b.Property<Guid?>("ExamTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("exam_type_id");
 
                     b.Property<string>("OriginalRuleText")
                         .HasColumnType("text")
@@ -1383,6 +1464,9 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_standard_overrides");
+
+                    b.HasIndex("ExamTypeId")
+                        .HasDatabaseName("ix_standard_overrides_exam_type_id");
 
                     b.HasIndex("PreviousOverrideId")
                         .HasDatabaseName("ix_standard_overrides_previous_override_id");
@@ -1729,6 +1813,11 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<string>("CanonicalKey")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("canonical_key");
+
                     b.Property<string>("Category")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
@@ -1765,6 +1854,10 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("frequency_tag");
 
+                    b.Property<bool?>("LiteralTranslatable")
+                        .HasColumnType("boolean")
+                        .HasColumnName("literal_translatable");
+
                     b.Property<Guid?>("QuestionId")
                         .HasColumnType("uuid")
                         .HasColumnName("question_id");
@@ -1776,6 +1869,9 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_vocab_expressions");
+
+                    b.HasIndex("CanonicalKey")
+                        .HasDatabaseName("idx_vocab_canonical");
 
                     b.HasIndex("QuestionId")
                         .HasDatabaseName("ix_vocab_expressions_question_id");
@@ -1791,6 +1887,10 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<Guid?>("CatalogId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("catalog_id");
+
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1800,6 +1900,21 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text")
                         .HasColumnName("description");
+
+                    b.Property<string>("DetectionSource")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("rule")
+                        .HasColumnName("detection_source");
+
+                    b.Property<string>("EvidenceNote")
+                        .HasColumnType("text")
+                        .HasColumnName("evidence_note");
+
+                    b.Property<Guid?>("ExamTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("exam_type_id");
 
                     b.Property<DateTimeOffset>("FirstDetectedAt")
                         .ValueGeneratedOnAdd()
@@ -1824,6 +1939,10 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(0)
                         .HasColumnName("recurrence_count");
 
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
                     b.Property<WeakPointStatus>("Status")
                         .HasColumnType("weak_point_status_enum")
                         .HasDefaultValue(WeakPointStatus.active)
@@ -1836,6 +1955,17 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_weak_points");
 
+                    b.HasIndex("CatalogId")
+                        .HasDatabaseName("ix_weak_points_catalog_id");
+
+                    b.HasIndex("ExamTypeId")
+                        .HasDatabaseName("ix_weak_points_exam_type_id");
+
+                    b.HasIndex("UserId", "CatalogId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_weak_points_user_catalog")
+                        .HasFilter("catalog_id IS NOT NULL");
+
                     b.HasIndex("UserId", "Category")
                         .IsUnique()
                         .HasDatabaseName("ux_weak_points_user_category");
@@ -1844,6 +1974,66 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("idx_weak_points_user_status");
 
                     b.ToTable("weak_points", (string)null);
+                });
+
+            modelBuilder.Entity("DeepLearning.Domain.Entities.WeakPointCatalog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("DefaultDimensionKey")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("default_dimension_key");
+
+                    b.Property<string>("DefaultErrorCategory")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("default_error_category");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<Guid>("ExamTypeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("exam_type_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_weak_point_catalog");
+
+                    b.HasIndex("ExamTypeId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("ux_weak_point_catalog_exam_code");
+
+                    b.ToTable("weak_point_catalog", (string)null);
                 });
 
             modelBuilder.Entity("DeepLearning.Domain.Entities.WeakPointOccurrence", b =>
@@ -1860,6 +2050,10 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
+                    b.Property<int?>("DetectedBand")
+                        .HasColumnType("integer")
+                        .HasColumnName("detected_band");
+
                     b.Property<Guid?>("ErrorListId")
                         .HasColumnType("uuid")
                         .HasColumnName("error_list_id");
@@ -1869,6 +2063,10 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("is_recurrence");
+
+                    b.Property<string>("Snippet")
+                        .HasColumnType("text")
+                        .HasColumnName("snippet");
 
                     b.Property<Guid>("SubmissionId")
                         .HasColumnType("uuid")
@@ -2043,6 +2241,18 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                     b.Navigation("Submission");
                 });
 
+            modelBuilder.Entity("DeepLearning.Domain.Entities.GradingSummary", b =>
+                {
+                    b.HasOne("DeepLearning.Domain.Entities.Submission", "Submission")
+                        .WithMany()
+                        .HasForeignKey("SubmissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_grading_summaries_submissions_submission_id");
+
+                    b.Navigation("Submission");
+                });
+
             modelBuilder.Entity("DeepLearning.Domain.Entities.KnowledgePoint", b =>
                 {
                     b.HasOne("DeepLearning.Domain.Entities.ExamType", "ExamType")
@@ -2187,6 +2397,12 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("DeepLearning.Domain.Entities.StandardOverride", b =>
                 {
+                    b.HasOne("DeepLearning.Domain.Entities.ExamType", "ExamType")
+                        .WithMany()
+                        .HasForeignKey("ExamTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_standard_overrides_exam_types_exam_type_id");
+
                     b.HasOne("DeepLearning.Domain.Entities.StandardOverride", "PreviousOverride")
                         .WithMany()
                         .HasForeignKey("PreviousOverrideId")
@@ -2204,6 +2420,8 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasForeignKey("TriggeredByFollowupId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_standard_overrides_follow_up_questions_triggered_by_followu");
+
+                    b.Navigation("ExamType");
 
                     b.Navigation("PreviousOverride");
 
@@ -2330,6 +2548,18 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("DeepLearning.Domain.Entities.WeakPoint", b =>
                 {
+                    b.HasOne("DeepLearning.Domain.Entities.WeakPointCatalog", "Catalog")
+                        .WithMany()
+                        .HasForeignKey("CatalogId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_weak_points_weak_point_catalog_catalog_id");
+
+                    b.HasOne("DeepLearning.Domain.Entities.ExamType", null)
+                        .WithMany()
+                        .HasForeignKey("ExamTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_weak_points_exam_types_exam_type_id");
+
                     b.HasOne("DeepLearning.Domain.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
@@ -2337,7 +2567,21 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_weak_points_users_user_id");
 
+                    b.Navigation("Catalog");
+
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DeepLearning.Domain.Entities.WeakPointCatalog", b =>
+                {
+                    b.HasOne("DeepLearning.Domain.Entities.ExamType", "ExamType")
+                        .WithMany()
+                        .HasForeignKey("ExamTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_weak_point_catalog_exam_types_exam_type_id");
+
+                    b.Navigation("ExamType");
                 });
 
             modelBuilder.Entity("DeepLearning.Domain.Entities.WeakPointOccurrence", b =>

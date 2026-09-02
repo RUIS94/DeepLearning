@@ -17,10 +17,23 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
         public Task<WeakPoint?> GetByUserAndCategoryAsync(Guid userId, string category, CancellationToken cancellationToken = default)
             => _context.WeakPoints.FirstOrDefaultAsync(x => x.UserId == userId && x.Category == category, cancellationToken);
 
+        public Task<WeakPoint?> GetByUserAndCatalogAsync(Guid userId, Guid catalogId, CancellationToken cancellationToken = default)
+            => _context.WeakPoints.FirstOrDefaultAsync(x => x.UserId == userId && x.CatalogId == catalogId, cancellationToken);
+
         public Task<List<WeakPoint>> ListByUserAsync(Guid userId, WeakPointStatus? status, CancellationToken cancellationToken = default)
             => _context.WeakPoints
                 .Where(x => x.UserId == userId && (status == null || x.Status == status))
                 .OrderByDescending(x => x.LastSeenAt)
+                .ToListAsync(cancellationToken);
+
+        public Task<List<WeakPoint>> ListActiveWithCatalogByUserAsync(Guid userId, CancellationToken cancellationToken = default)
+            => _context.WeakPoints
+                .Where(x => x.UserId == userId && x.Status == WeakPointStatus.active)
+                .Include(x => x.Catalog)
+                // Priority is declared { high, medium, low } — high is ordinal 0, so ascending
+                // order puts the most urgent first (see AGENTS.md's note on this enum landmine).
+                .OrderBy(x => x.Priority)
+                .ThenByDescending(x => x.LastSeenAt)
                 .ToListAsync(cancellationToken);
 
         public async Task AddAsync(WeakPoint weakPoint, CancellationToken cancellationToken = default)

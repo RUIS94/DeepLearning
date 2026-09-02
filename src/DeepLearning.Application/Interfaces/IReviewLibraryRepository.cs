@@ -22,6 +22,15 @@ namespace DeepLearning.Application.Interfaces
         Task<List<VocabExpression>> ListVocabAsync(
             string? domain, string? scenario, string? frequencyTag, CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Already-accumulated vocab whose <see cref="VocabExpression.CanonicalKey"/> literally
+        /// appears in <paramref name="sourceText"/> — i.e. an expression captured from an earlier
+        /// question that recurs in this one. Fed into the deep learning prompt so it gets
+        /// re-explained in the new context instead of duplicated. Most recent first, capped at
+        /// <paramref name="take"/>.
+        /// </summary>
+        Task<List<VocabExpression>> ListPriorVocabForSourceAsync(string sourceText, int take, CancellationToken cancellationToken = default);
+
         Task<UserPatternReview?> GetUserPatternReviewAsync(Guid userId, Guid patternId, CancellationToken cancellationToken = default);
 
         Task<UserVocabReview?> GetUserVocabReviewAsync(Guid userId, Guid vocabId, CancellationToken cancellationToken = default);

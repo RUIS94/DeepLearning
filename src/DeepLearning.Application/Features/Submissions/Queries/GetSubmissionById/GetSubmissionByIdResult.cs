@@ -14,6 +14,13 @@ namespace DeepLearning.Application.Features.Submissions.Queries.GetSubmissionByI
         string? CumulativeDensityNote,
         decimal? EstimatedPassProbability);
 
+    public record GradingSummaryResult(
+        decimal OverallPassProbability,
+        bool OverallPassBool,
+        bool CumulativeDensityFlag,
+        string? CumulativeDensityNote,
+        string? ConclusionText);
+
     public record ErrorListResultItem(
         Guid Id,
         string? PositionRef,
@@ -35,5 +42,6 @@ namespace DeepLearning.Application.Features.Submissions.Queries.GetSubmissionByI
         DateTimeOffset? SubmittedAt,
         DateTimeOffset CreatedAt,
         List<GradingResultItem> GradingResults,
-        List<ErrorListResultItem> ErrorList);
+        List<ErrorListResultItem> ErrorList,
+        GradingSummaryResult? OverallSummary);
 }
