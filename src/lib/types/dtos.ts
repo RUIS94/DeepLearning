@@ -280,11 +280,24 @@ export interface FollowUpMessageDetail {
   createdAt: string;
 }
 
+/** 对应后端 FollowUpThreadSummary（GET /follow-up-threads?submissionId= 列表项）。firstQuestion 是开头那条用户消息，用于列表里做可读标签。 */
+export interface FollowUpThreadSummary {
+  id: string;
+  status: number;
+  finalVerdict: number | null;
+  standardOverrideId: string | null;
+  messageCount: number;
+  firstQuestion: string;
+  createdAt: string;
+  closedAt: string | null;
+}
+
 /**
  * 对应后端 FollowUpThreadResult（POST /follow-up-threads、POST /follow-up-threads/{id}/messages、
- * POST /follow-up-threads/{id}/close、GET /follow-up-threads/by-submission/{submissionId} 共用同一形状）。
- * 一个 submission 最多一条线程；线程存续期间 submission 停在 under_dispute，finalVerdict/
- * standardOverrideId 只在 status=closed 后才有值。
+ * POST /follow-up-threads/{id}/close、GET /follow-up-threads/{id} 共用同一形状）。
+ * 一个 submission 可有多条线程，但同时只有一条 open；线程存续期间 submission 停在
+ * under_dispute。finalVerdict 为 null 表示这次追问没有质疑任何评判（纯知识咨询）；
+ * standardOverrideId 只在 finalVerdict=user_correct 时有值。
  */
 export interface FollowUpThreadDetail {
   id: string;

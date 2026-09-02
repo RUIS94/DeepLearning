@@ -1,8 +1,9 @@
-import { ApiError, createBrowserApiClient } from "./fetcher";
+import { createBrowserApiClient } from "./fetcher";
 import type {
   AddFollowUpMessageRequest,
   CreateFollowUpThreadRequest,
   FollowUpThreadDetail,
+  FollowUpThreadSummary,
 } from "@/lib/types/dtos";
 
 const api = createBrowserApiClient();
@@ -33,16 +34,11 @@ export async function closeFollowUpThread(
   });
 }
 
-/** 404（该 submission 还没有线程）当作正常态返回 null，不抛错——调用方用 null 渲染"尚未发起追问"。 */
-export async function getFollowUpThreadBySubmission(
-  submissionId: string,
-): Promise<FollowUpThreadDetail | null> {
-  try {
-    return await api<FollowUpThreadDetail>(`/follow-up-threads/by-submission/${submissionId}`);
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) {
-      return null;
-    }
-    throw err;
-  }
+/** 该 submission 的所有追问线程，最新在前；没有则空数组。 */
+export async function listFollowUpThreads(submissionId: string): Promise<FollowUpThreadSummary[]> {
+  return api<FollowUpThreadSummary[]>("/follow-up-threads", { query: { submissionId } });
+}
+
+export async function getFollowUpThread(threadId: string): Promise<FollowUpThreadDetail> {
+  return api<FollowUpThreadDetail>(`/follow-up-threads/${threadId}`);
 }
