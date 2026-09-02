@@ -1,0 +1,55 @@
+# Apply order for the hand-authored SQL scripts in this folder.
+# Consumed by SqlScriptRunner (see `dotnet run --project src/DeepLearning.Api -- sql ...`).
+# One filename per line; blank lines and lines starting with '#' are ignored.
+# Every *.sql file in this folder MUST be listed here exactly once (the runner errors otherwise).
+# When you add a new script, append it at the end.
+#
+# Order is best-effort chronological. It is a valid fresh-DB install order in principle,
+# but the canonical fresh-DB process is still the manual one in 后端进度跟踪.md — this file's
+# real job is: (1) `sql baseline` records all of these as already-applied on an up-to-date DB,
+# (2) `sql apply` then runs only scripts appended below the baselined set.
+
+# --- schema + core seed ---
+schema.sql
+seed_naati_ct_en_zh.sql
+seed_weak_point_catalog_naati_ct.sql
+
+# --- LLM provider settings / models table chain ---
+add_llm_provider_settings.sql
+seed_llm_provider_settings.sql
+add_llm_provider_models.sql
+upgrade_llm_provider_models_schema.sql
+migrate_llm_provider_settings_model_to_catalog.sql
+seed_llm_provider_models.sql
+remove_model_column_from_llm_provider_settings.sql
+
+# --- content-injection prompt templates (Steps 4-9) ---
+add_grading_content_prompt_template.sql
+add_followup_prompt_template.sql
+fix_followup_exam_specific_prompt_template.sql
+add_followup_thread_history_prompt_template.sql
+add_followup_summary_prompt_template.sql
+add_deep_learning_prompt_template.sql
+add_followup_reference_translation_content.sql
+add_taskb_question_gen_prompt_template.sql
+add_seed_reference_question_gen_prompt_template.sql
+add_weak_point_targeting_question_gen_prompt_template.sql
+add_progress_trend_prompt_template.sql
+
+# --- 2026-09-01 / 09-02 fixes ---
+fix_grading_dimension_key_prompt_template.sql
+add_paragraphed_source_text_question_gen_prompt_template.sql
+fix_grading_source_title_and_probability_prompt_template.sql
+
+# --- B1-B5 round (2026-09-02) ---
+fix_grading_inject_weak_points_and_overrides_prompt_template.sql
+fix_question_gen_english_source_title_prompt_template.sql
+add_topic_distribution_generation_policy.sql
+add_question_gen_topic_hint_prompt_template.sql
+improve_deep_learning_vocab_and_patterns_prompt_template.sql
+improve_deep_learning_dedup_prompt_template.sql
+add_weak_point_classification_prompt_template.sql
+add_question_gen_naati_background_prompt_template.sql
+
+# --- 2026-09-02 / 09-03: question_gen collapse to one row (must stay last of the question_gen scripts) ---
+consolidate_question_gen_prompt_templates.sql

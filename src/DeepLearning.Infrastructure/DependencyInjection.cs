@@ -26,6 +26,14 @@ namespace DeepLearning.Infrastructure
 
             services.AddScoped<IUnitOfWork, UnitOfWork>();
 
+            // Hand-authored Persistence/Sql/*.sql runner — only invoked by the `sql` CLI verb in
+            // Program.cs, never during normal request handling.
+            services.AddSingleton<Persistence.Sql.ISqlScriptSource, Persistence.Sql.EmbeddedSqlScriptSource>();
+            services.AddScoped(sp => new Persistence.Sql.SqlScriptRunner(
+                connectionString,
+                sp.GetRequiredService<Persistence.Sql.ISqlScriptSource>(),
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Persistence.Sql.SqlScriptRunner>>()));
+
             services.AddScoped<IExamTypeRepository, ExamTypeRepository>();
             services.AddScoped<IAssessmentDimensionRepository, AssessmentDimensionRepository>();
             services.AddScoped<IErrorTaxonomyRepository, ErrorTaxonomyRepository>();

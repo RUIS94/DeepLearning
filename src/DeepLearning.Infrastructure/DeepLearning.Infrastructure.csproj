@@ -10,6 +10,15 @@
     <Folder Include="Common\" />
   </ItemGroup>
 
+  <!-- Hand-authored DB scripts + their apply-order manifest, embedded so SqlScriptRunner
+       can read them at runtime (they are NOT EF migrations and nothing else references them). -->
+  <ItemGroup>
+    <None Remove="Persistence\Sql\*.sql" />
+    <None Remove="Persistence\Sql\_manifest.txt" />
+    <EmbeddedResource Include="Persistence\Sql\*.sql" />
+    <EmbeddedResource Include="Persistence\Sql\_manifest.txt" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Hangfire.AspNetCore" Version="1.8.25" />
     <PackageReference Include="Hangfire.Core" Version="1.8.25" />

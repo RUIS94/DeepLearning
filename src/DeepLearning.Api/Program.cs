@@ -75,6 +75,14 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 var app = builder.Build();
 
+// One-off CLI: `dotnet run --project src/DeepLearning.Api -- sql <status|baseline|apply>`.
+// Runs the hand-authored Persistence/Sql/*.sql scripts (see SqlCli / SqlScriptRunner) and exits
+// without starting the web host.
+if (args is ["sql", var sqlVerb, ..])
+{
+    return await DeepLearning.Api.SqlCli.RunAsync(sqlVerb, app.Services);
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -114,6 +122,7 @@ RecurringJob.AddOrUpdate<ProgressSnapshotJob>(
     Cron.Weekly);
 
 app.Run();
+return 0;
 
 public partial class Program
 {
