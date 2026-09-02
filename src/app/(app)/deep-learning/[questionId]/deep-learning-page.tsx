@@ -105,7 +105,14 @@ function SentencePatternCard({ p }: { p: SentencePattern }) {
 function VocabCard({ v }: { v: VocabExpression }) {
   return (
     <div className="rounded-lg border border-border p-4">
-      <p className="text-sm font-medium">{v.englishExpr}</p>
+      <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+        {v.englishExpr}
+        {v.literalTranslatable === false ? (
+          <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning-foreground">
+            不可机械直译
+          </span>
+        ) : null}
+      </p>
       {v.chineseEquiv ? <p className="mt-1 text-sm text-primary">{v.chineseEquiv}</p> : null}
       {v.contextNote ? (
         <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{v.contextNote}</p>
@@ -131,6 +138,14 @@ export function DeepLearningPage() {
     queryKey: ["deep-learning", questionId],
     queryFn: () => generateDeepLearning(questionId, examType.data!.id),
     enabled: !!examType.data,
+    // 这个 queryFn 会触发一次真实的 AI 生成（后端自身已重试 3 次），失败后前端不该再
+    // 自动重试 3 次——那会变成 4×3=12 次昂贵调用。成功即长期有效（后端按题缓存）。
+    retry: 1,
+    retryDelay: 3000,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   // 追问 popup 与「当前提交」绑定——即本题最近一次提交。上一步（批改页）发起的追问用的是

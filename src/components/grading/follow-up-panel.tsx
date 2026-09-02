@@ -145,10 +145,7 @@ export function FollowUpPanel({
       </Button>
       <SidePanel open={open} onOpenChange={setOpen}>
         <SidePanelContent width="30rem">
-          <SidePanelHeader
-            title="追问"
-            description="请在此处提出任何疑问。"
-          />
+          <SidePanelHeader title="追问" description="请在此处提出任何疑问。" />
           <SidePanelBody className="flex flex-col gap-4">
             {threads.data && threads.data.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">

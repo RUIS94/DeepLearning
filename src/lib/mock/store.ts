@@ -1013,6 +1013,7 @@ export async function createSubmission(
     createdAt: now,
     gradingResults: [],
     errorList: [],
+    overallSummary: null,
   };
   submissions.set(submission.id, submission);
   // 对应后端 CreateSubmissionResult——刻意很薄，完整详情要另外 GET /submissions/{id}。
@@ -1123,6 +1124,14 @@ export async function gradeSubmission(
         suggestion: "补上「并致电本中心」。",
       },
     ],
+    overallSummary: {
+      overallPassProbability: 0.23,
+      overallPassBool: false,
+      cumulativeDensityFlag: true,
+      cumulativeDensityNote:
+        "meaning_transfer 维度多处轻中度问题叠加，累积密度已构成独立的降级风险。",
+      conclusionText: null,
+    },
   };
   submissions.set(id, graded);
   // 对应后端 GradeSubmissionResult——只有计数，评分结果需要调用方再 GET 一次 /submissions/{id}
@@ -1298,6 +1307,7 @@ export async function generateDeepLearning(
         domain: "医疗健康",
         scenario: "公告通知",
         frequencyTag: "中频",
+        literalTranslatable: false,
       },
       {
         id: "ve-2",
@@ -1308,6 +1318,7 @@ export async function generateDeepLearning(
         domain: "医疗健康",
         scenario: "信函往来",
         frequencyTag: "中频",
+        literalTranslatable: true,
       },
       {
         id: "ve-3",
@@ -1318,6 +1329,7 @@ export async function generateDeepLearning(
         domain: "商务财经",
         scenario: "公告通知",
         frequencyTag: "高频",
+        literalTranslatable: true,
       },
     ],
   };

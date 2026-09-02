@@ -186,6 +186,11 @@ export function AnswerPage() {
               <CardTitle className="text-base">原文</CardTitle>
             </CardHeader>
             <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+              {q.title?.trim() ? (
+                <h2 className="text-[15px] font-semibold leading-snug text-foreground">
+                  {q.title}
+                </h2>
+              ) : null}
               <ArticleText text={q.sourceText} className="text-[15px]" />
             </CardContent>
           </Card>

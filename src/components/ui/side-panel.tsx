@@ -70,12 +70,7 @@ function SidePanelHeader({
   showClose?: boolean;
 }) {
   return (
-    <div
-      className={cn(
-        "flex shrink-0 items-start justify-between gap-4 px-6 py-4",
-        className,
-      )}
-    >
+    <div className={cn("flex shrink-0 items-start justify-between gap-4 px-6 py-4", className)}>
       <div className="min-w-0 space-y-1">
         <DialogPrimitive.Title className="text-base font-semibold leading-tight tracking-tight">
           {title}
@@ -106,10 +101,7 @@ function SidePanelBody({ className, ...props }: React.HTMLAttributes<HTMLDivElem
 function SidePanelFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn(
-        "flex shrink-0 items-center justify-end gap-2 px-6 py-4",
-        className,
-      )}
+      className={cn("flex shrink-0 items-center justify-end gap-2 px-6 py-4", className)}
       {...props}
     />
   );

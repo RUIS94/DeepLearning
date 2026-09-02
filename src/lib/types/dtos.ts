@@ -215,6 +215,15 @@ export interface ErrorListItem {
   suggestion: string | null;
 }
 
+/** 对应后端 GradingSummaryResult ——整篇译文的总体判断，位于各维度评分之上。 */
+export interface GradingSummary {
+  overallPassProbability: number;
+  overallPassBool: boolean;
+  cumulativeDensityFlag: boolean;
+  cumulativeDensityNote: string | null;
+  conclusionText: string | null;
+}
+
 export interface SubmissionDetail {
   id: string;
   questionId: string;
@@ -226,6 +235,7 @@ export interface SubmissionDetail {
   createdAt: string;
   gradingResults: GradingResultItem[];
   errorList: ErrorListItem[];
+  overallSummary: GradingSummary | null;
 }
 
 export interface CreateFollowUpQuestionRequest {
@@ -360,6 +370,8 @@ export interface VocabExpression {
   domain: string | null;
   scenario: string | null;
   frequencyTag: string | null;
+  /** false = 习语/比喻等不可机械直译；true = 可直译；null = 未判定。 */
+  literalTranslatable: boolean | null;
 }
 
 export interface DeepLearningContent {

@@ -62,8 +62,46 @@ function DimensionBandRow({
 }
 
 export function GradingResultPanel({ submission }: { submission: SubmissionDetail }) {
+  const summary = submission.overallSummary;
   return (
     <div className="space-y-6">
+      {summary ? (
+        <Card className="border-border shadow-none">
+          <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-2 py-4">
+            <div>
+              <p className="text-xs text-muted-foreground">总体预估通过率</p>
+              <p className="text-numeric text-2xl font-semibold">
+                {Math.round(
+                  (summary.overallPassProbability > 1
+                    ? summary.overallPassProbability / 100
+                    : summary.overallPassProbability) * 100,
+                )}
+                %
+              </p>
+            </div>
+            <Badge
+              variant="outline"
+              className={cn(
+                "border-transparent",
+                summary.overallPassBool
+                  ? "bg-success/12 text-success"
+                  : "bg-destructive/12 text-destructive",
+              )}
+            >
+              {summary.overallPassBool ? "整体达标" : "整体未达标"}
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              需全部维度达标方为通过（估算值，非官方）
+            </span>
+            {summary.cumulativeDensityNote ? (
+              <p className="inline-flex w-full items-start gap-1.5 rounded-md bg-warning/15 px-2.5 py-1.5 text-xs text-warning-foreground">
+                <Flame className="mt-0.5 size-3.5 shrink-0" />
+                {summary.cumulativeDensityNote}
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
       <Card className="border-border shadow-none">
         <CardHeader>
           <CardTitle className="text-base">
