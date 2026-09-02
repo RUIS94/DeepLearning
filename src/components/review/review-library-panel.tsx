@@ -1,31 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  listReviewPatterns,
-  listReviewVocab,
-  reviewPattern,
-  reviewVocabItem,
-} from "@/lib/api/review-library";
+import { useReviewLibrary } from "@/components/review/use-review-library";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { MasteryLevel, MasteryLevelLabel } from "@/lib/types/enums";
 import { formatDate } from "@/lib/band";
 
 const ALL = "all";
+
+type ReviewRow = {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  subtitleClassName: string;
+  domain: string | null;
+  scenario: string | null;
+  frequencyTag: string | null;
+  timesEncountered: number;
+  lastReviewedAt: string | null;
+  questionId: string | null;
+  masteryLevel: number;
+};
 
 function MasteryPicker({
   value,
@@ -53,167 +52,97 @@ function MasteryPicker({
   );
 }
 
-export function ReviewLibraryPanel() {
-  const queryClient = useQueryClient();
-  const [mastery, setMastery] = useState(ALL);
-  const [domain, setDomain] = useState(ALL);
+export function ReviewLibraryList({
+  kind,
+  mastery,
+  domain,
+}: {
+  kind: "patterns" | "vocab";
+  mastery: string;
+  domain: string;
+}) {
   const currentUser = useCurrentUser();
-  const userId = currentUser.data?.id;
+  const { patterns, vocab, markPattern, markVocab } = useReviewLibrary(currentUser.data?.id);
 
-  const patterns = useQuery({
-    queryKey: ["review-patterns", userId],
-    queryFn: () => listReviewPatterns(userId!),
-    enabled: !!userId,
-  });
-  const vocab = useQuery({
-    queryKey: ["review-vocab", userId],
-    queryFn: () => listReviewVocab(userId!),
-    enabled: !!userId,
-  });
+  const query = kind === "patterns" ? patterns : vocab;
+  const markPending = kind === "patterns" ? markPattern.isPending : markVocab.isPending;
+  const mark = (id: string, level: number) => {
+    if (kind === "patterns") markPattern.mutate({ id, level });
+    else markVocab.mutate({ id, level });
+  };
 
-  const markPattern = useMutation({
-    mutationFn: (v: { id: string; level: number }) => reviewPattern(userId!, v.id, v.level),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["review-patterns"] }),
-  });
-  const markVocab = useMutation({
-    mutationFn: (v: { id: string; level: number }) => reviewVocabItem(userId!, v.id, v.level),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["review-vocab"] }),
-  });
+  const rows: ReviewRow[] =
+    kind === "patterns"
+      ? (patterns.data ?? []).map((p) => ({
+          id: p.id,
+          title: p.patternName,
+          subtitle: p.exampleSentence,
+          subtitleClassName: "source-text text-sm text-muted-foreground",
+          domain: p.domain,
+          scenario: p.scenario,
+          frequencyTag: p.frequencyTag,
+          timesEncountered: p.timesEncountered,
+          lastReviewedAt: p.lastReviewedAt,
+          questionId: p.questionId,
+          masteryLevel: p.masteryLevel,
+        }))
+      : (vocab.data ?? []).map((v) => ({
+          id: v.id,
+          title: v.englishExpr,
+          subtitle: v.chineseEquiv,
+          subtitleClassName: "text-sm text-primary",
+          domain: v.domain,
+          scenario: v.scenario,
+          frequencyTag: v.frequencyTag,
+          timesEncountered: v.timesEncountered,
+          lastReviewedAt: v.lastReviewedAt,
+          questionId: v.questionId,
+          masteryLevel: v.masteryLevel,
+        }));
 
-  const domains = Array.from(
-    new Set([...(patterns.data ?? []), ...(vocab.data ?? [])].map((i) => i.domain).filter(Boolean)),
-  ) as string[];
+  const filtered = rows
+    .filter((r) => (mastery === ALL ? true : r.masteryLevel === Number(mastery)))
+    .filter((r) => (domain === ALL ? true : r.domain === domain));
 
-  const filter = <T extends { masteryLevel: number; domain: string | null }>(items: T[]) =>
-    items
-      .filter((i) => (mastery === ALL ? true : i.masteryLevel === Number(mastery)))
-      .filter((i) => (domain === ALL ? true : i.domain === domain));
+  if (query.isPending) {
+    return <Skeleton className="h-40 w-full rounded-xl" />;
+  }
 
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap gap-3">
-        <Select value={mastery} onValueChange={setMastery}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="掌握程度" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>全部掌握程度</SelectItem>
-            {Object.values(MasteryLevel).map((level) => (
-              <SelectItem key={level} value={String(level)}>
-                {MasteryLevelLabel[level]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={domain} onValueChange={setDomain}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="题材" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>全部题材</SelectItem>
-            {domains.map((d) => (
-              <SelectItem key={d} value={d}>
-                {d}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Tabs defaultValue="patterns">
-        <TabsList>
-          <TabsTrigger value="patterns">句型</TabsTrigger>
-          <TabsTrigger value="vocab">词汇表达</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="patterns" className="mt-6 space-y-4">
-          {patterns.isPending ? (
-            <Skeleton className="h-40 w-full rounded-xl" />
-          ) : (
-            filter(patterns.data ?? []).map((p) => (
-              <Card key={p.id} className="border-border shadow-none">
-                <CardContent className="flex flex-wrap items-start justify-between gap-4 p-5">
-                  <div className="min-w-64 flex-1 space-y-2">
-                    <p className="text-sm font-medium">{p.patternName}</p>
-                    <p className="source-text text-sm text-muted-foreground">{p.exampleSentence}</p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {[p.domain, p.scenario, p.frequencyTag].filter(Boolean).map((t) => (
-                        <Badge
-                          key={t}
-                          variant="outline"
-                          className="border-border text-muted-foreground"
-                        >
-                          {t}
-                        </Badge>
-                      ))}
-                      <span className="text-numeric text-xs text-muted-foreground">
-                        遇见 {p.timesEncountered} 次 · 上次复习 {formatDate(p.lastReviewedAt)}
-                      </span>
-                      {p.questionId ? (
-                        <Link
-                          href={`/practice/${p.questionId}`}
-                          className="text-xs text-primary underline underline-offset-2"
-                        >
-                          回到原题
-                        </Link>
-                      ) : null}
-                    </div>
-                  </div>
-                  <MasteryPicker
-                    value={p.masteryLevel}
-                    pending={markPattern.isPending}
-                    onChange={(level) => markPattern.mutate({ id: p.id, level })}
-                  />
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
-
-        <TabsContent value="vocab" className="mt-6 space-y-4">
-          {vocab.isPending ? (
-            <Skeleton className="h-40 w-full rounded-xl" />
-          ) : (
-            filter(vocab.data ?? []).map((v) => (
-              <Card key={v.id} className="border-border shadow-none">
-                <CardContent className="flex flex-wrap items-start justify-between gap-4 p-5">
-                  <div className="min-w-64 flex-1 space-y-2">
-                    <p className="text-sm font-medium">{v.englishExpr}</p>
-                    <p className="text-sm text-primary">{v.chineseEquiv}</p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {[v.domain, v.scenario, v.frequencyTag].filter(Boolean).map((t) => (
-                        <Badge
-                          key={t}
-                          variant="outline"
-                          className="border-border text-muted-foreground"
-                        >
-                          {t}
-                        </Badge>
-                      ))}
-                      <span className="text-numeric text-xs text-muted-foreground">
-                        遇见 {v.timesEncountered} 次 · 上次复习 {formatDate(v.lastReviewedAt)}
-                      </span>
-                      {v.questionId ? (
-                        <Link
-                          href={`/practice/${v.questionId}`}
-                          className="text-xs text-primary underline underline-offset-2"
-                        >
-                          回到原题
-                        </Link>
-                      ) : null}
-                    </div>
-                  </div>
-                  <MasteryPicker
-                    value={v.masteryLevel}
-                    pending={markVocab.isPending}
-                    onChange={(level) => markVocab.mutate({ id: v.id, level })}
-                  />
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
-      </Tabs>
+    <div className="space-y-4">
+      {filtered.map((r) => (
+        <Card key={r.id} className="border-border shadow-none">
+          <CardContent className="flex flex-wrap items-start justify-between gap-4 p-5">
+            <div className="min-w-64 flex-1 space-y-2">
+              <p className="text-sm font-medium">{r.title}</p>
+              <p className={r.subtitleClassName}>{r.subtitle}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {[r.domain, r.scenario, r.frequencyTag].filter(Boolean).map((t) => (
+                  <Badge key={t} variant="outline" className="border-border text-muted-foreground">
+                    {t}
+                  </Badge>
+                ))}
+                <span className="text-numeric text-xs text-muted-foreground">
+                  遇见 {r.timesEncountered} 次 · 上次复习 {formatDate(r.lastReviewedAt)}
+                </span>
+                {r.questionId ? (
+                  <Link
+                    href={`/practice/${r.questionId}`}
+                    className="text-xs text-primary underline underline-offset-2"
+                  >
+                    回到原题
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+            <MasteryPicker
+              value={r.masteryLevel}
+              pending={markPending}
+              onChange={(level) => mark(r.id, level)}
+            />
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
