@@ -107,12 +107,16 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
   onChanged,
   renderExpanded,
   deleteConfirm,
+  lockOnEdit,
+  title,
   dialogTitle = "新建",
   editDialogTitle = "编辑",
   createButtonLabel = "新建",
   emptyMessage = "暂无数据",
   hideCreate = false,
 }: {
+  /** 表格上方的标题（如分组名），与「新建」按钮同行显示；不传则只显示按钮（旧行为）。 */
+  title?: ReactNode;
   columns: CrudColumn<TItem>[];
   items: TItem[] | undefined;
   isLoading: boolean;
@@ -129,6 +133,11 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
   onChanged?: () => void;
   renderExpanded?: (item: TItem) => ReactNode;
   deleteConfirm?: (item: TItem) => { title: string; description?: string };
+  /**
+   * 编辑时禁用（置灰）的字段名。后端 PUT 只更新部分字段时用——否则用户改了这些字段、
+   * 点保存、什么都没发生，很困惑（见 prompt-templates-panel 的 examTypeId/layer 等）。
+   */
+  lockOnEdit?: Path<TFormValues>[];
   dialogTitle?: string;
   editDialogTitle?: string;
   createButtonLabel?: string;
@@ -163,8 +172,9 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
 
   async function handleSubmit(values: TFormValues) {
     setSubmitError(null);
+    const editing = mode !== "closed" && mode !== "create";
     try {
-      if (mode !== "closed" && mode !== "create") {
+      if (editing) {
         await onUpdate!(getRowId(mode.edit), values);
       } else {
         const created = await onCreate(values);
@@ -172,9 +182,31 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
       }
       onChanged?.();
       closeDialog();
+      showToast({ variant: "success", title: editing ? "已保存" : "已创建" });
     } catch (err) {
       setSubmitError(err);
+      const msg =
+        err instanceof ApiError ? (err.problem?.title ?? `保存失败（${err.status}）`) : "保存失败";
+      showToast({ variant: "error", title: "无法保存", description: msg });
     }
+  }
+
+  // zodResolver 校验不通过时 handleSubmit 根本不会被调用——不给个 toast 的话，用户点了
+  // 「确认」会像什么都没发生（错误只在对应字段下方一行小字，弹窗滚动区里很容易看不到）。
+  function handleInvalid(formErrors: Record<string, { message?: string } | undefined>) {
+    const first = Object.entries(formErrors).find(([, e]) => e?.message);
+    const fieldLabel = first
+      ? (fields.find((f) => f.name === first[0])?.label ?? first[0])
+      : undefined;
+    showToast({
+      variant: "error",
+      title: "表单校验未通过",
+      description: first?.[1]?.message
+        ? fieldLabel
+          ? `${fieldLabel}：${first[1]!.message}`
+          : first[1]!.message
+        : "请检查各字段填写是否正确。",
+    });
   }
 
   async function confirmDelete() {
@@ -193,7 +225,17 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
 
   return (
     <div className="space-y-4">
-      {!hideCreate ? (
+      {title ? (
+        <div className="flex items-center justify-between gap-4">
+          {title}
+          {!hideCreate ? (
+            <Button onClick={openCreate}>
+              <PlusCircle className="size-4" />
+              {createButtonLabel}
+            </Button>
+          ) : null}
+        </div>
+      ) : !hideCreate ? (
         <div className="flex justify-end">
           <Button onClick={openCreate}>
             <PlusCircle className="size-4" />
@@ -203,27 +245,44 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
       ) : null}
 
       <Dialog open={mode !== "closed"} onOpenChange={(next) => (next ? null : closeDialog())}>
-        <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[85vh] max-w-lg flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle>
               {mode !== "closed" && mode !== "create" ? editDialogTitle : dialogTitle}
             </DialogTitle>
           </DialogHeader>
-          <form className="space-y-4" onSubmit={form.handleSubmit(handleSubmit)}>
-            {fields.map((field) => (
-              <div key={field.name} className="space-y-2">
-                {field.kind !== "switch" ? <Label htmlFor={field.name}>{field.label}</Label> : null}
-                <CrudFieldControl field={field} form={form} />
-                {field.description ? (
-                  <p className="text-xs text-muted-foreground">{field.description}</p>
-                ) : null}
-                {errors[field.name]?.message ? (
-                  <p className="text-xs text-destructive">{errors[field.name]!.message}</p>
-                ) : null}
-              </div>
-            ))}
-            {submitError ? <ErrorBanner error={submitError} /> : null}
-            <DialogFooter>
+          <form
+            className="flex min-h-0 flex-1 flex-col gap-4"
+            onSubmit={form.handleSubmit(handleSubmit, (formErrors) =>
+              handleInvalid(formErrors as Record<string, { message?: string } | undefined>),
+            )}
+          >
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+              {fields.map((field) => {
+                const locked =
+                  mode !== "closed" && mode !== "create" && !!lockOnEdit?.includes(field.name);
+                return (
+                  <div key={field.name} className="space-y-2">
+                    {field.kind !== "switch" ? (
+                      <Label htmlFor={field.name}>{field.label}</Label>
+                    ) : null}
+                    <CrudFieldControl field={field} form={form} disabled={locked} />
+                    {locked ? (
+                      <p className="text-xs text-muted-foreground">
+                        此字段不可编辑；如需更改请新建模板并停用旧行。
+                      </p>
+                    ) : field.description ? (
+                      <p className="text-xs text-muted-foreground">{field.description}</p>
+                    ) : null}
+                    {errors[field.name]?.message ? (
+                      <p className="text-xs text-destructive">{errors[field.name]!.message}</p>
+                    ) : null}
+                  </div>
+                );
+              })}
+              {submitError ? <ErrorBanner error={submitError} /> : null}
+            </div>
+            <DialogFooter className="shrink-0">
               <Button type="submit" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting ? "提交中…" : "确认"}
               </Button>
@@ -348,15 +407,18 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
 function CrudFieldControl<TFormValues extends FieldValues>({
   field,
   form,
+  disabled = false,
 }: {
   field: CrudField<TFormValues>;
   form: UseFormReturn<TFormValues>;
+  disabled?: boolean;
 }) {
   if (field.kind === "text" || field.kind === "date") {
     return (
       <Input
         id={field.name}
         type={field.kind === "date" ? "date" : "text"}
+        disabled={disabled}
         placeholder={field.kind === "text" ? field.placeholder : undefined}
         {...form.register(field.name)}
       />
@@ -367,6 +429,7 @@ function CrudFieldControl<TFormValues extends FieldValues>({
       <Textarea
         id={field.name}
         rows={field.rows ?? 4}
+        disabled={disabled}
         placeholder={field.placeholder}
         {...form.register(field.name)}
       />
@@ -377,6 +440,7 @@ function CrudFieldControl<TFormValues extends FieldValues>({
       <Input
         id={field.name}
         type="number"
+        disabled={disabled}
         {...form.register(field.name, { valueAsNumber: true })}
       />
     );
@@ -389,7 +453,12 @@ function CrudFieldControl<TFormValues extends FieldValues>({
         render={({ field: { value, onChange } }) => (
           <div className="flex items-center justify-between rounded-lg border border-border p-3">
             <Label htmlFor={field.name}>{field.label}</Label>
-            <Switch id={field.name} checked={Boolean(value)} onCheckedChange={onChange} />
+            <Switch
+              id={field.name}
+              disabled={disabled}
+              checked={Boolean(value)}
+              onCheckedChange={onChange}
+            />
           </div>
         )}
       />
@@ -401,6 +470,7 @@ function CrudFieldControl<TFormValues extends FieldValues>({
       name={field.name}
       render={({ field: { value, onChange } }) => (
         <Select
+          disabled={disabled}
           {...(value === null || value === undefined ? {} : { value: String(value) })}
           onValueChange={(v) => onChange(field.valueType === "number" ? Number(v) : v)}
         >

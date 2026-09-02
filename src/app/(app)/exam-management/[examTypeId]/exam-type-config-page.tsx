@@ -25,8 +25,13 @@ export function ExamTypeConfigPage() {
       back
       backHref="/exam-management"
     >
-      <Tabs defaultValue="dimensions">
-        <TabsList className="flex-wrap">
+      {/* lg 及以上：整页锁视口，TabsList 固定不滚动，只有当前 Tab 的内容区滚动
+          （见 AGENTS.md 的 full-height 分层规则）；lg 以下沿用 PageShell body 的整页滚动。 */}
+      <Tabs
+        defaultValue="dimensions"
+        className="flex min-h-0 flex-col gap-6 lg:h-full lg:overflow-hidden"
+      >
+        <TabsList className="shrink-0 self-start flex-wrap">
           <TabsTrigger value="dimensions">评分维度</TabsTrigger>
           <TabsTrigger value="error-taxonomies">错误分类</TabsTrigger>
           <TabsTrigger value="categories">题库分类</TabsTrigger>
@@ -34,19 +39,19 @@ export function ExamTypeConfigPage() {
           <TabsTrigger value="standard-overrides">标准修正</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="dimensions" className="mt-6">
+        <TabsContent value="dimensions" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
           <DimensionsPanel examTypeId={examTypeId} />
         </TabsContent>
-        <TabsContent value="error-taxonomies" className="mt-6">
+        <TabsContent value="error-taxonomies" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
           <ErrorTaxonomiesPanel examTypeId={examTypeId} />
         </TabsContent>
-        <TabsContent value="categories" className="mt-6">
+        <TabsContent value="categories" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
           <CategoriesPanel />
         </TabsContent>
-        <TabsContent value="prompt-templates" className="mt-6">
+        <TabsContent value="prompt-templates" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
           <PromptTemplatesPanel />
         </TabsContent>
-        <TabsContent value="standard-overrides" className="mt-6">
+        <TabsContent value="standard-overrides" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
           <StandardOverridesPanel />
         </TabsContent>
       </Tabs>

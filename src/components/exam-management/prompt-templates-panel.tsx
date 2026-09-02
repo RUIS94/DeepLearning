@@ -1,9 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CrudTable, type CrudColumn, type CrudField } from "@/components/admin/crud-table";
-import { EnumSelect } from "@/components/shared/enum-select";
 import { Badge } from "@/components/ui/badge";
 import {
   createPromptTemplate,
@@ -16,13 +14,15 @@ import { AiOperationTypeLabel, SubjectCategoryLabel, TemplateLayerLabel } from "
 import { promptTemplateFormSchema, type PromptTemplateFormInput } from "@/lib/validation/admin";
 import type { PromptTemplate } from "@/lib/types/dtos";
 
-const columns: CrudColumn<PromptTemplate>[] = [
-  {
-    key: "templateType",
-    header: "用途",
-    render: (t) => <Badge variant="outline">{AiOperationTypeLabel[t.templateType]}</Badge>,
-  },
+// 「用途」不再单独成列——每个 templateType 拆成一张独立的表，用途写在小标题上。
+const buildColumns = (examTypeName: (id: string) => string): CrudColumn<PromptTemplate>[] => [
   { key: "layer", header: "层级", render: (t) => TemplateLayerLabel[t.layer] },
+  {
+    key: "examType",
+    header: "考试类型",
+    render: (t) =>
+      t.examTypeId ? examTypeName(t.examTypeId) : <span className="text-muted-foreground">—</span>,
+  },
   {
     key: "scope",
     header: "关联",
@@ -56,20 +56,26 @@ const defaultValues: PromptTemplateFormInput = {
   isActive: true,
 };
 
+// 稳定顺序：按枚举值升序展示各用途分组。
+const templateTypeGroups = Object.entries(AiOperationTypeLabel)
+  .map(([value, label]) => ({ value: Number(value), label }))
+  .sort((a, b) => a.value - b.value);
+
 export function PromptTemplatesPanel() {
   const queryClient = useQueryClient();
   const examTypes = useQuery({ queryKey: ["admin", "exam-types"], queryFn: listExamTypes });
-  const [templateType, setTemplateType] = useState<number | "all">("all");
 
-  const listKey = ["admin", "prompt-templates", templateType];
+  const listKey = ["admin", "prompt-templates"];
   const templates = useQuery({
     queryKey: listKey,
     // 不传 isActive -> 后端返回全部(含停用)，管理页需要看得到停用的行
-    queryFn: () =>
-      listPromptTemplates({ templateType: templateType === "all" ? undefined : templateType }),
+    queryFn: () => listPromptTemplates(),
   });
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["admin", "prompt-templates"] });
+
+  const examTypeName = (id: string) => (examTypes.data ?? []).find((e) => e.id === id)?.name ?? id;
+  const columns = buildColumns(examTypeName);
 
   const fields: CrudField<PromptTemplateFormInput>[] = [
     {
@@ -115,63 +121,67 @@ export function PromptTemplatesPanel() {
     { name: "isActive", label: "启用", kind: "switch" },
   ];
 
+  const allTemplates = templates.data;
+
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <EnumSelect
-          labels={AiOperationTypeLabel}
-          value={templateType}
-          onChange={setTemplateType}
-          allowAll
-          allLabel="全部用途"
-          placeholder="用途"
-          className="w-36"
-        />
-      </div>
-      <CrudTable
-        columns={columns}
-        items={templates.data}
-        isLoading={templates.isPending}
-        loadError={templates.error}
-        getRowId={(t) => t.id}
-        schema={promptTemplateFormSchema}
-        fields={fields}
-        defaultValues={defaultValues}
-        dialogTitle="新建 Prompt 模板"
-        onCreate={(values) =>
-          createPromptTemplate({
-            examTypeId: values.examTypeId || null,
-            subjectCategory:
-              values.subjectCategory === -1 ? null : (values.subjectCategory ?? null),
-            templateType: values.templateType,
-            layer: values.layer,
-            templateContent: values.templateContent,
-            version: values.version,
-          })
-        }
-        toFormValues={(t) => ({
-          examTypeId: t.examTypeId ?? "",
-          subjectCategory: t.subjectCategory ?? -1,
-          templateType: t.templateType,
-          layer: t.layer,
-          templateContent: t.templateContent,
-          version: t.version,
-          isActive: t.isActive,
-        })}
-        onUpdate={(id, values) =>
-          updatePromptTemplate(id, {
-            templateContent: values.templateContent,
-            version: values.version,
-            isActive: values.isActive ?? true,
-          })
-        }
-        onDelete={(id) => deletePromptTemplate(id)}
-        deleteConfirm={() => ({
-          title: "删除这条 Prompt 模板？",
-          description: "硬删除，不可撤销。若只是想停用，改用「编辑」把「启用」关掉。",
-        })}
-        onChanged={invalidate}
-      />
+    <div className="space-y-6">
+      {templateTypeGroups.map((group) => (
+        <section key={group.value}>
+          <CrudTable
+            title={<h3 className="text-sm font-semibold">{group.label}</h3>}
+            columns={columns}
+            items={
+              allTemplates ? allTemplates.filter((t) => t.templateType === group.value) : undefined
+            }
+            isLoading={templates.isPending}
+            loadError={templates.error}
+            getRowId={(t) => t.id}
+            schema={promptTemplateFormSchema}
+            fields={fields}
+            // 后端 PUT /prompt-templates/{id} 只更新 templateContent/version/isActive，
+            // 关联与用途/分层改了也不会生效——编辑时置灰，避免用户白改一场。
+            lockOnEdit={["examTypeId", "subjectCategory", "templateType", "layer"]}
+            // 从某个分组点「新建」时，预选对应用途。
+            defaultValues={{ ...defaultValues, templateType: group.value }}
+            dialogTitle={`新建 ${group.label} Prompt 模板`}
+            createButtonLabel="新建"
+            emptyMessage={`暂无「${group.label}」模板`}
+            onCreate={(values) =>
+              createPromptTemplate({
+                examTypeId: values.examTypeId || null,
+                subjectCategory:
+                  values.subjectCategory === -1 ? null : (values.subjectCategory ?? null),
+                templateType: values.templateType,
+                layer: values.layer,
+                templateContent: values.templateContent,
+                version: values.version,
+              })
+            }
+            toFormValues={(t) => ({
+              examTypeId: t.examTypeId ?? "",
+              subjectCategory: t.subjectCategory ?? -1,
+              templateType: t.templateType,
+              layer: t.layer,
+              templateContent: t.templateContent,
+              version: t.version,
+              isActive: t.isActive,
+            })}
+            onUpdate={(id, values) =>
+              updatePromptTemplate(id, {
+                templateContent: values.templateContent,
+                version: values.version,
+                isActive: values.isActive ?? true,
+              })
+            }
+            onDelete={(id) => deletePromptTemplate(id)}
+            deleteConfirm={() => ({
+              title: "删除这条 Prompt 模板？",
+              description: "硬删除，不可撤销。若只是想停用，改用「编辑」把「启用」关掉。",
+            })}
+            onChanged={invalidate}
+          />
+        </section>
+      ))}
     </div>
   );
 }
