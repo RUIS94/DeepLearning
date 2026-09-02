@@ -3,7 +3,8 @@ using DeepLearning.Application.Features.FollowUpThreads;
 using DeepLearning.Application.Features.FollowUpThreads.Commands.AddFollowUpMessage;
 using DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollowUpThread;
 using DeepLearning.Application.Features.FollowUpThreads.Commands.CreateFollowUpThread;
-using DeepLearning.Application.Features.FollowUpThreads.Queries.GetFollowUpThreadBySubmissionId;
+using DeepLearning.Application.Features.FollowUpThreads.Queries.GetFollowUpThreadById;
+using DeepLearning.Application.Features.FollowUpThreads.Queries.ListFollowUpThreadsBySubmission;
 using DeepLearning.Application.Interfaces;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -33,7 +34,7 @@ namespace DeepLearning.Api.Controllers
                 new CreateFollowUpThreadCommand(request.SubmissionId, userId, request.ExamTypeId, request.ContextRef, request.QuestionText),
                 cancellationToken);
 
-            return CreatedAtAction(nameof(GetBySubmission), new { submissionId = result.SubmissionId }, result);
+            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
 
         public record AddFollowUpMessageRequest(Guid UserId, string QuestionText);
@@ -56,8 +57,12 @@ namespace DeepLearning.Api.Controllers
             return Ok(result);
         }
 
-        [HttpGet("by-submission/{submissionId:guid}")]
-        public async Task<ActionResult<FollowUpThreadResult>> GetBySubmission(Guid submissionId, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new GetFollowUpThreadBySubmissionIdQuery(submissionId), cancellationToken));
+        [HttpGet("{id:guid}")]
+        public async Task<ActionResult<FollowUpThreadResult>> GetById(Guid id, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new GetFollowUpThreadByIdQuery(id), cancellationToken));
+
+        [HttpGet]
+        public async Task<ActionResult<List<FollowUpThreadSummary>>> List(Guid submissionId, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new ListFollowUpThreadsBySubmissionQuery(submissionId), cancellationToken));
     }
 }

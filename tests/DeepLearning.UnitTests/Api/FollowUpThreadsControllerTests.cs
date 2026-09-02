@@ -44,6 +44,11 @@ namespace DeepLearning.UnitTests.Api
             { "aiResponse": "Overall the original grading stands.", "finalVerdict": "user_incorrect", "standardRevision": null }
             """;
 
+        // A thread that only ever asked knowledge questions, never disputed a judgment.
+        private const string SummaryNoDisputeJson = """
+            { "aiResponse": "This thread was just Q&A about phrasing.", "finalVerdict": null, "standardRevision": null }
+            """;
+
         private static string SummaryUserCorrectJson(string dimensionKey) => $$"""
             {
               "aiResponse": "Overall you're right, the rubric was misapplied.",
@@ -198,12 +203,12 @@ namespace DeepLearning.UnitTests.Api
                     Assert.Equal(FollowUpVerdict.partial, m.Verdict);
                 });
 
-            var getResponse = await client.GetAsync($"{ApiRoutes.FollowUpThreads.Base}/by-submission/{submissionId}");
+            var getResponse = await client.GetAsync($"{ApiRoutes.FollowUpThreads.Base}/{thread.Id}");
             Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
         }
 
         [Fact]
-        public async Task Create_returns_409_when_a_thread_already_exists_for_the_submission()
+        public async Task Create_returns_409_when_an_open_thread_already_exists_for_the_submission()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
             var client = CreateClient(dimensionKey);
@@ -215,6 +220,36 @@ namespace DeepLearning.UnitTests.Api
             var second = await CreateThreadAsync(client, submissionId, userId, examTypeId, "Again?");
 
             Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        }
+
+        [Fact]
+        public async Task Create_is_allowed_again_after_the_previous_thread_is_closed()
+        {
+            var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
+            var client = CreateClient(dimensionKey, SummaryUserIncorrectJson);
+            var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
+            await SeedTemplatesAsync(_factory);
+            var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
+
+            var first = await (await CreateThreadAsync(client, submissionId, userId, examTypeId, "Dispute one")).Content
+                .ReadFromJsonAsync<FollowUpThreadResult>();
+            (await client.PostAsJsonAsync($"{ApiRoutes.FollowUpThreads.Base}/{first!.Id}/close", new { UserId = userId }))
+                .EnsureSuccessStatusCode();
+
+            var secondResponse = await CreateThreadAsync(client, submissionId, userId, examTypeId, "An unrelated question");
+            Assert.Equal(HttpStatusCode.Created, secondResponse.StatusCode);
+            var second = await secondResponse.Content.ReadFromJsonAsync<FollowUpThreadResult>();
+            Assert.NotEqual(first.Id, second!.Id);
+            Assert.Equal(SubmissionStatus.under_dispute, second.SubmissionStatus);
+
+            var listResponse = await client.GetAsync($"{ApiRoutes.FollowUpThreads.Base}?submissionId={submissionId}");
+            listResponse.EnsureSuccessStatusCode();
+            var list = await listResponse.Content.ReadFromJsonAsync<List<FollowUpThreadSummary>>();
+            Assert.Equal(2, list!.Count);
+            // Newest first.
+            Assert.Equal(second.Id, list[0].Id);
+            Assert.Equal(FollowUpThreadStatus.open, list[0].Status);
+            Assert.Equal(FollowUpThreadStatus.closed, list[1].Status);
         }
 
         [Fact]
@@ -360,7 +395,7 @@ namespace DeepLearning.UnitTests.Api
         }
 
         [Fact]
-        public async Task GetBySubmission_returns_404_before_any_thread_exists()
+        public async Task List_returns_an_empty_array_before_any_thread_exists()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
             var client = CreateClient(dimensionKey);
@@ -368,9 +403,34 @@ namespace DeepLearning.UnitTests.Api
             await SeedTemplatesAsync(_factory);
             var (_, _, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
 
-            var response = await client.GetAsync($"{ApiRoutes.FollowUpThreads.Base}/by-submission/{submissionId}");
+            var response = await client.GetAsync($"{ApiRoutes.FollowUpThreads.Base}?submissionId={submissionId}");
 
-            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var list = await response.Content.ReadFromJsonAsync<List<FollowUpThreadSummary>>();
+            Assert.Empty(list!);
+        }
+
+        [Fact]
+        public async Task Close_with_no_dispute_records_a_null_final_verdict_and_no_override()
+        {
+            var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
+            var client = CreateClient(dimensionKey, SummaryNoDisputeJson);
+            var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
+            await SeedTemplatesAsync(_factory);
+            var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
+
+            var created = await (await CreateThreadAsync(client, submissionId, userId, examTypeId, "How is carer usually translated?")).Content
+                .ReadFromJsonAsync<FollowUpThreadResult>();
+
+            var closeResponse = await client.PostAsJsonAsync(
+                $"{ApiRoutes.FollowUpThreads.Base}/{created!.Id}/close", new { UserId = userId });
+
+            Assert.Equal(HttpStatusCode.OK, closeResponse.StatusCode);
+            var thread = await closeResponse.Content.ReadFromJsonAsync<FollowUpThreadResult>();
+            Assert.Equal(FollowUpThreadStatus.closed, thread!.Status);
+            Assert.Null(thread.FinalVerdict);
+            Assert.Null(thread.StandardOverrideId);
+            Assert.Equal(SubmissionStatus.graded, thread.SubmissionStatus);
         }
     }
 }

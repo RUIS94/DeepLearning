@@ -22,9 +22,11 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
             builder.Property(x => x.Status).HasDefaultValue(FollowUpThreadStatus.open).ValueGeneratedNever();
             builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
 
-            // Single-thread-per-submission (design decision, 2026-09-02): a submission never
-            // gets a second thread, even after the first closes.
-            builder.HasIndex(x => x.SubmissionId).IsUnique().HasDatabaseName("ux_follow_up_threads_submission");
+            // A submission can have many threads over time (design revision, 2026-09-02): once a
+            // thread closes, the user may start another, unrelated one — but only one may be
+            // *open* at a time (CreateFollowUpThreadCommandHandler enforces that in code, so the
+            // submission's under_dispute state maps cleanly to "has exactly one open thread").
+            builder.HasIndex(x => x.SubmissionId).HasDatabaseName("ix_follow_up_threads_submission");
 
             builder.HasOne(x => x.Submission)
                 .WithMany()

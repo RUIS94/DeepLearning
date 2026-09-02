@@ -77,8 +77,15 @@ INSERT INTO prompt_templates (
 {{ end }}
 
 【任务】
-用户即将结束这次追问,现在需要你综合上面完整的对话给出最终结论——用户的观点整体上是否成立。这是这次追问
-的唯一权威判定,会据此更新提交的状态,不再有下一轮机会,请慎重。
+用户即将结束这次追问,请你综合上面完整的对话给出最终结论。这是这次追问的唯一权威判定,会据此更新提交的
+状态,不再有下一轮机会,请慎重。
+
+第一步,先判断这次追问里用户到底有没有在质疑某一条具体的评判(某个错误的认定、某个维度的Band、某处扣分):
+- 如果整段对话只是知识咨询、概念澄清、译法讨论,用户并没有对任何评判提出异议,那么 finalVerdict 填 null,
+  standardRevision 保持 null,aiResponse 简要总结这次讲解即可。
+- 如果用户确实对某条评判提出了异议,再进入第二步。
+
+第二步(仅当存在评判争议),给出 finalVerdict(user_correct/user_incorrect/partial)。
 
 重要说明:官方评分标准(上方评分维度的Band描述)本身是准确、权威、不可更改的依据,你的解答绝不是去质疑、
 修正或覆盖它——standardRevision字段记录的从来都不是"重写官方rubric原文",而是给AI自己积累一条评判补丁。
@@ -111,7 +118,7 @@ INSERT INTO prompt_templates (
 严格只输出以下JSON,不要输出markdown代码块围栏之外的任何文字:
 {
   "aiResponse": "<对这次追问的最终结论说明,可以简要回顾整个对话>",
-  "finalVerdict": "user_correct" 或 "user_incorrect" 或 "partial",
+  "finalVerdict": "user_correct" 或 "user_incorrect" 或 "partial" 或 null(这次追问没有质疑任何评判,只是知识咨询),
   "standardRevision": null,
   说明: 仅当finalVerdict为"user_correct"、且这次误判确实源于上方列出的某一类"AI评判本身的疏漏"(而不是用户
   单纯运气好蒙对/该题本来就有争议空间)时,才将standardRevision替换为以下对象——它记录的是AI以后应如何

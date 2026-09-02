@@ -3,7 +3,33 @@ using DeepLearning.Domain.Enums;
 
 namespace DeepLearning.Application.Features.FollowUpThreads
 {
-    /// <summary>Shared response shape returned by all four FollowUpThreads endpoints (create/add-message/close/get-by-submission).</summary>
+    /// <summary>
+    /// Compact row for the "this submission's follow-up threads" list (GET /follow-up-threads?submissionId=).
+    /// FirstQuestion is the opening user message, for a scannable label; full messages come from
+    /// GET /follow-up-threads/{id}.
+    /// </summary>
+    public record FollowUpThreadSummary(
+        Guid Id,
+        FollowUpThreadStatus Status,
+        FollowUpVerdict? FinalVerdict,
+        Guid? StandardOverrideId,
+        int MessageCount,
+        string FirstQuestion,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset? ClosedAt)
+    {
+        public static FollowUpThreadSummary From(FollowUpThread thread) => new(
+            thread.Id,
+            thread.Status,
+            thread.FinalVerdict,
+            thread.StandardOverrideId,
+            thread.Messages.Count,
+            thread.Messages.FirstOrDefault(m => m.Role == FollowUpMessageRole.user)?.Content ?? string.Empty,
+            thread.CreatedAt,
+            thread.ClosedAt);
+    }
+
+    /// <summary>Shared response shape returned by the create / add-message / close / get-by-id endpoints.</summary>
     public record FollowUpThreadResult(
         Guid Id,
         Guid SubmissionId,

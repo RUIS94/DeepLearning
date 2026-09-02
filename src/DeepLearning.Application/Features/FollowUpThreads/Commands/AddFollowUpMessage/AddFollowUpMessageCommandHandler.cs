@@ -120,7 +120,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.AddFollowUp
                     aiCallLog.LatencyMs = completion.LatencyMs;
 
                     var parsed = FollowUpThreadSupport.ParsePayload<FollowUpTurnPayload>(completion.Text);
-                    FollowUpThreadSupport.ValidateTurnPayload(parsed);
+                    FollowUpThreadSupport.NormaliseTurnPayload(parsed);
                     return parsed;
                 }, cancellationToken);
             }

@@ -74,14 +74,15 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CreateFollo
             var question = await _questionRepository.GetByIdAsync(submission.QuestionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Question), submission.QuestionId);
 
-            if (await _followUpThreadRepository.ExistsForSubmissionAsync(submission.Id, cancellationToken))
+            if (await _followUpThreadRepository.HasOpenThreadForSubmissionAsync(submission.Id, cancellationToken))
             {
-                throw new ConflictException($"Submission '{submission.Id}' already has a follow-up thread.");
+                throw new ConflictException($"Submission '{submission.Id}' already has an open follow-up thread — close it before starting another.");
             }
 
             // Only legal from Graded — throws 409 if the submission is still being graded,
-            // failed, archived, etc. Held under_dispute for the whole thread lifetime; see
-            // FollowUpThread's doc comment.
+            // failed, archived, etc. Held under_dispute for the thread lifetime; a prior closed
+            // thread (whatever its verdict) always ends the submission back at Graded, so
+            // starting another thread from here works.
             submission.TransitionTo(SubmissionStatus.under_dispute);
 
             var aiCallLog = new AiCallLog
@@ -122,7 +123,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CreateFollo
                     aiCallLog.LatencyMs = completion.LatencyMs;
 
                     var parsed = FollowUpThreadSupport.ParsePayload<FollowUpTurnPayload>(completion.Text);
-                    FollowUpThreadSupport.ValidateTurnPayload(parsed);
+                    FollowUpThreadSupport.NormaliseTurnPayload(parsed);
                     return parsed;
                 }, cancellationToken);
             }

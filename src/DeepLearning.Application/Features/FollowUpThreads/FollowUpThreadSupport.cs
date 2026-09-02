@@ -102,20 +102,31 @@ namespace DeepLearning.Application.Features.FollowUpThreads
                 ?? throw new InvalidOperationException("Deserialized to null.");
         }
 
-        public static void ValidateTurnPayload(FollowUpTurnPayload payload)
+        /// <summary>
+        /// A per-round reply's verdict is optional now (design revision, 2026-09-02): a follow-up
+        /// thread isn't only for disputing a judgment — it's also a place to ask about a knowledge
+        /// point / phrasing / term, and a purely explanatory turn has no verdict. `pending` from
+        /// the model is normalised to null (same "no adjudication this turn" meaning).
+        /// </summary>
+        public static void NormaliseTurnPayload(FollowUpTurnPayload payload)
         {
             if (payload.Verdict == FollowUpVerdict.pending)
             {
-                throw new InvalidOperationException("verdict must not be 'pending' — the AI must decide user_correct/user_incorrect/partial.");
+                payload.Verdict = null;
             }
         }
 
-        /// <summary>Same validation CreateFollowUpQuestionCommandHandler used to apply per-round — see that class's history for the original rationale.</summary>
+        /// <summary>
+        /// Same validation CreateFollowUpQuestionCommandHandler used to apply per-round — see that
+        /// class's history for the original rationale — but finalVerdict is now optional: a thread
+        /// that never actually disputed a judgment closes with finalVerdict = null and no
+        /// standardRevision. Only finalVerdict == user_correct still requires (and gets) one.
+        /// </summary>
         public static void ValidateSummaryPayload(FollowUpSummaryPayload payload, HashSet<string> dimensionKeys)
         {
             if (payload.FinalVerdict == FollowUpVerdict.pending)
             {
-                throw new InvalidOperationException("finalVerdict must not be 'pending' — the AI must decide user_correct/user_incorrect/partial.");
+                payload.FinalVerdict = null;
             }
 
             if (payload.FinalVerdict != FollowUpVerdict.user_correct)
@@ -164,22 +175,22 @@ namespace DeepLearning.Application.Features.FollowUpThreads
         List<ErrorListItem> ErrorList,
         ReferenceTranslation? ReferenceTranslation);
 
-    /// <summary>Structured-output contract for a per-round AI reply (AiOperationType.followup) — conversational only, no side effects.</summary>
+    /// <summary>Structured-output contract for a per-round AI reply (AiOperationType.followup) — conversational only, no side effects. Verdict is null when the turn wasn't adjudicating a dispute (e.g. a plain knowledge question).</summary>
     internal class FollowUpTurnPayload
     {
         public string AiResponse { get; set; } = string.Empty;
 
         [JsonConverter(typeof(JsonStringEnumConverter))]
-        public FollowUpVerdict Verdict { get; set; }
+        public FollowUpVerdict? Verdict { get; set; }
     }
 
-    /// <summary>Structured-output contract for the closing summary call (AiOperationType.followup_summary) — this is the one call whose verdict/standardRevision has real side effects.</summary>
+    /// <summary>Structured-output contract for the closing summary call (AiOperationType.followup_summary) — this is the one call whose verdict/standardRevision has real side effects. FinalVerdict is null when the thread never disputed a judgment.</summary>
     internal class FollowUpSummaryPayload
     {
         public string AiResponse { get; set; } = string.Empty;
 
         [JsonConverter(typeof(JsonStringEnumConverter))]
-        public FollowUpVerdict FinalVerdict { get; set; }
+        public FollowUpVerdict? FinalVerdict { get; set; }
 
         public StandardRevisionPayload? StandardRevision { get; set; }
     }

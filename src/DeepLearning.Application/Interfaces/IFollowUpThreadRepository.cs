@@ -7,10 +7,11 @@ namespace DeepLearning.Application.Interfaces
         /// <summary>Messages ordered by CreatedAt ascending (oldest first — conversation order).</summary>
         Task<FollowUpThread?> GetByIdWithMessagesAsync(Guid id, CancellationToken cancellationToken = default);
 
-        /// <summary>Messages ordered by CreatedAt ascending. At most one thread per submission — see FollowUpThread's doc comment.</summary>
-        Task<FollowUpThread?> GetBySubmissionIdWithMessagesAsync(Guid submissionId, CancellationToken cancellationToken = default);
+        /// <summary>All threads for a submission, newest first, each with its messages (oldest first). Used for the thread list.</summary>
+        Task<List<FollowUpThread>> ListBySubmissionAsync(Guid submissionId, CancellationToken cancellationToken = default);
 
-        Task<bool> ExistsForSubmissionAsync(Guid submissionId, CancellationToken cancellationToken = default);
+        /// <summary>True if the submission has a thread whose status is still open — at most one is ever allowed.</summary>
+        Task<bool> HasOpenThreadForSubmissionAsync(Guid submissionId, CancellationToken cancellationToken = default);
 
         Task AddAsync(FollowUpThread thread, CancellationToken cancellationToken = default);
 
