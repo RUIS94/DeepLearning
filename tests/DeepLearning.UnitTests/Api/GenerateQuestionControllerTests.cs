@@ -254,11 +254,10 @@ namespace DeepLearning.UnitTests.Api
 
         /// <summary>
         /// Design doc §11.2 Step 8: "额外验证seed_reference_links确实记录了每次出题参考了哪些真题
-        /// (可追溯性测试)". Seeds one matching real-exam sample (same task type + difficulty) and
-        /// one non-matching one directly into the DB, generates a question, and asserts the
-        /// traceability endpoint reports exactly the matching seed — proving
-        /// GenerateQuestionCommandHandler's few-shot retrieval and SeedReferenceLink persistence
-        /// are wired together end to end, not just documented.
+        /// (可追溯性测试)". Few-shot samples are opt-in now, so this passes an explicit
+        /// SeedQuestionIds and asserts the traceability endpoint reports exactly that seed — and
+        /// that a second seed row NOT in the list is not linked — proving
+        /// GenerateQuestionCommandHandler's SeedReferenceLink persistence is wired end to end.
         /// </summary>
         [Fact]
         public async Task Generate_records_which_seed_reference_questions_were_used_and_they_are_traceable_via_the_api()
@@ -299,9 +298,9 @@ namespace DeepLearning.UnitTests.Api
                 {
                     Id = Guid.NewGuid(),
                     TaskType = TaskType.A,
-                    Difficulty = Difficulty.hard, // wrong difficulty — must not be referenced
+                    Difficulty = Difficulty.hard, // not in SeedQuestionIds — must not be referenced
                     Title = $"real_exam_seed_{Guid.NewGuid():N}",
-                    SourceText = "A different-difficulty real-exam passage.",
+                    SourceText = "A different real-exam passage, deliberately left out of SeedQuestionIds.",
                     Origin = QuestionOrigin.real_exam_seed,
                     SourceType = SourceType.real_exam,
                     IsSeedReference = true,
@@ -314,7 +313,14 @@ namespace DeepLearning.UnitTests.Api
 
             var generateResponse = await client.PostAsJsonAsync(
                 $"{ApiRoutes.Questions.Base}/generate",
-                new { ExamTypeId = examType!.Id, TaskType = TaskType.A, Difficulty = Difficulty.medium, CreatedBy = (Guid?)null });
+                new
+                {
+                    ExamTypeId = examType!.Id,
+                    TaskType = TaskType.A,
+                    Difficulty = Difficulty.medium,
+                    SeedQuestionIds = new[] { matchingSeed.Id },
+                    CreatedBy = (Guid?)null,
+                });
             Assert.Equal(HttpStatusCode.Created, generateResponse.StatusCode);
             var generated = await generateResponse.Content.ReadFromJsonAsync<GenerateQuestionResult>();
 
@@ -322,14 +328,8 @@ namespace DeepLearning.UnitTests.Api
             Assert.Equal(HttpStatusCode.OK, linksResponse.StatusCode);
             var links = await linksResponse.Content.ReadFromJsonAsync<List<SeedReferenceLinkResultItem>>();
 
-            // Contains/DoesNotContain rather than exact-count: ApiCollection shares one DB across
-            // the whole test class (and now other tests can also create IsSeedReference=true
-            // TaskType.A/medium questions via the real import endpoint — see
-            // QuestionsControllerTests.Import_with_is_seed_reference_true_...), so other tests'
-            // rows can legitimately also land in this take-3 pool. matchingSeed is still
-            // guaranteed to be in it: it's created immediately before this generate call, within
-            // the same sequential (non-parallel) collection, so nothing more recent can exist yet.
-            Assert.Contains(links!, l => l.SeedQuestionId == matchingSeed.Id);
+            var link = Assert.Single(links!);
+            Assert.Equal(matchingSeed.Id, link.SeedQuestionId);
             Assert.DoesNotContain(links!, l => l.SeedQuestionId == nonMatchingSeed.Id);
         }
 
@@ -482,14 +482,13 @@ namespace DeepLearning.UnitTests.Api
 
         /// <summary>
         /// Closes the loop end to end through the API only (no direct DbContext seeding) —
-        /// proves a real deployment can actually populate and use the seed-reference pool without
-        /// hand-run SQL: import a question via POST /questions with IsSeedReference=true, then
-        /// generate a matching-task-type/difficulty question with no explicit SeedQuestionIds/
-        /// CategoryId, and confirm the automatic filter (ListSeedReferenceCandidatesAsync) really
-        /// picked up the imported one.
+        /// proves a real deployment can populate and use the seed-reference pool without hand-run
+        /// SQL: import a question via POST /questions with IsSeedReference=true, then generate a
+        /// question that references it via an explicit SeedQuestionIds, and confirm the link was
+        /// persisted (few-shot samples are opt-in — the handler no longer auto-selects).
         /// </summary>
         [Fact]
-        public async Task A_seed_reference_question_imported_through_the_api_is_automatically_used_by_a_later_generate_call()
+        public async Task A_seed_reference_question_imported_through_the_api_can_be_referenced_by_a_later_generate_call()
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
@@ -524,7 +523,14 @@ namespace DeepLearning.UnitTests.Api
 
             var generateResponse = await client.PostAsJsonAsync(
                 $"{ApiRoutes.Questions.Base}/generate",
-                new { ExamTypeId = examType!.Id, TaskType = TaskType.A, Difficulty = Difficulty.medium, CreatedBy = (Guid?)null });
+                new
+                {
+                    ExamTypeId = examType!.Id,
+                    TaskType = TaskType.A,
+                    Difficulty = Difficulty.medium,
+                    SeedQuestionIds = new[] { importedSeed!.Id },
+                    CreatedBy = (Guid?)null,
+                });
             Assert.Equal(HttpStatusCode.Created, generateResponse.StatusCode);
             var generated = await generateResponse.Content.ReadFromJsonAsync<GenerateQuestionResult>();
 
@@ -532,6 +538,59 @@ namespace DeepLearning.UnitTests.Api
             var links = await linksResponse.Content.ReadFromJsonAsync<List<SeedReferenceLinkResultItem>>();
 
             Assert.Contains(links!, l => l.SeedQuestionId == importedSeed!.Id);
+        }
+
+        /// <summary>
+        /// Few-shot samples are strictly opt-in (user-requested): with a perfectly matching
+        /// IsSeedReference question in the bank but NO SeedQuestionIds on the request, the
+        /// generated question must have zero seed-reference links — the handler no longer
+        /// auto-selects seeds, so "真题参考样本" never enters the prompt uninvited.
+        /// </summary>
+        [Fact]
+        public async Task Generate_without_seed_question_ids_records_no_seed_references_even_when_a_matching_seed_exists()
+        {
+            var client = _factory
+                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
+                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                .CreateClient();
+
+            var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
+            {
+                Code = $"test_{Guid.NewGuid():N}",
+                Name = "API Test Exam Type",
+                SubjectCategory = SubjectCategory.translation,
+            });
+            var examType = await examTypeResponse.Content.ReadFromJsonAsync<CreateExamTypeResult>();
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                await context.Questions.AddAsync(new Question
+                {
+                    Id = Guid.NewGuid(),
+                    TaskType = TaskType.A,
+                    Difficulty = Difficulty.medium,
+                    Title = $"real_exam_seed_{Guid.NewGuid():N}",
+                    SourceText = "A matching real-exam passage the handler must NOT auto-pick.",
+                    Origin = QuestionOrigin.real_exam_seed,
+                    SourceType = SourceType.real_exam,
+                    IsSeedReference = true,
+                    Visibility = Visibility.Private,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                });
+                await context.SaveChangesAsync();
+            }
+
+            var generateResponse = await client.PostAsJsonAsync(
+                $"{ApiRoutes.Questions.Base}/generate",
+                new { ExamTypeId = examType!.Id, TaskType = TaskType.A, Difficulty = Difficulty.medium, CreatedBy = (Guid?)null });
+            Assert.Equal(HttpStatusCode.Created, generateResponse.StatusCode);
+            var generated = await generateResponse.Content.ReadFromJsonAsync<GenerateQuestionResult>();
+
+            var linksResponse = await client.GetAsync($"{ApiRoutes.Questions.Base}/{generated!.Id}/seed-references");
+            var links = await linksResponse.Content.ReadFromJsonAsync<List<SeedReferenceLinkResultItem>>();
+
+            Assert.Empty(links!);
         }
 
         /// <summary>
@@ -718,6 +777,129 @@ namespace DeepLearning.UnitTests.Api
             Assert.Equal(HttpStatusCode.Created, generateResponse.StatusCode);
             Assert.Contains(highPriorityCategory, capturingClient.CapturedPrompt);
             Assert.DoesNotContain(lowPriorityCategory, capturingClient.CapturedPrompt);
+        }
+
+        private const string DomainListMarkerTemplate =
+            "DOMAIN_LIST_MARKER:{{ for d in domain_categories }}[{{ d.name }}]{{ end }}";
+
+        private static async Task SeedDomainListPromptTemplateAsync(ApiWebApplicationFactory factory)
+        {
+            using var scope = factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await context.PromptTemplates.AddAsync(new PromptTemplate
+            {
+                Id = Guid.NewGuid(),
+                SubjectCategory = SubjectCategory.translation,
+                TemplateType = AiOperationType.question_gen,
+                Layer = TemplateLayer.shared_methodology,
+                TemplateContent = DomainListMarkerTemplate,
+                Version = 1,
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+            });
+            await context.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// The existing question_bank_categories(domain) names are injected into the prompt so the
+        /// AI's brief.domain reuses one instead of inventing near-duplicates. Seeds two uniquely
+        /// named domain categories and asserts both names reach the rendered prompt.
+        /// </summary>
+        [Fact]
+        public async Task Generate_injects_existing_domain_category_names_into_the_prompt()
+        {
+            var capturingClient = new CapturingQuestionGenLlmClient();
+            var client = _factory
+                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
+                    services => services.AddScoped<ILlmClientResolver>(_ => new FixedQuestionGenLlmClientResolver(capturingClient))))
+                .CreateClient();
+
+            await SeedDomainListPromptTemplateAsync(_factory);
+
+            var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
+            {
+                Code = $"test_{Guid.NewGuid():N}",
+                Name = "API Test Exam Type",
+                SubjectCategory = SubjectCategory.translation,
+            });
+            var examType = await examTypeResponse.Content.ReadFromJsonAsync<CreateExamTypeResult>();
+
+            var domainA = $"domain_a_{Guid.NewGuid():N}";
+            var domainB = $"domain_b_{Guid.NewGuid():N}";
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                await context.QuestionBankCategories.AddRangeAsync(
+                    new QuestionBankCategory { Id = Guid.NewGuid(), CategoryType = CategoryType.domain, Name = domainA, CreatedAt = DateTimeOffset.UtcNow },
+                    new QuestionBankCategory { Id = Guid.NewGuid(), CategoryType = CategoryType.domain, Name = domainB, CreatedAt = DateTimeOffset.UtcNow });
+                await context.SaveChangesAsync();
+            }
+
+            var generateResponse = await client.PostAsJsonAsync(
+                $"{ApiRoutes.Questions.Base}/generate",
+                new { ExamTypeId = examType!.Id, TaskType = TaskType.A, Difficulty = Difficulty.medium, CreatedBy = (Guid?)null });
+
+            Assert.Equal(HttpStatusCode.Created, generateResponse.StatusCode);
+            Assert.Contains(domainA, capturingClient.CapturedPrompt);
+            Assert.Contains(domainB, capturingClient.CapturedPrompt);
+        }
+
+        /// <summary>
+        /// The double-link fix: when the caller pins a CategoryId, that is the question's ONLY
+        /// question_category_map link. The AI's brief.domain ("test" from the fake client) must
+        /// not also spawn/link a second domain category — MapCategoriesAsync used to add both.
+        /// </summary>
+        [Fact]
+        public async Task Generate_with_a_pinned_category_links_only_that_category_and_not_a_second_from_brief_domain()
+        {
+            var client = _factory
+                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
+                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                .CreateClient();
+
+            var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
+            {
+                Code = $"test_{Guid.NewGuid():N}",
+                Name = "API Test Exam Type",
+                SubjectCategory = SubjectCategory.translation,
+            });
+            var examType = await examTypeResponse.Content.ReadFromJsonAsync<CreateExamTypeResult>();
+
+            Guid pinnedCategoryId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var category = new QuestionBankCategory
+                {
+                    Id = Guid.NewGuid(),
+                    CategoryType = CategoryType.domain,
+                    // deliberately != FakeLlmClient's brief.domain ("test")
+                    Name = $"pinned_domain_{Guid.NewGuid():N}",
+                    CreatedAt = DateTimeOffset.UtcNow,
+                };
+                await context.QuestionBankCategories.AddAsync(category);
+                await context.SaveChangesAsync();
+                pinnedCategoryId = category.Id;
+            }
+
+            var generateResponse = await client.PostAsJsonAsync(
+                $"{ApiRoutes.Questions.Base}/generate",
+                new
+                {
+                    ExamTypeId = examType!.Id,
+                    TaskType = TaskType.A,
+                    Difficulty = Difficulty.medium,
+                    CategoryId = pinnedCategoryId,
+                    CreatedBy = (Guid?)null,
+                });
+            Assert.Equal(HttpStatusCode.Created, generateResponse.StatusCode);
+            var generated = await generateResponse.Content.ReadFromJsonAsync<GenerateQuestionResult>();
+
+            var getResponse = await client.GetAsync($"{ApiRoutes.Questions.Base}/{generated!.Id}");
+            var question = await getResponse.Content.ReadFromJsonAsync<GetQuestionByIdResult>();
+
+            var linkedCategoryId = Assert.Single(question!.CategoryIds);
+            Assert.Equal(pinnedCategoryId, linkedCategoryId);
         }
     }
 }

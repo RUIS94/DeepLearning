@@ -71,19 +71,25 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
 
             // An explicit CategoryId is mapped to the generated question (question_category_map)
             // below, so it must resolve to a real row — reject early rather than let the FK blow
-            // up mid-persist.
+            // up mid-persist. The resolved entity is kept: its name becomes a hard "use exactly
+            // this domain" directive in the prompt (PinnedDomain).
+            QuestionBankCategory? pinnedCategory = null;
             if (request.CategoryId is { } categoryId)
             {
-                _ = await _questionBankCategoryRepository.GetByIdAsync(categoryId, cancellationToken)
+                pinnedCategory = await _questionBankCategoryRepository.GetByIdAsync(categoryId, cancellationToken)
                     ?? throw new NotFoundException(nameof(QuestionBankCategory), categoryId);
             }
 
             var difficulty = request.Difficulty ?? await ResolveDifficultyAsync(request.ExamTypeId, cancellationToken);
             var errorTaxonomies = await _errorTaxonomyRepository.ListByExamTypeAsync(request.ExamTypeId, cancellationToken);
+            // Injected into the prompt so the AI's brief.domain reuses an existing name instead of
+            // inventing near-duplicates ("政府公告" / "政府通告" / "Government Notices"). Also reused
+            // by ResolveTopicHintAsync and MapCategoriesAsync so this is the only DB read for it.
+            var domainCategories = await _questionBankCategoryRepository.ListAsync(CategoryType.domain, cancellationToken);
 
-            var (seedSamples, seedSelectionReason) = await ResolveSeedSamplesAsync(request, difficulty, cancellationToken);
+            var (seedSamples, seedSelectionReason) = await ResolveSeedSamplesAsync(request, cancellationToken);
             var weakPointHint = await ResolveWeakPointHintAsync(request, cancellationToken);
-            var topicHint = await ResolveTopicHintAsync(request, cancellationToken);
+            var topicHint = await ResolveTopicHintAsync(request, domainCategories, cancellationToken);
 
             var aiCallLog = new AiCallLog
             {
@@ -115,6 +121,8 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                 }),
                 WeakPointHint = weakPointHint,
                 TopicHint = topicHint,
+                PinnedDomain = pinnedCategory?.Name,
+                DomainCategories = domainCategories.Select(c => new { Name = c.Name }),
             };
             var prompt = await _examConfigLoader.BuildPromptAsync(
                 request.ExamTypeId, AiOperationType.question_gen, templateModel, cancellationToken);
@@ -194,7 +202,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             }
             await _questionRepository.AddSeededErrorsAsync(seededErrors, cancellationToken);
 
-            await MapCategoriesAsync(question, request.CategoryId, briefFields.Domain, cancellationToken);
+            await MapCategoriesAsync(question, pinnedCategory, briefFields.Domain, domainCategories, cancellationToken);
 
             if (seedSamples.Count > 0)
             {
@@ -265,19 +273,18 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
         }
 
         /// <summary>
-        /// Design doc §11.2 Step 8's "题材可随机". Only kicks in when the caller did NOT pin a
-        /// CategoryId. A pinned CategoryId returns that category's own name (so an explicit pick
-        /// also nudges the generated content, not just the seed-sample filter). Otherwise a
-        /// topic_distribution-weighted roll decides whether to pick one existing domain category
-        /// at random as a soft hint; returns null (AI chooses freely) when the roll misses or no
-        /// domain categories exist yet.
+        /// Design doc §11.2 Step 8's "题材可随机" — the SOFT random nudge, only for when the caller
+        /// did NOT pin a CategoryId (a pinned one is a hard directive handled as PinnedDomain, not
+        /// here). A topic_distribution-weighted roll decides whether to pick one existing domain
+        /// category at random as a hint; returns null (the AI picks from the injected domain list
+        /// on its own) when the roll misses or no domain categories exist yet.
         /// </summary>
-        private async Task<string?> ResolveTopicHintAsync(GenerateQuestionCommand request, CancellationToken cancellationToken)
+        private async Task<string?> ResolveTopicHintAsync(
+            GenerateQuestionCommand request, List<QuestionBankCategory> domainCategories, CancellationToken cancellationToken)
         {
-            if (request.CategoryId is { } categoryId)
+            if (request.CategoryId is not null)
             {
-                var pinned = await _questionBankCategoryRepository.GetByIdAsync(categoryId, cancellationToken);
-                return pinned?.Name;
+                return null;
             }
 
             var policy = await _generationPolicyRepository.GetByKeyAsync(request.ExamTypeId, "topic_distribution", cancellationToken);
@@ -290,33 +297,43 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                 return null;
             }
 
-            var domains = await _questionBankCategoryRepository.ListAsync(CategoryType.domain, cancellationToken);
-            return domains.Count == 0 ? null : domains[Random.Shared.Next(domains.Count)].Name;
+            return domainCategories.Count == 0 ? null : domainCategories[Random.Shared.Next(domainCategories.Count)].Name;
         }
 
         /// <summary>
-        /// Wires the generated question into question_category_map: the caller's explicit
-        /// CategoryId (already validated to exist) plus a domain category matched from the AI's
-        /// brief.domain, created on the fly if the bank doesn't have it yet. Deduped so an
-        /// explicit CategoryId that equals the brief-derived one is written once.
+        /// Wires the generated question into question_category_map with exactly one domain link.
+        /// When the caller pinned a category, THAT is the question's domain — link only it, and do
+        /// not also derive a second one from the AI's brief.domain (which may not match the pinned
+        /// name and would otherwise double-link the question). When nothing was pinned, find-or-
+        /// create a domain category from brief.domain instead, matched case-insensitively against
+        /// the existing list so the AI reusing a listed name doesn't spawn a near-duplicate.
         /// </summary>
-        private async Task MapCategoriesAsync(Question question, Guid? explicitCategoryId, string? briefDomain, CancellationToken cancellationToken)
+        private async Task MapCategoriesAsync(
+            Question question,
+            QuestionBankCategory? pinnedCategory,
+            string? briefDomain,
+            List<QuestionBankCategory> domainCategories,
+            CancellationToken cancellationToken)
         {
-            var categoryIds = new HashSet<Guid>();
+            Guid categoryId;
 
-            if (explicitCategoryId is { } id)
+            if (pinnedCategory is not null)
             {
-                categoryIds.Add(id);
+                categoryId = pinnedCategory.Id;
             }
-
-            var domainName = briefDomain?.Trim();
-            // Only turn a domain into a bank category when it reads like a label, not a
-            // paragraph — an over-long value is still stored in questions.brief_domain, it just
-            // doesn't pollute question_bank_categories.
-            if (!string.IsNullOrEmpty(domainName) && domainName.Length <= CategoryNameMaxLength)
+            else
             {
-                var existing = await _questionBankCategoryRepository.ListAsync(CategoryType.domain, cancellationToken);
-                var match = existing.FirstOrDefault(c => string.Equals(c.Name.Trim(), domainName, StringComparison.OrdinalIgnoreCase));
+                var domainName = briefDomain?.Trim();
+                // Only turn a domain into a bank category when it reads like a label, not a
+                // paragraph — an over-long value is still stored in questions.brief_domain, it
+                // just doesn't pollute question_bank_categories.
+                if (string.IsNullOrEmpty(domainName) || domainName.Length > CategoryNameMaxLength)
+                {
+                    return;
+                }
+
+                var match = domainCategories.FirstOrDefault(
+                    c => string.Equals(c.Name.Trim(), domainName, StringComparison.OrdinalIgnoreCase));
                 if (match is null)
                 {
                     match = new QuestionBankCategory
@@ -329,26 +346,26 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                     await _questionBankCategoryRepository.AddAsync(match, cancellationToken);
                 }
 
-                categoryIds.Add(match.Id);
+                categoryId = match.Id;
             }
 
-            foreach (var categoryId in categoryIds)
+            await _questionRepository.AddCategoryMapAsync(new QuestionCategoryMap
             {
-                await _questionRepository.AddCategoryMapAsync(new QuestionCategoryMap
-                {
-                    Id = Guid.NewGuid(),
-                    QuestionId = question.Id,
-                    CategoryId = categoryId,
-                }, cancellationToken);
-            }
+                Id = Guid.NewGuid(),
+                QuestionId = question.Id,
+                CategoryId = categoryId,
+            }, cancellationToken);
         }
 
-        // Column limits from QuestionConfiguration — the AI's brief text is untrusted and can
-        // exceed them, which would otherwise surface as a DbUpdateException on the final save.
+        // Backstop caps for the AI's brief text. The prompt already asks for short English
+        // values (domain from the catalogue, textType from a fixed list, purpose <= 12 words,
+        // audience <= 8 words); these truncate a misbehaving response before it reaches the DB
+        // (and before an over-long purpose/audience can break the UI or leak the passage's gist).
+        // Kept well under the actual column limits from QuestionConfiguration.
         private const int BriefDomainMaxLength = 100;
-        private const int BriefTextTypeMaxLength = 100;
-        private const int BriefAudienceMaxLength = 200;
-        private const int BriefPurposeMaxLength = 4000;
+        private const int BriefTextTypeMaxLength = 60;
+        private const int BriefAudienceMaxLength = 150;
+        private const int BriefPurposeMaxLength = 300;
         private const int CategoryNameMaxLength = 100;
 
         /// <summary>
@@ -390,53 +407,48 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
         }
 
         /// <summary>
-        /// SeedQuestionIds (caller-specified) always wins outright over the automatic
-        /// task-type/difficulty/category filter — same "explicit value overrides the policy"
-        /// precedent as Difficulty itself. Every id must resolve to a real, IsSeedReference=true
-        /// Question or the whole request is rejected (404/400) before any AI call is made —
-        /// design doc §10.3's "hard constraint in code" philosophy applies to caller input here
-        /// too, not just AI output: a manually "referenced" question must actually be a real-exam
-        /// seed, or seed_reference_links' audit trail stops meaning what it says.
+        /// Few-shot real-exam samples are strictly opt-in: the "真题参考样本" prompt block is
+        /// populated ONLY from the caller's explicit SeedQuestionIds, in the given order. With no
+        /// SeedQuestionIds the block stays empty. (Previously the handler auto-pulled up to 3
+        /// IsSeedReference questions matching task type + difficulty, so the block appeared on
+        /// every generation whether the caller asked for it or not — user-requested change.)
+        /// Every id must resolve to a real, IsSeedReference=true Question or the whole request is
+        /// rejected (404/400) before any AI call is made — design doc §10.3's "hard constraint in
+        /// code" philosophy: a manually "referenced" question must actually be a real-exam seed,
+        /// or seed_reference_links' audit trail stops meaning what it says.
         /// </summary>
         private async Task<(List<Question> Samples, string Reason)> ResolveSeedSamplesAsync(
-            GenerateQuestionCommand request, Difficulty difficulty, CancellationToken cancellationToken)
+            GenerateQuestionCommand request, CancellationToken cancellationToken)
         {
-            if (request.SeedQuestionIds is { Count: > 0 } seedQuestionIds)
+            if (request.SeedQuestionIds is not { Count: > 0 } seedQuestionIds)
             {
-                var found = await _questionRepository.ListByIdsAsync(seedQuestionIds, cancellationToken);
-                var byId = found.ToDictionary(x => x.Id);
-
-                foreach (var id in seedQuestionIds)
-                {
-                    if (!byId.TryGetValue(id, out var seedQuestion))
-                    {
-                        throw new NotFoundException(nameof(Question), id);
-                    }
-
-                    if (!seedQuestion.IsSeedReference)
-                    {
-                        throw new ValidationException(new[]
-                        {
-                            new ValidationFailure(
-                                nameof(GenerateQuestionCommand.SeedQuestionIds),
-                                $"Question '{id}' is not a seed reference (IsSeedReference=false) and cannot be manually specified as generation reference."),
-                        });
-                    }
-                }
-
-                // Preserve the caller's own ordering rather than whatever order the DB returns.
-                var ordered = seedQuestionIds.Select(id => byId[id]).ToList();
-                return (ordered, "manually specified by caller");
+                return ([], string.Empty);
             }
 
-            // Real-exam few-shot reference (design doc §11.2 Step 8) — simple task type +
-            // difficulty (+ optional category) filtering, no pgvector semantic search yet.
-            var automatic = await _questionRepository.ListSeedReferenceCandidatesAsync(
-                request.TaskType, difficulty, request.CategoryId, take: 3, cancellationToken);
-            var reason = request.CategoryId is not null
-                ? $"same category + difficulty={difficulty}"
-                : $"same task type + difficulty={difficulty}";
-            return (automatic, reason);
+            var found = await _questionRepository.ListByIdsAsync(seedQuestionIds, cancellationToken);
+            var byId = found.ToDictionary(x => x.Id);
+
+            foreach (var id in seedQuestionIds)
+            {
+                if (!byId.TryGetValue(id, out var seedQuestion))
+                {
+                    throw new NotFoundException(nameof(Question), id);
+                }
+
+                if (!seedQuestion.IsSeedReference)
+                {
+                    throw new ValidationException(new[]
+                    {
+                        new ValidationFailure(
+                            nameof(GenerateQuestionCommand.SeedQuestionIds),
+                            $"Question '{id}' is not a seed reference (IsSeedReference=false) and cannot be manually specified as generation reference."),
+                    });
+                }
+            }
+
+            // Preserve the caller's own ordering rather than whatever order the DB returns.
+            var ordered = seedQuestionIds.Select(id => byId[id]).ToList();
+            return (ordered, "manually specified by caller");
         }
 
         private async Task FailAsync(AiCallLog aiCallLog, string errorMessage, CancellationToken cancellationToken)
