@@ -1,0 +1,3 @@
+# Frontend project uses LF line endings (Prettier default, no CRLF conversion).
+# Overrides the repo-root .gitattributes `* text=auto` for this subtree.
+* text=auto eol=lf
