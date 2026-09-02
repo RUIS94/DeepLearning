@@ -46,7 +46,7 @@ export function AiGeneratePanel({
       <SidePanelContent width="34rem">
         <SidePanelHeader
           title="AI 出题"
-          description="生成是慢请求，最长可能十几秒；生成完成后会直接进入答题页。"
+          description="题目生成后会直接进入答题页"
         />
 
         <SidePanelBody>

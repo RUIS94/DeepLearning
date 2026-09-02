@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type Ref } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tag } from "lucide-react";
-import { CrudTable, type CrudColumn, type CrudField } from "@/components/admin/crud-table";
+import {
+  CrudTable,
+  type CrudColumn,
+  type CrudCreateHandle,
+  type CrudField,
+} from "@/components/admin/crud-table";
 import { AiLoadingState } from "@/components/shared/ai-loading-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,7 +99,7 @@ function TagQuestionCard({ categories }: { categories: QuestionBankCategory[] })
   );
 }
 
-export function CategoriesPanel() {
+export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandle> }) {
   const queryClient = useQueryClient();
   const categories = useQuery({ queryKey: ["admin", "categories"], queryFn: listCategories });
   const invalidate = () => {
@@ -137,6 +142,8 @@ export function CategoriesPanel() {
   return (
     <div className="space-y-6">
       <CrudTable
+        openCreateRef={createRef}
+        hideCreate
         columns={columns}
         items={categories.data}
         isLoading={categories.isPending}

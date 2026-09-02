@@ -108,6 +108,17 @@ export function ReviewLibraryList({
     return <Skeleton className="h-40 w-full rounded-xl" />;
   }
 
+  if (filtered.length === 0) {
+    const label = kind === "patterns" ? "句型" : "词汇表达";
+    return (
+      <p className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
+        {rows.length === 0
+          ? `暂无${label}记录，练习批改后会自动沉淀到这里。`
+          : `当前筛选条件下没有匹配的${label}。`}
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {filtered.map((r) => (

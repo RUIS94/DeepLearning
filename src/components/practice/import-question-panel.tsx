@@ -44,11 +44,29 @@ import {
   type ImportUserQuestionFormInput,
 } from "@/lib/validation/question-import";
 
+/** 后端 brief（jsonb）的四个可选子字段；`key` 是拼进 JSON 时用的键名，与答题页 parseBrief 对齐。 */
+const BRIEF_FIELDS = [
+  { name: "domain", key: "领域", label: "领域", placeholder: "公共卫生" },
+  { name: "textType", key: "文本类型", label: "文本类型", placeholder: "通知" },
+  { name: "purpose", key: "目的", label: "目的", placeholder: "告知公众疫苗接种安排" },
+  { name: "audience", key: "受众", label: "受众", placeholder: "社区居民" },
+] as const;
+
+/** 把非空子字段拼成后端 brief 的 JSON 字符串；全空则回 null。 */
+function buildBrief(brief: ImportUserQuestionFormInput["brief"]): string | null {
+  const obj: Record<string, string> = {};
+  for (const f of BRIEF_FIELDS) {
+    const v = brief?.[f.name]?.trim();
+    if (v) obj[f.key] = v;
+  }
+  return Object.keys(obj).length ? JSON.stringify(obj) : null;
+}
+
 const defaultValues: ImportUserQuestionFormInput = {
   taskType: TaskType.A,
   difficulty: 1,
   title: "",
-  brief: "",
+  brief: { domain: "", textType: "", purpose: "", audience: "" },
   sourceText: "",
   isSeedReference: false,
   visibility: Visibility.Private,
@@ -104,7 +122,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
         taskType: values.taskType,
         difficulty: values.difficulty,
         title: values.title,
-        brief: values.brief && values.brief.trim() ? values.brief.trim() : null,
+        brief: buildBrief(values.brief),
         sourceText: values.sourceText,
         wordCount: values.wordCount ?? null,
         isSeedReference: values.isSeedReference ?? false,
@@ -150,7 +168,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
         <SidePanelContent width="38rem">
           <SidePanelHeader
             title="导入题目"
-            description="手工录入题目或真题种子。TaskB 需要含错译文并至少标注一条种子错误。"
+            description="手工录入题目或真题种子。TaskB 需要含错译文并至少标注一条错误。"
           />
 
           <SidePanelBody>
@@ -226,16 +244,25 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>简介（可选，JSON）</Label>
-                    <Input
-                      {...form.register("brief")}
-                      placeholder='{"领域":"公共卫生","文本类型":"通知"}'
-                    />
-                    {form.formState.errors.brief ? (
-                      <p className="text-xs text-destructive">
-                        {form.formState.errors.brief.message}
-                      </p>
-                    ) : null}
+                    <Label>简介（可选）</Label>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {BRIEF_FIELDS.map((f) => (
+                        <div key={f.name} className="space-y-1.5">
+                          <Label className="text-xs font-normal text-muted-foreground">
+                            {f.label}
+                          </Label>
+                          <Input
+                            {...form.register(`brief.${f.name}` as const)}
+                            placeholder={f.placeholder}
+                          />
+                          {form.formState.errors.brief?.[f.name] ? (
+                            <p className="text-xs text-destructive">
+                              {form.formState.errors.brief[f.name]?.message}
+                            </p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="space-y-2">

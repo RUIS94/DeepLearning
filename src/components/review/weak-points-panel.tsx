@@ -17,10 +17,6 @@ export function WeakPointsPanel({ status }: { status: number | "all" }) {
 
   return (
     <div>
-      <p className="mb-4 text-sm text-muted-foreground">
-        AI 依据你的历史提交自动归类的薄弱点，只读展示，暂无手动关闭入口。
-      </p>
-
       {weakPoints.isPending ? (
         <div className="space-y-4">
           {[0, 1, 2].map((i) => (

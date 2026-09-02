@@ -25,7 +25,7 @@ export function ExamManagementPage() {
   return (
     <PageShell
       title="考试管理"
-      description="管理考试类型及其评分维度、错误分类、题库分类、Prompt 模板与标准修正。"
+      description="管理考试类型"
     >
       {examTypes.isPending ? (
         <Skeleton className="h-48 w-full rounded-xl" />

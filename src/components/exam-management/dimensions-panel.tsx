@@ -1,7 +1,13 @@
 "use client";
 
+import type { Ref } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CrudTable, type CrudColumn, type CrudField } from "@/components/admin/crud-table";
+import {
+  CrudTable,
+  type CrudColumn,
+  type CrudCreateHandle,
+  type CrudField,
+} from "@/components/admin/crud-table";
 import { Badge } from "@/components/ui/badge";
 import { createAssessmentDimension, listAssessmentDimensions } from "@/lib/api/exam-config";
 import { ScaleTypeLabel, TaskTypeLabel } from "@/lib/types/enums";
@@ -56,7 +62,7 @@ const fields: CrudField<AssessmentDimensionFormInput>[] = [
     name: "effectiveFrom",
     label: "生效日期",
     kind: "date",
-    description: "若该 dimensionKey 已有生效版本，新版本会自动关闭旧版本（方案 §3.8）。",
+    description: "若该 dimensionKey 已有生效版本，新版本会自动关闭旧版本",
   },
   { name: "sourceReference", label: "官方来源（可选）", kind: "text" },
 ];
@@ -97,7 +103,13 @@ function LevelDescriptions({ raw }: { raw: string }) {
   );
 }
 
-export function DimensionsPanel({ examTypeId }: { examTypeId: string }) {
+export function DimensionsPanel({
+  examTypeId,
+  createRef,
+}: {
+  examTypeId: string;
+  createRef?: Ref<CrudCreateHandle>;
+}) {
   const queryClient = useQueryClient();
   const key = ["admin", "dimensions", examTypeId];
   const dimensions = useQuery({
@@ -126,6 +138,8 @@ export function DimensionsPanel({ examTypeId }: { examTypeId: string }) {
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">TaskA 维度</h3>
         <CrudTable
+          openCreateRef={createRef}
+          hideCreate
           columns={columns}
           items={dimensions.isPending ? undefined : taskA}
           isLoading={dimensions.isPending}
@@ -135,7 +149,6 @@ export function DimensionsPanel({ examTypeId }: { examTypeId: string }) {
           fields={fields}
           defaultValues={defaultValues}
           dialogTitle="新建评分维度版本"
-          createButtonLabel="新建版本"
           renderExpanded={(d) => <LevelDescriptions raw={d.levelDescriptions} />}
           onCreate={create}
           onChanged={invalidate}

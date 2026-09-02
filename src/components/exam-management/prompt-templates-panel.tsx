@@ -1,7 +1,13 @@
 "use client";
 
+import type { Ref } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CrudTable, type CrudColumn, type CrudField } from "@/components/admin/crud-table";
+import {
+  CrudTable,
+  type CrudColumn,
+  type CrudCreateHandle,
+  type CrudField,
+} from "@/components/admin/crud-table";
 import { Badge } from "@/components/ui/badge";
 import {
   createPromptTemplate,
@@ -61,7 +67,7 @@ const templateTypeGroups = Object.entries(AiOperationTypeLabel)
   .map(([value, label]) => ({ value: Number(value), label }))
   .sort((a, b) => a.value - b.value);
 
-export function PromptTemplatesPanel() {
+export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreateHandle> }) {
   const queryClient = useQueryClient();
   const examTypes = useQuery({ queryKey: ["admin", "exam-types"], queryFn: listExamTypes });
 
@@ -123,11 +129,35 @@ export function PromptTemplatesPanel() {
 
   const allTemplates = templates.data;
 
+  const createTemplate = (values: PromptTemplateFormInput) =>
+    createPromptTemplate({
+      examTypeId: values.examTypeId || null,
+      subjectCategory: values.subjectCategory === -1 ? null : (values.subjectCategory ?? null),
+      templateType: values.templateType,
+      layer: values.layer,
+      templateContent: values.templateContent,
+      version: values.version,
+    });
+
   return (
     <div className="space-y-6">
+      {/* 新建按钮提到了 Tab 同行，这里只留一个不预选用途的弹窗入口。 */}
+      <CrudTable
+        dialogOnly
+        openCreateRef={createRef}
+        isLoading={false}
+        schema={promptTemplateFormSchema}
+        fields={fields}
+        defaultValues={defaultValues}
+        dialogTitle="新建 Prompt 模板"
+        onCreate={createTemplate}
+        onChanged={invalidate}
+      />
+
       {templateTypeGroups.map((group) => (
         <section key={group.value}>
           <CrudTable
+            hideCreate
             title={<h3 className="text-sm font-semibold">{group.label}</h3>}
             columns={columns}
             items={
@@ -141,22 +171,10 @@ export function PromptTemplatesPanel() {
             // 后端 PUT /prompt-templates/{id} 只更新 templateContent/version/isActive，
             // 关联与用途/分层改了也不会生效——编辑时置灰，避免用户白改一场。
             lockOnEdit={["examTypeId", "subjectCategory", "templateType", "layer"]}
-            // 从某个分组点「新建」时，预选对应用途。
             defaultValues={{ ...defaultValues, templateType: group.value }}
             dialogTitle={`新建 ${group.label} Prompt 模板`}
-            createButtonLabel="新建"
             emptyMessage={`暂无「${group.label}」模板`}
-            onCreate={(values) =>
-              createPromptTemplate({
-                examTypeId: values.examTypeId || null,
-                subjectCategory:
-                  values.subjectCategory === -1 ? null : (values.subjectCategory ?? null),
-                templateType: values.templateType,
-                layer: values.layer,
-                templateContent: values.templateContent,
-                version: values.version,
-              })
-            }
+            onCreate={createTemplate}
             toFormValues={(t) => ({
               examTypeId: t.examTypeId ?? "",
               subjectCategory: t.subjectCategory ?? -1,

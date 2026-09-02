@@ -26,25 +26,16 @@ export const importUserQuestionSchema = z
     taskType: z.number().int().min(0).max(1),
     difficulty: z.number().int().min(0).max(2),
     title: z.string().trim().min(1, "标题不能为空").max(255),
-    // brief 落在后端 jsonb 列（设计文档 §6.2：领域/文本类型/目的/受众）。留空即不填；
-    // 一旦填写必须是合法 JSON，否则后端 ImportUserQuestionValidator 会返回 400。
+    // brief 落在后端 jsonb 列（设计文档 §6.2：领域/文本类型/目的/受众）。四个子字段都可留空；
+    // 面板在提交前把非空项拼成 JSON 字符串塞进后端 brief 列，全空则传 null。
     brief: z
-      .string()
-      .trim()
-      .nullable()
-      .optional()
-      .refine(
-        (v) => {
-          if (!v) return true;
-          try {
-            JSON.parse(v);
-            return true;
-          } catch {
-            return false;
-          }
-        },
-        { message: '简介需为合法 JSON, 例如 {"领域":"公共卫生","文本类型":"通知"}' },
-      ),
+      .object({
+        domain: z.string().trim().max(255).optional(),
+        textType: z.string().trim().max(255).optional(),
+        purpose: z.string().trim().max(255).optional(),
+        audience: z.string().trim().max(255).optional(),
+      })
+      .optional(),
     sourceText: z.string().trim().min(1, "原文不能为空"),
     wordCount: z.number().int().positive().nullable().optional(),
     isSeedReference: z.boolean().optional(),

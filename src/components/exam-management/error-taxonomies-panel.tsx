@@ -1,7 +1,13 @@
 "use client";
 
+import type { Ref } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CrudTable, type CrudColumn, type CrudField } from "@/components/admin/crud-table";
+import {
+  CrudTable,
+  type CrudColumn,
+  type CrudCreateHandle,
+  type CrudField,
+} from "@/components/admin/crud-table";
 import { createErrorTaxonomy, listErrorTaxonomiesByExamType } from "@/lib/api/exam-config";
 import { errorTaxonomyFormSchema, type ErrorTaxonomyFormInput } from "@/lib/validation/admin";
 import type { ErrorTaxonomy } from "@/lib/types/dtos";
@@ -36,7 +42,13 @@ const defaultValues: ErrorTaxonomyFormInput = {
   exampleCases: "",
 };
 
-export function ErrorTaxonomiesPanel({ examTypeId }: { examTypeId: string }) {
+export function ErrorTaxonomiesPanel({
+  examTypeId,
+  createRef,
+}: {
+  examTypeId: string;
+  createRef?: Ref<CrudCreateHandle>;
+}) {
   const queryClient = useQueryClient();
   const key = ["admin", "error-taxonomies", examTypeId];
   const taxonomies = useQuery({
@@ -46,6 +58,8 @@ export function ErrorTaxonomiesPanel({ examTypeId }: { examTypeId: string }) {
 
   return (
     <CrudTable
+      openCreateRef={createRef}
+      hideCreate
       columns={columns}
       items={taxonomies.data}
       isLoading={taxonomies.isPending}

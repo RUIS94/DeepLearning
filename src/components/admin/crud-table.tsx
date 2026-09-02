@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useImperativeHandle, useState, type ReactNode, type Ref } from "react";
 import {
   Controller,
   useForm,
@@ -60,6 +60,11 @@ export interface CrudColumn<TItem> {
   className?: string;
 }
 
+/** 通过 ref 从外部（如把「新建」按钮提到 Tab 同行时）打开新建弹窗。 */
+export interface CrudCreateHandle {
+  openCreate: () => void;
+}
+
 export type CrudField<TFormValues extends FieldValues> =
   | {
       name: Path<TFormValues>;
@@ -114,14 +119,16 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
   createButtonLabel = "新建",
   emptyMessage = "暂无数据",
   hideCreate = false,
+  openCreateRef,
+  dialogOnly = false,
 }: {
   /** 表格上方的标题（如分组名），与「新建」按钮同行显示；不传则只显示按钮（旧行为）。 */
   title?: ReactNode;
-  columns: CrudColumn<TItem>[];
-  items: TItem[] | undefined;
+  columns?: CrudColumn<TItem>[];
+  items?: TItem[] | undefined;
   isLoading: boolean;
   loadError?: unknown;
-  getRowId: (item: TItem) => string;
+  getRowId?: (item: TItem) => string;
   schema: ZodType<TFormValues>;
   fields: CrudField<TFormValues>[];
   defaultValues: DefaultValues<TFormValues>;
@@ -143,7 +150,13 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
   createButtonLabel?: string;
   emptyMessage?: string;
   hideCreate?: boolean;
+  /** 暴露「打开新建弹窗」给外部调用（把新建按钮提到 Tab 同行时用）。 */
+  openCreateRef?: Ref<CrudCreateHandle> | undefined;
+  /** 只渲染新建弹窗，不渲染表格与按钮（配合 openCreateRef，做一个纯弹窗入口）。 */
+  dialogOnly?: boolean;
 }) {
+  const cols = columns ?? [];
+  const rowId = getRowId ?? (() => "");
   const [mode, setMode] = useState<Mode<TItem>>("closed");
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [deleting, setDeleting] = useState<TItem | null>(null);
@@ -159,6 +172,7 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
     setSubmitError(null);
     setMode("create");
   }
+  useImperativeHandle(openCreateRef, () => ({ openCreate }));
   function openEdit(item: TItem) {
     form.reset(toFormValues!(item));
     setSubmitError(null);
@@ -175,7 +189,7 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
     const editing = mode !== "closed" && mode !== "create";
     try {
       if (editing) {
-        await onUpdate!(getRowId(mode.edit), values);
+        await onUpdate!(rowId(mode.edit), values);
       } else {
         const created = await onCreate(values);
         onCreated?.(created);
@@ -212,7 +226,7 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
   async function confirmDelete() {
     if (!deleting) return;
     try {
-      await onDelete!(getRowId(deleting));
+      await onDelete!(rowId(deleting));
       onChanged?.();
       setDeleting(null);
     } catch (err) {
@@ -222,6 +236,57 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
       throw err; // 让 ConfirmDialog 保持打开
     }
   }
+
+  const createDialog = (
+    <Dialog open={mode !== "closed"} onOpenChange={(next) => (next ? null : closeDialog())}>
+      <DialogContent className="flex max-h-[85vh] max-w-lg flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
+          <DialogTitle>
+            {mode !== "closed" && mode !== "create" ? editDialogTitle : dialogTitle}
+          </DialogTitle>
+        </DialogHeader>
+        <form
+          className="flex min-h-0 flex-1 flex-col gap-4"
+          onSubmit={form.handleSubmit(handleSubmit, (formErrors) =>
+            handleInvalid(formErrors as Record<string, { message?: string } | undefined>),
+          )}
+        >
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+            {fields.map((field) => {
+              const locked =
+                mode !== "closed" && mode !== "create" && !!lockOnEdit?.includes(field.name);
+              return (
+                <div key={field.name} className="space-y-2">
+                  {field.kind !== "switch" ? (
+                    <Label htmlFor={field.name}>{field.label}</Label>
+                  ) : null}
+                  <CrudFieldControl field={field} form={form} disabled={locked} />
+                  {locked ? (
+                    <p className="text-xs text-muted-foreground">
+                      此字段不可编辑；如需更改请新建模板并停用旧行。
+                    </p>
+                  ) : field.description ? (
+                    <p className="text-xs text-muted-foreground">{field.description}</p>
+                  ) : null}
+                  {errors[field.name]?.message ? (
+                    <p className="text-xs text-destructive">{errors[field.name]!.message}</p>
+                  ) : null}
+                </div>
+              );
+            })}
+            {submitError ? <ErrorBanner error={submitError} /> : null}
+          </div>
+          <DialogFooter className="shrink-0">
+            <Button type="submit" disabled={form.formState.isSubmitting}>
+              {form.formState.isSubmitting ? "提交中…" : "确认"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (dialogOnly) return createDialog;
 
   return (
     <div className="space-y-4">
@@ -244,52 +309,7 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
         </div>
       ) : null}
 
-      <Dialog open={mode !== "closed"} onOpenChange={(next) => (next ? null : closeDialog())}>
-        <DialogContent className="flex max-h-[85vh] max-w-lg flex-col overflow-hidden">
-          <DialogHeader className="shrink-0">
-            <DialogTitle>
-              {mode !== "closed" && mode !== "create" ? editDialogTitle : dialogTitle}
-            </DialogTitle>
-          </DialogHeader>
-          <form
-            className="flex min-h-0 flex-1 flex-col gap-4"
-            onSubmit={form.handleSubmit(handleSubmit, (formErrors) =>
-              handleInvalid(formErrors as Record<string, { message?: string } | undefined>),
-            )}
-          >
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-              {fields.map((field) => {
-                const locked =
-                  mode !== "closed" && mode !== "create" && !!lockOnEdit?.includes(field.name);
-                return (
-                  <div key={field.name} className="space-y-2">
-                    {field.kind !== "switch" ? (
-                      <Label htmlFor={field.name}>{field.label}</Label>
-                    ) : null}
-                    <CrudFieldControl field={field} form={form} disabled={locked} />
-                    {locked ? (
-                      <p className="text-xs text-muted-foreground">
-                        此字段不可编辑；如需更改请新建模板并停用旧行。
-                      </p>
-                    ) : field.description ? (
-                      <p className="text-xs text-muted-foreground">{field.description}</p>
-                    ) : null}
-                    {errors[field.name]?.message ? (
-                      <p className="text-xs text-destructive">{errors[field.name]!.message}</p>
-                    ) : null}
-                  </div>
-                );
-              })}
-              {submitError ? <ErrorBanner error={submitError} /> : null}
-            </div>
-            <DialogFooter className="shrink-0">
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "提交中…" : "确认"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {createDialog}
 
       {isLoading ? (
         <Skeleton className="h-48 w-full rounded-xl" />
@@ -300,39 +320,22 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
           <Table>
             <TableHeader>
               <TableRow>
-                {renderExpanded ? <TableHead className="w-8" /> : null}
-                {columns.map((c) => (
+                {cols.map((c) => (
                   <TableHead key={c.key}>{c.header}</TableHead>
                 ))}
                 {actionsColumn ? <TableHead className="w-24 text-right">操作</TableHead> : null}
+                {renderExpanded ? <TableHead className="w-10" /> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((item) => {
-                const id = getRowId(item);
+                const id = rowId(item);
                 const expanded = expandedId === id;
-                const colCount =
-                  columns.length + (renderExpanded ? 1 : 0) + (actionsColumn ? 1 : 0);
+                const colCount = cols.length + (renderExpanded ? 1 : 0) + (actionsColumn ? 1 : 0);
                 return (
                   <Fragment key={id}>
                     <TableRow>
-                      {renderExpanded ? (
-                        <TableCell className="w-8 align-top">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedId(expanded ? null : id)}
-                            className="text-muted-foreground transition-colors hover:text-foreground"
-                            aria-label={expanded ? "收起" : "展开"}
-                          >
-                            {expanded ? (
-                              <ChevronDown className="size-4" />
-                            ) : (
-                              <ChevronRight className="size-4" />
-                            )}
-                          </button>
-                        </TableCell>
-                      ) : null}
-                      {columns.map((c) => (
+                      {cols.map((c) => (
                         <TableCell key={c.key} className={c.className}>
                           {c.render(item)}
                         </TableCell>
@@ -363,6 +366,22 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
                               </Button>
                             ) : null}
                           </div>
+                        </TableCell>
+                      ) : null}
+                      {renderExpanded ? (
+                        <TableCell className="w-10 text-right align-middle">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedId(expanded ? null : id)}
+                            className="-m-2 inline-flex items-center justify-center p-2 text-muted-foreground transition-colors hover:text-foreground"
+                            aria-label={expanded ? "收起" : "展开"}
+                          >
+                            {expanded ? (
+                              <ChevronDown className="size-4" />
+                            ) : (
+                              <ChevronRight className="size-4" />
+                            )}
+                          </button>
                         </TableCell>
                       ) : null}
                     </TableRow>

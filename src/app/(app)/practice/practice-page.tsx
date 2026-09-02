@@ -62,7 +62,7 @@ export function PracticePage() {
   return (
     <AppShell
       title="题库"
-      description="挑一道题开始练习。列表按后端约定一次性返回全部结果，暂无分页。"
+      description="选题并练习"
       actions={
         <>
           <Button variant="outline" onClick={() => importPanel.open()}>
