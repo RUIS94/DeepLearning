@@ -69,6 +69,14 @@
 -- frontend's 影响核心/接近边界/非核心 tag is now derived from severity, not asked of the
 -- AI. GradeSubmissionCommandHandler.ValidatePayload rejects an unknown/missing severity.
 --
+-- estimatedPassProbability had no definition in the merged template, so the AI stamped one
+-- holistic gut number into every dimension (observed: all 0.40) and the backend's
+-- ComputeOverallPassProbability (product of the per-dimension numbers) compounded it. Added
+-- a calibration table below the JSON contract anchoring each dimension's number to the gap
+-- between its judged band and that dimension's pass threshold, and stating it must be
+-- estimated per-dimension. Pass/fail itself is unaffected — that's deterministic
+-- (band vs pass_threshold via IGradingResultInterpreter), never from this probability.
+--
 -- Template model (GradeSubmissionCommandHandler.BuildTemplateModel) is unchanged:
 --   task_type, source_title, source_text, flawed_translation_text, submission_content,
 --   meaning_checkpoints[], seeded_errors[], dimensions[], error_taxonomies[],
@@ -201,13 +209,20 @@ Band {{ band.key }}: {{ band.value }}
 严格只输出以下 JSON,不要输出 markdown 代码块围栏之外的任何文字:
 {
   "dimensions": [
-    {"dimensionKey": "<必须是上方评分维度列表中的 dimension_key 之一>", "band": <1-5 整数>, "rationale": "<引用对应 Band 英文原文作为依据>", "cumulativeDensityFlag": <true/false>, "cumulativeDensityNote": "<string 或 null>", "estimatedPassProbability": <0 到 1 之间的两位小数,如 0.65,表示本篇译文的主观通过概率,非官方数据>}
+    {"dimensionKey": "<必须是上方评分维度列表中的 dimension_key 之一>", "band": <1-5 整数>, "rationale": "<引用对应 Band 英文原文作为依据>", "cumulativeDensityFlag": <true/false>, "cumulativeDensityNote": "<string 或 null>", "estimatedPassProbability": <0-1 两位小数,该维度【单独】的通过概率,按下方校准表,非官方数据>}
   ],
   "errors": [
     {"positionRef": "<定位信息>", "sourceTextSnippet": "<原文片段>", "userTextSnippet": "<用户译文片段>", "errorCategory": "<必须是上方错误类别列表中的 category_key 之一>", "dimensionKey": "<所属评分维度 key>", "severity": "<minor|moderate|major|critical,按上方【评分关键原则】2 的四档>", "summary": "<≤20字中文,一句话定性,如 概念方向偏移 / 术语方向性错误+全文不一致 / 扭曲程度偏移 / 修饰语堆叠>", "explanation": "<说明>", "suggestion": "<建议>"}
   ]
 }
 dimensions 数组必须覆盖上方给出的每一个评分维度,逐一给出 Band 判断,不得遗漏。
+
+estimatedPassProbability 校准(每个维度分别估,不要把对全篇的同一个直觉数填进每一项;注意 band 数字越小越好,通过 = judged band ≤ 该维度通过线):
+- judged band 已过线且更靠前,留有余量(如通过线 Band 3、judged Band 1-2)→ 0.80-0.95
+- judged band 刚好压在通过线上 → 0.45-0.65
+- 差通过线一级 → 0.15-0.35
+- 差两级及以上 → ≤0.10
+(后端会把各维度这个数相乘得到全篇通过概率,所以务必逐维度独立、按上表校准。)
 $tpl$,
     1,
     TRUE
