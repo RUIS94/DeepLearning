@@ -53,3 +53,6 @@ add_question_gen_naati_background_prompt_template.sql
 
 # --- 2026-09-02 / 09-03: question_gen collapse to one row (must stay last of the question_gen scripts) ---
 consolidate_question_gen_prompt_templates.sql
+
+# --- 2026-09-03: grading collapse to one row (must stay last of the grading scripts) ---
+consolidate_grading_prompt_templates.sql

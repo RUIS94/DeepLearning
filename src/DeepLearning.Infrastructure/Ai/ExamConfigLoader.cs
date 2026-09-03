@@ -30,14 +30,19 @@ namespace DeepLearning.Infrastructure.Ai
             var examType = await _examTypeRepository.GetByIdAsync(examTypeId, cancellationToken)
                 ?? throw new NotFoundException(nameof(ExamType), examTypeId);
 
-            // shared_methodology rows never carry an exam_type_id, and exam_specific rows
-            // never carry a subject_category (enforced by the DB check constraint), so these
-            // two calls naturally partition into "shared" and "specific" without filtering
-            // by Layer explicitly.
-            var sharedTemplates = await _promptTemplateRepository.ListAsync(
-                examTypeId: null, subjectCategory: examType.SubjectCategory, templateType: templateType, isActive: true, cancellationToken);
-            var specificTemplates = await _promptTemplateRepository.ListAsync(
-                examTypeId: examTypeId, subjectCategory: null, templateType: templateType, isActive: true, cancellationToken);
+            // The two queries are meant to partition by layer: shared_methodology rows are
+            // matched by subject_category, exam_specific rows by exam_type_id. The DB check
+            // constraint ck_prompt_templates_layer_scope is an OR, so it does NOT stop a row
+            // from carrying BOTH scoping columns — and such a row would then match both
+            // queries and be rendered twice (see consolidate_grading_prompt_templates.sql for
+            // the incident this guards against). Filter on Layer explicitly so each row lands
+            // in exactly one bucket regardless of stray column values.
+            var sharedTemplates = (await _promptTemplateRepository.ListAsync(
+                    examTypeId: null, subjectCategory: examType.SubjectCategory, templateType: templateType, isActive: true, cancellationToken))
+                .Where(t => t.Layer == TemplateLayer.shared_methodology);
+            var specificTemplates = (await _promptTemplateRepository.ListAsync(
+                    examTypeId: examTypeId, subjectCategory: null, templateType: templateType, isActive: true, cancellationToken))
+                .Where(t => t.Layer == TemplateLayer.exam_specific);
 
             var segments = sharedTemplates
                 .Concat(specificTemplates)
