@@ -66,6 +66,15 @@ namespace DeepLearning.Infrastructure.Ai
                 }
             }
 
+            // Anthropic rejects temperature != 1 while extended thinking is on (Opus 5 thinks
+            // by default), so only forward an explicit per-call temperature when thinking is
+            // off. ExtraSettings can still set "temperature" directly for callers that have
+            // already arranged for that to be valid.
+            if (request.Temperature is { } temperature && request.ThinkingEnabled == false)
+            {
+                body["temperature"] = temperature;
+            }
+
             var stopwatch = Stopwatch.StartNew();
             HttpResponseMessage response;
             try

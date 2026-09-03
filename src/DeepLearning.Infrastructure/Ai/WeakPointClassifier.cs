@@ -98,7 +98,8 @@ namespace DeepLearning.Infrastructure.Ai
                 {
                     var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
                     var completion = await llmClient.CompleteAsync(
-                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 2048),
+                        // Temperature 0: classification into a fixed catalog should be stable.
+                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 2048, Temperature: 0m),
                         cancellationToken);
                     aiCallLog.LatencyMs = completion.LatencyMs;
                     return ParsePayload(completion.Text);

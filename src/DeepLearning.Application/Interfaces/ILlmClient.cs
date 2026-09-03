@@ -22,7 +22,14 @@ namespace DeepLearning.Application.Interfaces
         string? Model = null,
         bool? ThinkingEnabled = null,
         string? Effort = null,
-        IReadOnlyDictionary<string, JsonElement>? ExtraSettings = null);
+        IReadOnlyDictionary<string, JsonElement>? ExtraSettings = null,
+        // Per-call sampling temperature. Null = leave it to the provider default (~1.0 for the
+        // OpenAI-compatible providers), which is what generation calls want. Deterministic
+        // calls (grading, weak-point classification) pass 0 so the same input reproduces the
+        // same output. Overrides any "temperature" in the provider's ExtraSettings. On Claude
+        // it is only forwarded when ThinkingEnabled == false (Anthropic rejects temperature
+        // != 1 while extended thinking is on).
+        decimal? Temperature = null);
 
     public record LlmCompletionResult(string Text, int InputTokens, int OutputTokens, string Model, int LatencyMs);
 }

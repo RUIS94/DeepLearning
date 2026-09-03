@@ -140,7 +140,9 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 {
                     var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
                     var completion = await llmClient.CompleteAsync(
-                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 8192),
+                        // Temperature 0: grading must be reproducible — the same submission
+                        // against the same rubric should not swing bands run to run.
+                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 8192, Temperature: 0m),
                         cancellationToken);
                     aiCallLog.LatencyMs = completion.LatencyMs;
 

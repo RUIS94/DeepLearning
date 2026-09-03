@@ -63,6 +63,14 @@ namespace DeepLearning.Infrastructure.Ai
                 }
             }
 
+            // Explicit per-call temperature wins over any ExtraSettings default — grading and
+            // weak-point classification pass 0 so the same input reproduces the same output
+            // (these providers otherwise sample at ~1.0). Generation calls leave it null.
+            if (request.Temperature is { } temperature)
+            {
+                body["temperature"] = temperature;
+            }
+
             using var httpRequest = new HttpRequestMessage(HttpMethod.Post, _options.BaseUrl)
             {
                 Content = JsonContent.Create(body),
