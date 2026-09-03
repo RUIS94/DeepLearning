@@ -1,4 +1,5 @@
 using DeepLearning.Domain.Entities;
+using DeepLearning.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -17,7 +18,10 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
             builder.Property(x => x.Description).IsRequired();
             builder.Property(x => x.DefaultDimensionKey).HasMaxLength(50);
             builder.Property(x => x.DefaultErrorCategory).HasMaxLength(50);
-            builder.Property(x => x.IsActive).HasDefaultValue(true).ValueGeneratedNever();
+            // Not the enum's ordinal-0 member (that's 'proposed'), so ValueGeneratedNever keeps
+            // EF from discarding an explicit non-default on insert — same landmine as WeakPoint.Priority.
+            builder.Property(x => x.Status).HasDefaultValue(WeakPointCatalogStatus.active).ValueGeneratedNever();
+            builder.Property(x => x.Origin).HasMaxLength(20).HasDefaultValue("seed").ValueGeneratedNever();
             builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
 
             builder.HasIndex(x => new { x.ExamTypeId, x.Code })

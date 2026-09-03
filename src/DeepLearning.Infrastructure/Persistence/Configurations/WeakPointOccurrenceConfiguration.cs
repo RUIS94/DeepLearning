@@ -17,6 +17,14 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
 
             builder.HasIndex(x => x.WeakPointId).HasDatabaseName("idx_weak_point_occurrences_wp");
 
+            // A weak point occurs at most once per submission — UpdateWeakPointsOnGraded already
+            // dedups buckets in memory per grading; this is the DB backstop against a re-grade
+            // (a second SubmissionGradedEvent) or a concurrent event double-inserting and
+            // inflating occurrence / recurrence counts. Writers use ON CONFLICT DO NOTHING.
+            builder.HasIndex(x => new { x.WeakPointId, x.SubmissionId })
+                .IsUnique()
+                .HasDatabaseName("ux_weak_point_occurrences_wp_submission");
+
             builder.HasOne(x => x.WeakPoint)
                 .WithMany()
                 .HasForeignKey(x => x.WeakPointId)

@@ -46,10 +46,11 @@ CREATE TYPE template_layer_enum AS ENUM ('shared_methodology','exam_specific');
 CREATE TYPE call_status_enum AS ENUM ('pending','calling','success','failed','final_failure');
 CREATE TYPE checkpoint_importance_enum AS ENUM ('core','peripheral');
 CREATE TYPE knowledge_item_type_enum AS ENUM ('sentence_pattern','vocab_expression','formula','concept','theorem','other');
--- 标签顺序与 EF 迁移 AddErrorSeverityAndSummary 生成的一致(Npgsql 10 按字母排),
--- 好让两条建库路径产出的 pg_enum 完全一致。严重度大小比较只在 C# 里做
--- (ErrorSeverity 序数 minor<moderate<major<critical),没有任何 SQL 依赖此物理顺序。
+-- 下面两个枚举的标签顺序与对应 EF 迁移生成的一致(Npgsql 10 的 HasPostgresEnum 按字母排),
+-- 好让 schema.sql 建库与迁移建库产出的 pg_enum 完全一致。这两个枚举的"大小"比较只在 C# 里做,
+-- 没有任何 SQL 依赖其物理顺序。
 CREATE TYPE error_severity_enum AS ENUM ('critical','major','minor','moderate');
+CREATE TYPE weak_point_catalog_status_enum AS ENUM ('active','deprecated','proposed');
 
 -- =====================================================================
 -- 第九/十节:考试类型配置骨架(MVP阶段即实现,不是未来才做)
@@ -287,17 +288,43 @@ CREATE TABLE vocab_expressions (
 -- 第六节:薄弱点追踪
 -- =====================================================================
 
+-- 规范薄弱点种类(每考试类型策展)。seed 行 + 运行期 proposed 行(legacy 桶复发时系统建、
+-- 或后台手动建),经审批/合并进入 active,合并后 losing 行置 deprecated(不删)。
+CREATE TABLE weak_point_catalog (
+    id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    exam_type_id           UUID NOT NULL REFERENCES exam_types(id) ON DELETE CASCADE,
+    code                   VARCHAR(60) NOT NULL,
+    name                   VARCHAR(100) NOT NULL,
+    description            TEXT NOT NULL,
+    default_dimension_key  VARCHAR(50),
+    default_error_category VARCHAR(50),
+    status                 weak_point_catalog_status_enum NOT NULL DEFAULT 'active',
+    origin                 VARCHAR(20) NOT NULL DEFAULT 'seed',   -- seed | auto | manual
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX ux_weak_point_catalog_exam_code ON weak_point_catalog(exam_type_id, code);
+
 CREATE TABLE weak_points (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id             UUID NOT NULL REFERENCES users(id),
-    category             VARCHAR(100) NOT NULL,
-    description           TEXT,
-    first_detected_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    last_seen_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-    recurrence_count         INT NOT NULL DEFAULT 0,
-    status                    weak_point_status_enum NOT NULL DEFAULT 'active',
-    priority                   priority_enum NOT NULL DEFAULT 'medium'
+    exam_type_id        UUID REFERENCES exam_types(id),
+    catalog_id          UUID REFERENCES weak_point_catalog(id) ON DELETE SET NULL,
+    category            VARCHAR(100),                       -- legacy 桶标签;映射到 catalog 后为 NULL
+    pattern_summary     TEXT,                               -- 每学习者滚动 AI 摘要;评判 prompt 注入的就是它
+    detection_source    VARCHAR(20) NOT NULL DEFAULT 'rule',
+    first_detected_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    recurrence_count    INT NOT NULL DEFAULT 0,
+    status             weak_point_status_enum NOT NULL DEFAULT 'active',
+    priority           priority_enum NOT NULL DEFAULT 'medium',
+    resolved_at        TIMESTAMPTZ
 );
+CREATE INDEX ix_weak_points_catalog_id   ON weak_points(catalog_id);
+CREATE INDEX ix_weak_points_exam_type_id ON weak_points(exam_type_id);
+-- 两个部分唯一索引互斥:catalog 行(category NULL)只受 (user_id, catalog_id) 管,
+-- legacy 行(catalog_id NULL)只受 (user_id, category) 管。
+CREATE UNIQUE INDEX ux_weak_points_user_catalog  ON weak_points(user_id, catalog_id) WHERE catalog_id IS NOT NULL;
+CREATE UNIQUE INDEX ux_weak_points_user_category ON weak_points(user_id, category)   WHERE catalog_id IS NULL;
 
 CREATE TABLE weak_point_occurrences (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -305,8 +332,12 @@ CREATE TABLE weak_point_occurrences (
     submission_id         UUID NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
     error_list_id           UUID REFERENCES error_list(id) ON DELETE SET NULL,
     is_recurrence            BOOLEAN NOT NULL DEFAULT FALSE,
+    snippet                  TEXT,     -- error_list snippet 的副本,写一次不改;error_list_id 被 SET NULL 后仍可读
+    detected_band            INT,      -- 该 occurrence 所在维度评判时的 band 快照
     created_at                TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- 一个薄弱点在一篇提交里至多一次(重判/并发事件防重)。
+CREATE UNIQUE INDEX ux_weak_point_occurrences_wp_submission ON weak_point_occurrences(weak_point_id, submission_id);
 
 -- =====================================================================
 -- 第六节:进度分析
@@ -479,3 +510,48 @@ ALTER TABLE error_list
 
 -- Backfill existing rows from the legacy boolean.
 UPDATE error_list SET severity = 'major' WHERE impacts_core AND severity = 'moderate';
+
+-- =====================================================================
+-- 增量迁移
+-- 对应 EF Core 迁移: ReworkWeakPointModel
+-- 薄弱点三表重构(用户明确批准本次可删列——被删的列只存陈旧副本/样板,无真实数据丢失):
+--  * weak_point_catalog: 去 is_active,换 status(proposed|active|deprecated)+ origin;
+--  * weak_points: 去 description(catalog.description 的副本)+ evidence_note(occurrence 的副本),
+--    加 pattern_summary(每学习者滚动 AI 摘要,评判 prompt 注入的就是它);category 改可空;
+--    (user_id, category) 唯一索引改为部分索引 WHERE catalog_id IS NULL,与 (user_id, catalog_id) 对称;
+--  * weak_point_occurrences: 加 (weak_point_id, submission_id) 唯一索引(重判/并发防重)。
+-- =====================================================================
+DO $$ BEGIN
+    CREATE TYPE weak_point_catalog_status_enum AS ENUM ('active','deprecated','proposed');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+ALTER TABLE weak_point_catalog
+    ADD COLUMN IF NOT EXISTS status weak_point_catalog_status_enum NOT NULL DEFAULT 'active',
+    ADD COLUMN IF NOT EXISTS origin VARCHAR(20) NOT NULL DEFAULT 'seed';
+UPDATE weak_point_catalog
+   SET status = CASE WHEN COALESCE(is_active, TRUE) THEN 'active'::weak_point_catalog_status_enum
+                     ELSE 'deprecated'::weak_point_catalog_status_enum END
+ WHERE status = 'active';
+ALTER TABLE weak_point_catalog DROP COLUMN IF EXISTS is_active;
+
+ALTER TABLE weak_points ADD COLUMN IF NOT EXISTS pattern_summary TEXT;
+ALTER TABLE weak_points ALTER COLUMN category DROP NOT NULL;
+ALTER TABLE weak_points DROP COLUMN IF EXISTS description;
+ALTER TABLE weak_points DROP COLUMN IF EXISTS evidence_note;
+-- catalog 行的 category 曾是 code 的副本 —— 清空,让部分唯一索引正确
+UPDATE weak_points SET category = NULL WHERE catalog_id IS NOT NULL;
+
+DROP INDEX IF EXISTS ux_weak_points_user_category;
+CREATE UNIQUE INDEX ux_weak_points_user_category ON weak_points(user_id, category) WHERE catalog_id IS NULL;
+
+ALTER TABLE weak_point_occurrences ADD COLUMN IF NOT EXISTS snippet TEXT;
+ALTER TABLE weak_point_occurrences ADD COLUMN IF NOT EXISTS detected_band INT;
+-- 若历史上有重判造成的重复 (weak_point_id, submission_id),先去重再建唯一索引
+DELETE FROM weak_point_occurrences a
+ USING weak_point_occurrences b
+ WHERE a.weak_point_id = b.weak_point_id
+   AND a.submission_id = b.submission_id
+   AND a.ctid > b.ctid;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_weak_point_occurrences_wp_submission
+    ON weak_point_occurrences(weak_point_id, submission_id);

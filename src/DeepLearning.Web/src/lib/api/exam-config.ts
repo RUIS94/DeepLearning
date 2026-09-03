@@ -12,6 +12,7 @@ import type {
   ExamTypeDetail,
   PromptTemplate,
   QuestionBankCategory,
+  WeakPointCatalogEntry,
 } from "@/lib/types/dtos";
 
 const api = createBrowserApiClient();
@@ -56,6 +57,53 @@ export async function createErrorTaxonomy(
     method: "POST",
     body: req,
   });
+}
+
+// ---- weak-point catalog (per exam type) ----
+
+export async function listWeakPointCatalog(examTypeId: string): Promise<WeakPointCatalogEntry[]> {
+  return api<WeakPointCatalogEntry[]>(`/exam-types/${examTypeId}/weak-point-catalog`);
+}
+
+export async function createWeakPointCatalogEntry(
+  examTypeId: string,
+  req: {
+    code: string;
+    name: string;
+    description: string;
+    defaultDimensionKey: string | null;
+    defaultErrorCategory: string | null;
+  },
+): Promise<WeakPointCatalogEntry> {
+  return api<WeakPointCatalogEntry>(`/exam-types/${examTypeId}/weak-point-catalog`, {
+    method: "POST",
+    body: req,
+  });
+}
+
+export async function updateWeakPointCatalogEntry(
+  examTypeId: string,
+  id: string,
+  req: {
+    name?: string | null;
+    description?: string | null;
+    defaultDimensionKey?: string | null;
+    defaultErrorCategory?: string | null;
+    status?: number | null;
+  },
+): Promise<unknown> {
+  return api(`/exam-types/${examTypeId}/weak-point-catalog/${id}`, { method: "PUT", body: req });
+}
+
+export async function mergeWeakPointCatalog(
+  examTypeId: string,
+  fromId: string,
+  toId: string,
+): Promise<{ fromId: string; toId: string; repointedCount: number; mergedCount: number }> {
+  return api<{ fromId: string; toId: string; repointedCount: number; mergedCount: number }>(
+    `/exam-types/${examTypeId}/weak-point-catalog/merge`,
+    { method: "POST", body: { fromId, toId } },
+  );
 }
 
 export async function listPromptTemplates(filter?: {

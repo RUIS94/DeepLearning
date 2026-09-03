@@ -1,3 +1,4 @@
+using System.Text;
 using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
@@ -8,8 +9,8 @@ using MediatR;
 namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
 {
     /// <summary>
-    /// Design doc §10.4/§10.5's weak-point tracking. Each graded error is matched to a curated
-    /// <see cref="WeakPointCatalog"/> row and the resulting <see cref="WeakPointOccurrence"/> is
+    /// Design doc §10.4/§10.5's weak-point tracking. Each graded error is matched to a
+    /// <see cref="WeakPointCatalog"/> kind and the resulting <see cref="WeakPointOccurrence"/> is
     /// tied back to the specific ErrorListItem, its snippet and its dimension's band.
     ///
     /// Bucketing order per error: (1) an <see cref="IWeakPointClassifier"/> AI call, when a
@@ -20,6 +21,13 @@ namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
     /// bucket (CatalogId null). The classifier never throws and returns nothing when it is off
     /// or fails, so with no template configured this is byte-for-byte the pre-classifier
     /// rule-only behaviour.
+    ///
+    /// The same classifier call also returns a refreshed per-learner <c>pattern_summary</c> for
+    /// each kind this submission touched (merged from the prior summary + new evidence); that is
+    /// the text injected into the grading prompt. A legacy bucket that recurs (already existed
+    /// before this grading and gets another hit) is promoted: a <c>proposed</c> catalog kind is
+    /// minted for it and the weak point re-pointed, so it stops being a coarse free-text row and
+    /// becomes reviewable/mergeable in admin.
     /// </summary>
     public class UpdateWeakPointsOnGraded : INotificationHandler<DomainEventNotification<SubmissionGradedEvent>>
     {
@@ -65,29 +73,39 @@ namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
                 .GroupBy(r => r.DimensionId)
                 .ToDictionary(g => g.Key, g => g.First().Band);
 
-            // One AI pass to place errors the (dimension, category) rule can't tell apart.
-            // Returns nothing (-> rule handles everything) when no template is configured or the
-            // call fails; never throws. See IWeakPointClassifier.
+            // The user's full active set (not the grading-prompt top-K) — the classifier needs
+            // every catalog-mapped summary so it can merge rather than rewrite.
+            var activeWeakPoints = await _weakPointRepository.ListActiveWithCatalogByUserAsync(
+                gradedEvent.UserId, limit: null, cancellationToken);
+            var activeSummaries = activeWeakPoints
+                .Where(w => w.Catalog is not null)
+                .Select(w => new ActiveWeakPointSummary(w.Catalog!.Code, w.PatternSummary))
+                .ToList();
+
+            // One AI pass: place errors the (dimension, category) rule can't tell apart, and
+            // refresh pattern summaries. Returns Empty (-> rule handles everything, no summary
+            // updates) when no template is configured or the call fails; never throws.
             var classifierErrors = errors.Select(e => new WeakPointClassifierError(
                 e.Id,
                 e.Dimension?.DimensionKey ?? string.Empty,
                 e.ErrorTaxonomy?.CategoryKey ?? string.Empty,
                 e.UserTextSnippet ?? e.SourceTextSnippet,
                 e.Explanation,
-                e.ImpactsCore)).ToList();
-            var aiCatalogIdByErrorId = await _weakPointClassifier.ClassifyAsync(
-                gradedEvent.ExamTypeId, classifierErrors, catalog, cancellationToken);
+                e.Severity)).ToList();
+            var classification = await _weakPointClassifier.ClassifyAsync(
+                gradedEvent.ExamTypeId, classifierErrors, catalog, activeSummaries, cancellationToken);
+
             var catalogById = catalog.ToDictionary(c => c.Id);
+            var summaryByCode = classification.CatalogCodeToPatternSummary;
 
             // Dedup to one bucket per submission — the same category flagged 3 times in one
             // submission is one occurrence of that weak point, not three. Recurrence (§10.4) is
             // about a weak point resurfacing ACROSS submissions after being resolved, not density
-            // within one. First error seen for a bucket becomes its representative for the
-            // occurrence's snippet / band / error_list_id.
+            // within one. First error seen for a bucket becomes its representative.
             var buckets = new Dictionary<string, Bucket>();
             foreach (var error in errors)
             {
-                var bucket = ResolveBucket(error, catalog, aiCatalogIdByErrorId, catalogById);
+                var bucket = ResolveBucket(error, catalog, classification.ErrorToCatalogId, catalogById);
                 if (!buckets.ContainsKey(bucket.Key))
                 {
                     bucket.RepresentativeError = error;
@@ -100,13 +118,19 @@ namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
             foreach (var bucket in buckets.Values)
             {
                 var representative = bucket.RepresentativeError!;
-                var evidence = BuildEvidenceNote(representative);
 
                 var weakPoint = bucket.CatalogId is { } catalogId
                     ? await _weakPointRepository.GetByUserAndCatalogAsync(gradedEvent.UserId, catalogId, cancellationToken)
                     : await _weakPointRepository.GetByUserAndCategoryAsync(gradedEvent.UserId, bucket.Category, cancellationToken);
 
+                var wasExisting = weakPoint is not null;
                 var isRecurrence = false;
+
+                var aiSummary = bucket.CatalogId is { } cid
+                    && catalogById.TryGetValue(cid, out var catRow)
+                    && summaryByCode.TryGetValue(catRow.Code, out var s)
+                        ? s
+                        : null;
 
                 if (weakPoint is null)
                 {
@@ -116,15 +140,14 @@ namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
                         UserId = gradedEvent.UserId,
                         ExamTypeId = gradedEvent.ExamTypeId,
                         CatalogId = bucket.CatalogId,
-                        Category = bucket.Category,
-                        Description = bucket.Description,
+                        Category = bucket.CatalogId is null ? bucket.Category : null,
+                        PatternSummary = aiSummary ?? (bucket.CatalogId is null ? BuildLegacySummary(representative, 1) : null),
                         DetectionSource = bucket.Source,
                         FirstDetectedAt = now,
                         LastSeenAt = now,
                         RecurrenceCount = 0,
                         Status = WeakPointStatus.active,
                         Priority = Priority.medium,
-                        EvidenceNote = evidence,
                     };
                     await _weakPointRepository.AddAsync(weakPoint, cancellationToken);
                 }
@@ -135,7 +158,6 @@ namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
                     weakPoint.LastSeenAt = now;
                     weakPoint.Status = WeakPointStatus.active;
                     weakPoint.ResolvedAt = null;
-                    weakPoint.EvidenceNote = evidence;
                     weakPoint.ExamTypeId ??= gradedEvent.ExamTypeId;
 
                     if (isRecurrence)
@@ -146,15 +168,44 @@ namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
                         {
                             WeakPointId = weakPoint.Id,
                             UserId = weakPoint.UserId,
-                            Category = weakPoint.Category,
+                            Category = bucket.Category,
                             RecurrenceCount = weakPoint.RecurrenceCount,
                             RecurredAt = now,
                         });
+                    }
+
+                    if (aiSummary is not null)
+                    {
+                        weakPoint.PatternSummary = aiSummary;
+                    }
+                    else if (weakPoint.CatalogId is null)
+                    {
+                        weakPoint.PatternSummary = BuildLegacySummary(representative, weakPoint.RecurrenceCount + 2);
+                    }
+
+                    // A legacy bucket that already existed and hit again -> mint a proposed
+                    // catalog kind for it and re-point, so it becomes reviewable/mergeable.
+                    if (weakPoint.CatalogId is null)
+                    {
+                        var promoted = await PromoteLegacyBucketAsync(gradedEvent.ExamTypeId, weakPoint, representative, cancellationToken);
+                        if (promoted is not null)
+                        {
+                            weakPoint.CatalogId = promoted.Id;
+                            weakPoint.Category = null;
+                            weakPoint.DetectionSource = "rule";
+                        }
                     }
                 }
 
                 bandByDimensionId.TryGetValue(representative.DimensionId, out var band);
                 touchedWeakPointIds.Add(weakPoint.Id);
+
+                // Re-grade / concurrent-event guard: at most one occurrence per (weak point, submission).
+                if (wasExisting
+                    && await _weakPointRepository.OccurrenceExistsAsync(weakPoint.Id, gradedEvent.SubmissionId, cancellationToken))
+                {
+                    continue;
+                }
 
                 await _weakPointRepository.AddOccurrenceAsync(new WeakPointOccurrence
                 {
@@ -175,6 +226,53 @@ namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
         }
 
         /// <summary>
+        /// Mints a <see cref="WeakPointCatalogStatus.proposed"/> catalog kind for a recurring
+        /// legacy bucket (deterministic code from the representative error's dimension + category,
+        /// so two learners hitting the same pattern converge on one row). Returns the existing
+        /// row if one already carries that code. Null only when the representative lacks a
+        /// dimension/category to key on.
+        /// </summary>
+        private async Task<WeakPointCatalog?> PromoteLegacyBucketAsync(
+            Guid examTypeId, WeakPoint weakPoint, ErrorListItem representative, CancellationToken cancellationToken)
+        {
+            var dimensionKey = representative.Dimension?.DimensionKey;
+            var categoryKey = representative.ErrorTaxonomy?.CategoryKey;
+            if (string.IsNullOrEmpty(dimensionKey) || string.IsNullOrEmpty(categoryKey))
+            {
+                return null;
+            }
+
+            var code = $"auto_{dimensionKey}_{categoryKey}";
+            if (code.Length > 60)
+            {
+                code = code[..60];
+            }
+
+            var existing = await _weakPointRepository.GetCatalogByExamAndCodeAsync(examTypeId, code, cancellationToken);
+            if (existing is not null)
+            {
+                return existing;
+            }
+
+            var name = weakPoint.Category ?? $"{representative.Dimension?.DimensionName} - {representative.ErrorTaxonomy?.CategoryName}";
+            var proposed = new WeakPointCatalog
+            {
+                Id = Guid.NewGuid(),
+                ExamTypeId = examTypeId,
+                Code = code,
+                Name = name.Length > 100 ? name[..100] : name,
+                Description = weakPoint.PatternSummary ?? $"待审:{name} 反复出现,尚未归入规范薄弱点。",
+                DefaultDimensionKey = dimensionKey,
+                DefaultErrorCategory = categoryKey,
+                Status = WeakPointCatalogStatus.proposed,
+                Origin = "auto",
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            await _weakPointRepository.AddCatalogAsync(proposed, cancellationToken);
+            return proposed;
+        }
+
+        /// <summary>
         /// Marks the user's active weak points that did NOT resurface in this submission and
         /// haven't been seen within their most recent <see cref="ResolveAfterUnseenSubmissions"/>
         /// graded submissions as resolved. Nothing to do until the user has that many graded
@@ -190,11 +288,8 @@ namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
                 return;
             }
 
-            var gradedCreatedAt = (await _submissionRepository.ListByUserAsync(userId, null, cancellationToken))
-                .Where(s => s.Status == SubmissionStatus.graded)
-                .Select(s => s.CreatedAt)
-                .OrderByDescending(x => x)
-                .ToList();
+            var gradedCreatedAt = await _submissionRepository.ListRecentGradedCreatedAtAsync(
+                userId, ResolveAfterUnseenSubmissions, cancellationToken);
             if (gradedCreatedAt.Count < ResolveAfterUnseenSubmissions)
             {
                 return;
@@ -251,7 +346,6 @@ namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
                 Key = $"legacy:{legacy}",
                 CatalogId = null,
                 Category = legacy,
-                Description = $"Recurring issues in '{legacy}'.",
                 Source = "rule",
             };
         }
@@ -261,25 +355,36 @@ namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
             Key = $"catalog:{match.Id}",
             CatalogId = match.Id,
             Category = match.Code,
-            Description = match.Description,
             Source = source,
         };
 
-        private static string BuildEvidenceNote(ErrorListItem error)
+        /// <summary>Deterministic per-learner summary for a legacy (catalog-less) bucket — no AI call.</summary>
+        private static string BuildLegacySummary(ErrorListItem representative, int occurrenceCount)
         {
-            var snippet = error.UserTextSnippet ?? error.SourceTextSnippet;
-            var where = string.IsNullOrWhiteSpace(error.PositionRef) ? null : $"[{error.PositionRef}] ";
-            var explanation = string.IsNullOrWhiteSpace(error.Explanation) ? null : error.Explanation!.Trim();
-            var text = $"{where}{snippet}{(snippet is not null && explanation is not null ? " — " : null)}{explanation}".Trim();
-            return text.Length > 400 ? text[..400] : text;
+            var where = string.IsNullOrWhiteSpace(representative.PositionRef) ? null : $"[{representative.PositionRef}] ";
+            var snippet = representative.UserTextSnippet ?? representative.SourceTextSnippet;
+            var dim = representative.Dimension?.DimensionName;
+            var cat = representative.ErrorTaxonomy?.CategoryName;
+
+            var sb = new StringBuilder();
+            sb.Append(dim is not null && cat is not null ? $"{dim} / {cat}" : "反复出现的问题");
+            sb.Append($":第 {occurrenceCount} 次");
+            if (snippet is not null)
+            {
+                sb.Append($";最近 {where}「{snippet}」");
+            }
+
+            var text = sb.ToString();
+            return text.Length > 240 ? text[..240] : text;
         }
 
         private sealed class Bucket
         {
             public required string Key { get; init; }
             public Guid? CatalogId { get; init; }
+
+            /// <summary>Catalog code for a catalog bucket, or the legacy "{Dim} - {Cat}" label. Also the legacy dedup lookup key.</summary>
             public required string Category { get; init; }
-            public required string Description { get; init; }
 
             /// <summary><c>ai</c> when an IWeakPointClassifier assignment produced this bucket, otherwise <c>rule</c>.</summary>
             public required string Source { get; init; }

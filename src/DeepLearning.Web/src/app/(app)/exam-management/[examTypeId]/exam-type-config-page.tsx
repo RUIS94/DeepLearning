@@ -14,6 +14,7 @@ import { ErrorTaxonomiesPanel } from "@/components/exam-management/error-taxonom
 import { CategoriesPanel } from "@/components/exam-management/categories-panel";
 import { PromptTemplatesPanel } from "@/components/exam-management/prompt-templates-panel";
 import { StandardOverridesPanel } from "@/components/exam-management/standard-overrides-panel";
+import { WeakPointCatalogPanel } from "@/components/exam-management/weak-point-catalog-panel";
 
 export function ExamTypeConfigPage() {
   const { examTypeId } = useParams<{ examTypeId: string }>();
@@ -28,6 +29,7 @@ export function ExamTypeConfigPage() {
   const taxonomiesCreate = useRef<CrudCreateHandle>(null);
   const categoriesCreate = useRef<CrudCreateHandle>(null);
   const promptCreate = useRef<CrudCreateHandle>(null);
+  const weakPointCatalogCreate = useRef<CrudCreateHandle>(null);
   const createActions: Record<
     string,
     { label: string; ref: React.RefObject<CrudCreateHandle | null> }
@@ -36,6 +38,7 @@ export function ExamTypeConfigPage() {
     "error-taxonomies": { label: "新建错误分类", ref: taxonomiesCreate },
     categories: { label: "新建题库分类", ref: categoriesCreate },
     "prompt-templates": { label: "新建 Prompt 模板", ref: promptCreate },
+    "weak-point-catalog": { label: "新建薄弱点种类", ref: weakPointCatalogCreate },
   };
   const activeCreate = createActions[tab];
 
@@ -59,6 +62,7 @@ export function ExamTypeConfigPage() {
             <TabsTrigger value="error-taxonomies">错误分类</TabsTrigger>
             <TabsTrigger value="categories">题库分类</TabsTrigger>
             <TabsTrigger value="prompt-templates">Prompt 模板</TabsTrigger>
+            <TabsTrigger value="weak-point-catalog">薄弱点种类</TabsTrigger>
             <TabsTrigger value="standard-overrides">标准修正</TabsTrigger>
           </TabsList>
           {activeCreate ? (
@@ -80,6 +84,9 @@ export function ExamTypeConfigPage() {
         </TabsContent>
         <TabsContent value="prompt-templates" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
           <PromptTemplatesPanel createRef={promptCreate} />
+        </TabsContent>
+        <TabsContent value="weak-point-catalog" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
+          <WeakPointCatalogPanel examTypeId={examTypeId} createRef={weakPointCatalogCreate} />
         </TabsContent>
         <TabsContent value="standard-overrides" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
           <StandardOverridesPanel />

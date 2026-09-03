@@ -8,13 +8,23 @@ namespace DeepLearning.Domain.Entities
         public Guid UserId { get; set; }
 
         /// <summary>
-        /// Stable grouping key. When <see cref="CatalogId"/> is set this holds the matched
-        /// <see cref="WeakPointCatalog.Code"/>; otherwise it is the legacy free-text
-        /// "{DimensionName} - {ErrorCategoryName}" bucket UpdateWeakPointsOnGraded falls back to
-        /// when no catalog row matches.
+        /// Legacy free-text grouping key "{DimensionName} - {ErrorCategoryName}", used only while
+        /// <see cref="CatalogId"/> is null. Once a weak point is mapped to a catalog kind this is
+        /// null and <see cref="CatalogId"/> / <see cref="Catalog"/> is the identity. Governed by
+        /// the partial unique index ux_weak_points_user_category (WHERE catalog_id IS NULL).
         /// </summary>
-        public string Category { get; set; } = string.Empty;
-        public string? Description { get; set; }
+        public string? Category { get; set; }
+
+        /// <summary>
+        /// AI-distilled, per-learner rolling description of how THIS user manifests this weak
+        /// point — merged from prior summary + each submission's new evidence by the
+        /// weak_point_classification call. This is the text injected into the grading prompt
+        /// (falling back to <see cref="WeakPointCatalog.Description"/> only until the first
+        /// summary is computed). Legacy (catalog-less) buckets get a deterministic string here,
+        /// not an AI call.
+        /// </summary>
+        public string? PatternSummary { get; set; }
+
         public DateTimeOffset FirstDetectedAt { get; set; }
         public DateTimeOffset LastSeenAt { get; set; }
         public int RecurrenceCount { get; set; }
@@ -32,9 +42,6 @@ namespace DeepLearning.Domain.Entities
 
         /// <summary>Set when a resolve sweep marks the weak point cleared; a later occurrence flips <see cref="Status"/> back to active and counts as a recurrence.</summary>
         public DateTimeOffset? ResolvedAt { get; set; }
-
-        /// <summary>Short human-readable note on the most recent detection (which error / which submission), for review UIs.</summary>
-        public string? EvidenceNote { get; set; }
 
         public User? User { get; set; }
         public WeakPointCatalog? Catalog { get; set; }

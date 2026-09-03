@@ -1347,8 +1347,8 @@ export async function listWeakPoints(status?: number): Promise<WeakPoint[]> {
   const all: WeakPoint[] = [
     {
       id: "wp-1",
-      category: "语域一致性",
-      description: "正式通知中混入口语表达（「大家」「记得」等），近一个月出现 7 次。",
+      label: "语域一致性",
+      patternSummary: "正式通知中混入口语表达（「大家」「记得」等），近一个月出现 7 次。",
       firstDetectedAt: "2026-05-12T00:00:00Z",
       lastSeenAt: "2026-08-27T00:00:00Z",
       recurrenceCount: 7,
@@ -1357,8 +1357,8 @@ export async function listWeakPoints(status?: number): Promise<WeakPoint[]> {
     },
     {
       id: "wp-2",
-      category: "长句拆分",
-      description: "英文多重定语从句直译为中文长句，读者阅读负担偏重。",
+      label: "长句拆分",
+      patternSummary: "英文多重定语从句直译为中文长句，读者阅读负担偏重。",
       firstDetectedAt: "2026-04-03T00:00:00Z",
       lastSeenAt: "2026-08-19T00:00:00Z",
       recurrenceCount: 5,
@@ -1367,8 +1367,8 @@ export async function listWeakPoints(status?: number): Promise<WeakPoint[]> {
     },
     {
       id: "wp-3",
-      category: "数量与端点表述",
-      description: "“and over / up to / within” 等端点是否含本数处理不稳定。",
+      label: "数量与端点表述",
+      patternSummary: "“and over / up to / within” 等端点是否含本数处理不稳定。",
       firstDetectedAt: "2026-06-01T00:00:00Z",
       lastSeenAt: "2026-08-05T00:00:00Z",
       recurrenceCount: 3,
@@ -1377,8 +1377,8 @@ export async function listWeakPoints(status?: number): Promise<WeakPoint[]> {
     },
     {
       id: "wp-4",
-      category: "机构名称术语",
-      description: "City Council / Tribunal 等机构名译法此前不统一，近两月未再出现。",
+      label: "机构名称术语",
+      patternSummary: "City Council / Tribunal 等机构名译法此前不统一，近两月未再出现。",
       firstDetectedAt: "2026-02-18T00:00:00Z",
       lastSeenAt: "2026-06-22T00:00:00Z",
       recurrenceCount: 4,

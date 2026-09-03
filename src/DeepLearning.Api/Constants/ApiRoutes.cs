@@ -19,6 +19,11 @@ namespace DeepLearning.Api.Constants
             public const string Base = $"{Prefix}/exam-types/{{examTypeId:guid}}/error-taxonomies";
         }
 
+        public static class WeakPointCatalog
+        {
+            public const string Base = $"{Prefix}/exam-types/{{examTypeId:guid}}/weak-point-catalog";
+        }
+
         public static class PromptTemplates
         {
             public const string Base = $"{Prefix}/prompt-templates";

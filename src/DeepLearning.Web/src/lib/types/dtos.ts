@@ -59,6 +59,21 @@ export interface ErrorTaxonomy {
   exampleCases: string | null;
 }
 
+export interface WeakPointCatalogEntry {
+  id: string;
+  examTypeId: string;
+  code: string;
+  name: string;
+  description: string;
+  defaultDimensionKey: string | null;
+  defaultErrorCategory: string | null;
+  /** WeakPointCatalogStatus 序数 */
+  status: number;
+  /** seed | auto | manual */
+  origin: string;
+  createdAt: string;
+}
+
 export interface QuestionBankCategory {
   id: string;
   categoryType: number;
@@ -391,8 +406,10 @@ export interface GenerateDeepLearningContentResponse extends DeepLearningContent
 
 export interface WeakPoint {
   id: string;
-  category: string;
-  description: string | null;
+  /** catalog kind name, or the legacy "{维度} - {类别}" label, or "(未归类)". */
+  label: string;
+  /** Per-learner rolling AI summary of how this learner manifests the weak point. */
+  patternSummary: string | null;
   firstDetectedAt: string;
   lastSeenAt: string;
   recurrenceCount: number;

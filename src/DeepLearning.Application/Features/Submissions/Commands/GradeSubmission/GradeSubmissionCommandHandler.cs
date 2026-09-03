@@ -119,7 +119,8 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             // and the exam type's active correction patches distilled from past disputes (so a
             // confirmed misjudgement isn't repeated). Both are injected into the grading prompt
             // via BuildTemplateModel; neither changes the official rubric text.
-            var weakPoints = await _weakPointRepository.ListActiveWithCatalogByUserAsync(submission.UserId, cancellationToken);
+            var weakPoints = await _weakPointRepository.ListActiveWithCatalogByUserAsync(
+                submission.UserId, IWeakPointRepository.GradingPromptWeakPointLimit, cancellationToken);
             var activeOverrides = await _standardOverrideRepository.ListActiveByExamTypeAsync(request.ExamTypeId, cancellationToken);
 
             var templateModel = BuildTemplateModel(
@@ -341,13 +342,14 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                     CategoryName = t.CategoryName,
                     Description = t.Description,
                 }),
-                // This learner's still-active weak points (Scriban: weak_points). Name/Description
-                // come from the matched weak_point_catalog row, falling back to the legacy
-                // free-text bucket. Recurring = has resurfaced after being resolved at least once.
+                // This learner's still-active weak points, top-K only (Scriban: weak_points).
+                // Name = catalog name / legacy label. Description = the per-learner rolling
+                // pattern_summary, falling back to the catalog's generic description only until
+                // the first summary is computed. Recurring = has resurfaced after being resolved.
                 WeakPoints = weakPoints.Select(w => new
                 {
-                    Name = w.Catalog is not null ? w.Catalog.Name : w.Category,
-                    Description = w.Catalog is not null ? w.Catalog.Description : (w.Description ?? string.Empty),
+                    Name = w.Catalog is not null ? w.Catalog.Name : (w.Category ?? string.Empty),
+                    Description = w.PatternSummary ?? (w.Catalog is not null ? w.Catalog.Description : string.Empty),
                     Recurring = w.RecurrenceCount > 0,
                 }),
                 // Active correction patches for this exam type (Scriban: active_overrides) —

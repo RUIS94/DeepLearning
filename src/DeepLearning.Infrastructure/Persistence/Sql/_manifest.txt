@@ -56,3 +56,6 @@ consolidate_question_gen_prompt_templates.sql
 
 # --- 2026-09-03: grading collapse to one row (must stay last of the grading scripts) ---
 consolidate_grading_prompt_templates.sql
+
+# --- 2026-09-03: weak-point model rework — per-learner pattern_summary (v2 classification prompt) ---
+fix_weak_point_classification_prompt_add_summaries.sql

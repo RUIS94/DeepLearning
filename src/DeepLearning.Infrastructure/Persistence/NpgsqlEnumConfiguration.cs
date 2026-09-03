@@ -38,6 +38,7 @@ namespace DeepLearning.Infrastructure.Persistence
             o.MapEnum<OverrideScope>("override_scope_enum", nameTranslator: t);
             o.MapEnum<OverrideStatus>("override_status_enum", nameTranslator: t);
             o.MapEnum<WeakPointStatus>("weak_point_status_enum", nameTranslator: t);
+            o.MapEnum<WeakPointCatalogStatus>("weak_point_catalog_status_enum", nameTranslator: t);
             o.MapEnum<Priority>("priority_enum", nameTranslator: t);
             o.MapEnum<MasteryLevel>("mastery_level_enum", nameTranslator: snake);
             o.MapEnum<CategoryType>("category_type_enum", nameTranslator: t);

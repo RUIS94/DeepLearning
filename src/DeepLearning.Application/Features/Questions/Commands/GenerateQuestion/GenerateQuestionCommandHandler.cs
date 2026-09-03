@@ -269,7 +269,8 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                 .ThenByDescending(w => w.LastSeenAt)
                 .FirstOrDefault();
 
-            return topWeakPoint?.Category;
+            // Catalog name (e.g. "数字/统计类陷阱") is the useful hint; Category is null once mapped.
+            return topWeakPoint?.Catalog?.Name ?? topWeakPoint?.Category;
         }
 
         /// <summary>

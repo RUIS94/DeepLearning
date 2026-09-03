@@ -19,6 +19,7 @@ const enumsWithLabels: [Record<string, number>, Record<number, string>, string][
   [enums.TemplateLayer, enums.TemplateLayerLabel, "TemplateLayer"],
   [enums.CheckpointImportance, enums.CheckpointImportanceLabel, "CheckpointImportance"],
   [enums.ErrorSeverity, enums.ErrorSeverityLabel, "ErrorSeverity"],
+  [enums.WeakPointCatalogStatus, enums.WeakPointCatalogStatusLabel, "WeakPointCatalogStatus"],
   [enums.AiOperationType, enums.AiOperationTypeLabel, "AiOperationType"],
   [enums.CategoryType, enums.CategoryTypeLabel, "CategoryType"],
   [enums.ScaleType, enums.ScaleTypeLabel, "ScaleType"],

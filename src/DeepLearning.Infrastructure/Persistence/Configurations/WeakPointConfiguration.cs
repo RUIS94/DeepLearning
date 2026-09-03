@@ -12,7 +12,9 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
             builder.HasKey(x => x.Id);
 
             builder.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
-            builder.Property(x => x.Category).HasMaxLength(100).IsRequired();
+            // Nullable now: set only for legacy (catalog-less) buckets. A catalog-mapped weak
+            // point carries identity in CatalogId and leaves this null.
+            builder.Property(x => x.Category).HasMaxLength(100);
             builder.Property(x => x.FirstDetectedAt).HasDefaultValueSql("now()");
             builder.Property(x => x.LastSeenAt).HasDefaultValueSql("now()");
             builder.Property(x => x.RecurrenceCount).HasDefaultValue(0);
@@ -27,14 +29,18 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
 
             builder.HasIndex(x => new { x.UserId, x.Status }).HasDatabaseName("idx_weak_points_user_status");
 
-            // One row per (user, category) — UpdateWeakPointsOnGraded looks this up before
-            // deciding insert vs. update, this is the DB-level backstop against two concurrent
-            // grading events for the same user/category racing each other into a duplicate row.
-            builder.HasIndex(x => new { x.UserId, x.Category }).IsUnique().HasDatabaseName("ux_weak_points_user_category");
+            // Legacy (catalog-less) bucket dedup: one row per (user, category) among rows where
+            // catalog_id IS NULL. Partial so it mirrors ux_weak_points_user_catalog and a
+            // catalog-mapped row (category null) is governed ONLY by that other index — the two
+            // never both apply to the same row, so promotion/merge writes have one collision
+            // surface, not two.
+            builder.HasIndex(x => new { x.UserId, x.Category })
+                .IsUnique()
+                .HasDatabaseName("ux_weak_points_user_category")
+                .HasFilter("catalog_id IS NULL");
 
-            // Same backstop for the catalog-based path — a catalog-matched weak point is looked
-            // up by (user, catalog_id) before insert/update. Partial: legacy free-text rows have
-            // catalog_id NULL and must not collide with each other on this index.
+            // Catalog-based path — a catalog-matched weak point is looked up by (user, catalog_id)
+            // before insert/update. Partial: legacy rows have catalog_id NULL.
             builder.HasIndex(x => new { x.UserId, x.CatalogId })
                 .IsUnique()
                 .HasDatabaseName("ux_weak_points_user_catalog")

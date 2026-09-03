@@ -1,5 +1,6 @@
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
+using DeepLearning.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace DeepLearning.Infrastructure.Persistence.Repositories
@@ -20,6 +21,14 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
             => _context.Submissions
                 .Where(x => x.UserId == userId && (questionId == null || x.QuestionId == questionId))
                 .OrderByDescending(x => x.CreatedAt)
+                .ToListAsync(cancellationToken);
+
+        public Task<List<DateTimeOffset>> ListRecentGradedCreatedAtAsync(Guid userId, int count, CancellationToken cancellationToken = default)
+            => _context.Submissions
+                .Where(x => x.UserId == userId && x.Status == SubmissionStatus.graded)
+                .OrderByDescending(x => x.CreatedAt)
+                .Take(count)
+                .Select(x => x.CreatedAt)
                 .ToListAsync(cancellationToken);
 
         public Task<List<GradingResult>> GetGradingResultsAsync(Guid submissionId, CancellationToken cancellationToken = default)

@@ -18,6 +18,14 @@ namespace DeepLearning.Application.Interfaces
         /// </summary>
         Task<List<Submission>> ListByUserAsync(Guid userId, Guid? questionId, CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// The <c>created_at</c> of the user's most recent <paramref name="count"/> graded
+        /// submissions, newest first. Projection-only — backs UpdateWeakPointsOnGraded's
+        /// "unseen in the last N graded submissions" resolve window without loading the whole
+        /// submission history.
+        /// </summary>
+        Task<List<DateTimeOffset>> ListRecentGradedCreatedAtAsync(Guid userId, int count, CancellationToken cancellationToken = default);
+
         Task<List<GradingResult>> GetGradingResultsAsync(Guid submissionId, CancellationToken cancellationToken = default);
 
         Task<List<ErrorListItem>> GetErrorListAsync(Guid submissionId, CancellationToken cancellationToken = default);

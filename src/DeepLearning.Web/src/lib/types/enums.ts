@@ -24,6 +24,8 @@ export const FollowUpVerdict = {
 } as const;
 export const OverrideScope = { grading_rubric: 0, translation_reference: 1 } as const;
 export const OverrideStatus = { observing: 0, active: 1, deprecated: 2 } as const;
+// 薄弱点种类生命周期。proposed = 运行期/后台新建待审;active = 已策展;deprecated = 合并后退役。
+export const WeakPointCatalogStatus = { proposed: 0, active: 1, deprecated: 2 } as const;
 export const WeakPointStatus = { active: 0, resolved: 1 } as const;
 // 注意：high = 0，排序时不要写反
 export const Priority = { high: 0, medium: 1, low: 2 } as const;
@@ -95,6 +97,12 @@ export const OverrideStatusLabel: Record<number, string> = {
   [OverrideStatus.observing]: "观察中",
   [OverrideStatus.active]: "已生效",
   [OverrideStatus.deprecated]: "已废弃",
+};
+
+export const WeakPointCatalogStatusLabel: Record<number, string> = {
+  [WeakPointCatalogStatus.proposed]: "待审",
+  [WeakPointCatalogStatus.active]: "已启用",
+  [WeakPointCatalogStatus.deprecated]: "已退役",
 };
 
 export const WeakPointStatusLabel: Record<number, string> = {

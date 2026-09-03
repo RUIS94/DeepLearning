@@ -46,6 +46,21 @@ export const errorTaxonomyFormSchema = z.object({
 });
 export type ErrorTaxonomyFormInput = z.infer<typeof errorTaxonomyFormSchema>;
 
+export const weakPointCatalogFormSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(1, "code 不能为空")
+    .max(60)
+    .regex(/^[a-z0-9_]+$/, "只能包含小写字母、数字与下划线"),
+  name: z.string().trim().min(1, "名称不能为空").max(100),
+  description: z.string().trim().min(1, "说明不能为空"),
+  defaultDimensionKey: z.string().trim().max(50).nullable().optional(),
+  defaultErrorCategory: z.string().trim().max(50).nullable().optional(),
+  status: z.string().trim().min(1),
+});
+export type WeakPointCatalogFormInput = z.infer<typeof weakPointCatalogFormSchema>;
+
 /** subjectCategory 用 -1 表示表单里的“不关联”哨兵值，提交前需转换为 null 再传给后端形状。 */
 export const promptTemplateFormSchema = z
   .object({

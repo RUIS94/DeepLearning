@@ -133,7 +133,7 @@ export function AiGeneratePanel({
                     ) : (
                       (weakPoints.data ?? []).map((w) => (
                         <div key={w.id} className="flex items-center justify-between gap-2 text-sm">
-                          <span className="min-w-0 truncate">{w.category}</span>
+                          <span className="min-w-0 truncate">{w.label}</span>
                           <Badge
                             variant="outline"
                             className="shrink-0 border-accent/40 text-accent"

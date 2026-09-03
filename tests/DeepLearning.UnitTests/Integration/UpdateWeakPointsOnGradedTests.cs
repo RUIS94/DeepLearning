@@ -18,9 +18,9 @@ namespace DeepLearning.UnitTests.Integration
     /// StandardOverrideRepositoryTests. Unlike the pre-catalog version this now seeds a real
     /// exam_type + dimension + error_taxonomy + error_list + grading_result graph, because the
     /// handler ties each WeakPointOccurrence back to a real ErrorListItem row (FK) and reads the
-    /// dimension's band. No weak_point_catalog rows are seeded, so every error falls back to the
-    /// legacy "{DimensionName} - {ErrorCategoryName}" bucket — that fallback path is what these
-    /// two tests exercise.
+    /// dimension's band. No weak_point_catalog rows are seeded, so a first-seen error falls back
+    /// to the legacy "{DimensionName} - {ErrorCategoryName}" bucket; a recurring one is then
+    /// promoted to a minted proposed catalog kind. Both paths are exercised here.
     /// </summary>
     [Collection(PostgresCollection.Name)]
     public class UpdateWeakPointsOnGradedTests
@@ -53,6 +53,14 @@ namespace DeepLearning.UnitTests.Integration
             public Task<List<Submission>> ListByUserAsync(Guid userId, Guid? questionId, CancellationToken cancellationToken = default)
                 => Task.FromResult(_userSubmissions);
 
+            public Task<List<DateTimeOffset>> ListRecentGradedCreatedAtAsync(Guid userId, int count, CancellationToken cancellationToken = default)
+                => Task.FromResult(_userSubmissions
+                    .Where(s => s.Status == SubmissionStatus.graded)
+                    .OrderByDescending(s => s.CreatedAt)
+                    .Take(count)
+                    .Select(s => s.CreatedAt)
+                    .ToList());
+
             public Task<List<GradingResult>> GetGradingResultsAsync(Guid submissionId, CancellationToken cancellationToken = default) => Task.FromResult(_gradingResults);
 
             public Task<List<ErrorListItem>> GetErrorListAsync(Guid submissionId, CancellationToken cancellationToken = default) => Task.FromResult(_errors);
@@ -64,22 +72,17 @@ namespace DeepLearning.UnitTests.Integration
             public Task AddErrorListItemsAsync(IEnumerable<ErrorListItem> items, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         }
 
-        private class EmptyCatalogRepository : IWeakPointCatalogRepository
-        {
-            public Task<List<WeakPointCatalog>> ListByExamTypeAsync(Guid examTypeId, CancellationToken cancellationToken = default)
-                => Task.FromResult(new List<WeakPointCatalog>());
-        }
-
         // No weak_point_classification template configured -> the real classifier returns empty
         // and the rule handles everything. This stand-in reproduces exactly that path.
         private class NoOpWeakPointClassifier : IWeakPointClassifier
         {
-            public Task<IReadOnlyDictionary<Guid, Guid>> ClassifyAsync(
+            public Task<WeakPointClassificationResult> ClassifyAsync(
                 Guid examTypeId,
                 IReadOnlyList<WeakPointClassifierError> errors,
                 IReadOnlyList<WeakPointCatalog> catalog,
+                IReadOnlyList<ActiveWeakPointSummary> activeWeakPoints,
                 CancellationToken cancellationToken = default)
-                => Task.FromResult<IReadOnlyDictionary<Guid, Guid>>(new Dictionary<Guid, Guid>());
+                => Task.FromResult(WeakPointClassificationResult.Empty);
         }
 
         private class NoOpPublisher : IPublisher
@@ -218,7 +221,7 @@ namespace DeepLearning.UnitTests.Integration
             var handler = new UpdateWeakPointsOnGraded(
                 new FixedSubmissionRepository(errors, gradingResults, userSubmissions),
                 new WeakPointRepository(context),
-                new EmptyCatalogRepository(),
+                new WeakPointCatalogRepository(context),   // real repo, no catalog rows seeded -> empty
                 new NoOpWeakPointClassifier(),
                 new UnitOfWork(context, new NoOpPublisher()));
 
@@ -340,11 +343,19 @@ namespace DeepLearning.UnitTests.Integration
             await RunHandlerAsync(userId, questionTwoId, secondSubmissionId, examTypeId, dimensionId, taxonomyId, band: 3);
 
             await using var readContext = _fixture.CreateContext();
-            var final = await readContext.WeakPoints.SingleAsync(x => x.UserId == userId && x.Category == category);
+            // The row survives (same id); a recurring legacy bucket is promoted to a proposed
+            // catalog kind, so Category is nulled and CatalogId is now set.
+            var final = await readContext.WeakPoints.SingleAsync(x => x.UserId == userId);
             Assert.Equal(WeakPointStatus.active, final.Status);
             Assert.Equal(1, final.RecurrenceCount);
             Assert.Equal(Priority.high, final.Priority);
             Assert.Null(final.ResolvedAt);
+            Assert.NotNull(final.CatalogId);
+            Assert.Null(final.Category);
+
+            var promoted = await readContext.WeakPointCatalog.SingleAsync(x => x.Id == final.CatalogId);
+            Assert.Equal(WeakPointCatalogStatus.proposed, promoted.Status);
+            Assert.Equal("auto", promoted.Origin);
 
             var secondOccurrence = await readContext.WeakPointOccurrences.SingleAsync(x => x.SubmissionId == secondSubmissionId);
             Assert.True(secondOccurrence.IsRecurrence);
@@ -382,7 +393,7 @@ namespace DeepLearning.UnitTests.Integration
                     UserId = user.Id,
                     ExamTypeId = examType.Id,
                     Category = staleCategory,
-                    Description = "stale",
+                    PatternSummary = "stale",
                     DetectionSource = "rule",
                     FirstDetectedAt = DateTimeOffset.UtcNow.AddDays(-40),
                     LastSeenAt = DateTimeOffset.UtcNow.AddDays(-30),

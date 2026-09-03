@@ -9,7 +9,6 @@ namespace DeepLearning.Infrastructure.Ai
     /// <inheritdoc cref="IWeakPointClassifier"/>
     public class WeakPointClassifier : IWeakPointClassifier
     {
-        private static readonly IReadOnlyDictionary<Guid, Guid> Empty = new Dictionary<Guid, Guid>();
         private static readonly JsonSerializerOptions PayloadJsonOptions = new() { PropertyNameCaseInsensitive = true };
 
         private readonly IExamConfigLoader _examConfigLoader;
@@ -32,15 +31,16 @@ namespace DeepLearning.Infrastructure.Ai
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<IReadOnlyDictionary<Guid, Guid>> ClassifyAsync(
+        public async Task<WeakPointClassificationResult> ClassifyAsync(
             Guid examTypeId,
             IReadOnlyList<WeakPointClassifierError> errors,
             IReadOnlyList<WeakPointCatalog> catalog,
+            IReadOnlyList<ActiveWeakPointSummary> activeWeakPoints,
             CancellationToken cancellationToken = default)
         {
             if (errors.Count == 0 || catalog.Count == 0)
             {
-                return Empty;
+                return WeakPointClassificationResult.Empty;
             }
 
             string prompt;
@@ -53,11 +53,16 @@ namespace DeepLearning.Infrastructure.Ai
                         ErrorId = e.ErrorListId.ToString(),
                         DimensionKey = e.DimensionKey,
                         ErrorCategoryKey = e.ErrorCategoryKey,
-                        ImpactsCore = e.ImpactsCore,
+                        Severity = e.Severity.ToString(),
                         Snippet = e.Snippet,
                         Explanation = e.Explanation,
                     }),
                     Catalog = catalog.Select(c => new { Code = c.Code, Name = c.Name, Description = c.Description }),
+                    ActiveWeakPoints = activeWeakPoints.Select(w => new
+                    {
+                        Code = w.CatalogCode,
+                        PatternSummary = w.PatternSummary ?? string.Empty,
+                    }),
                 };
                 prompt = await _examConfigLoader.BuildPromptAsync(
                     examTypeId, AiOperationType.weak_point_classification, model, cancellationToken);
@@ -65,13 +70,13 @@ namespace DeepLearning.Infrastructure.Ai
             catch
             {
                 // Template missing / render error — degrade to the rule, silently.
-                return Empty;
+                return WeakPointClassificationResult.Empty;
             }
 
             if (string.IsNullOrWhiteSpace(prompt))
             {
                 // No weak_point_classification template configured for this exam type.
-                return Empty;
+                return WeakPointClassificationResult.Empty;
             }
 
             var aiCallLog = new AiCallLog
@@ -102,9 +107,12 @@ namespace DeepLearning.Infrastructure.Ai
                 var idByCode = catalog
                     .GroupBy(c => c.Code, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
+                var codeByCode = catalog
+                    .GroupBy(c => c.Code, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.First().Code, StringComparer.OrdinalIgnoreCase);
                 var validErrorIds = errors.Select(e => e.ErrorListId).ToHashSet();
 
-                var result = new Dictionary<Guid, Guid>();
+                var errorToCatalog = new Dictionary<Guid, Guid>();
                 foreach (var assignment in payload.Assignments ?? [])
                 {
                     if (Guid.TryParse(assignment.ErrorId, out var errorId)
@@ -112,14 +120,25 @@ namespace DeepLearning.Infrastructure.Ai
                         && !string.IsNullOrWhiteSpace(assignment.CatalogCode)
                         && idByCode.TryGetValue(assignment.CatalogCode.Trim(), out var catalogId))
                     {
-                        result[errorId] = catalogId;
+                        errorToCatalog[errorId] = catalogId;
+                    }
+                }
+
+                var summaries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var s in payload.Summaries ?? [])
+                {
+                    if (!string.IsNullOrWhiteSpace(s.CatalogCode)
+                        && !string.IsNullOrWhiteSpace(s.PatternSummary)
+                        && codeByCode.TryGetValue(s.CatalogCode.Trim(), out var canonicalCode))
+                    {
+                        summaries[canonicalCode] = s.PatternSummary!.Trim();
                     }
                 }
 
                 aiCallLog.Status = CallStatus.success;
                 aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
                 await _unitOfWork.SaveChangesAsync(CancellationToken.None);
-                return result;
+                return new WeakPointClassificationResult(errorToCatalog, summaries);
             }
             catch (Exception ex)
             {
@@ -137,7 +156,7 @@ namespace DeepLearning.Infrastructure.Ai
                     // ignored
                 }
 
-                return Empty;
+                return WeakPointClassificationResult.Empty;
             }
         }
 
@@ -164,6 +183,7 @@ namespace DeepLearning.Infrastructure.Ai
         private class ClassificationPayload
         {
             public List<AssignmentPayload>? Assignments { get; set; }
+            public List<SummaryPayload>? Summaries { get; set; }
         }
 
         private class AssignmentPayload
@@ -173,6 +193,15 @@ namespace DeepLearning.Infrastructure.Ai
 
             [JsonPropertyName("catalogCode")]
             public string? CatalogCode { get; set; }
+        }
+
+        private class SummaryPayload
+        {
+            [JsonPropertyName("catalogCode")]
+            public string? CatalogCode { get; set; }
+
+            [JsonPropertyName("patternSummary")]
+            public string? PatternSummary { get; set; }
         }
     }
 }

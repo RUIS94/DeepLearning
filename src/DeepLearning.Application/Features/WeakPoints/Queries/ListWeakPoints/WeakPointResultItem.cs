@@ -4,8 +4,8 @@ namespace DeepLearning.Application.Features.WeakPoints.Queries.ListWeakPoints
 {
     public record WeakPointResultItem(
         Guid Id,
-        string Category,
-        string? Description,
+        string Label,
+        string? PatternSummary,
         DateTimeOffset FirstDetectedAt,
         DateTimeOffset LastSeenAt,
         int RecurrenceCount,
