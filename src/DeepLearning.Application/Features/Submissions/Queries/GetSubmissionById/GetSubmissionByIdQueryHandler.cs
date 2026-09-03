@@ -54,7 +54,8 @@ namespace DeepLearning.Application.Features.Submissions.Queries.GetSubmissionByI
                     e.UserTextSnippet,
                     e.ErrorTaxonomy!.CategoryKey,
                     e.Dimension!.DimensionKey,
-                    e.ImpactsCore,
+                    e.Severity,
+                    e.Summary,
                     e.Explanation,
                     e.Suggestion)).ToList(),
                 overallSummary is null

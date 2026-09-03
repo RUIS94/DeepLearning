@@ -63,6 +63,12 @@
 -- Official Band descriptions are rendered from assessment_dimensions as before;
 -- not a word of them is in this file.
 --
+-- errors[] output contract changed with EF migration AddErrorSeverityAndSummary:
+-- "impactsCore" (bool) dropped, replaced by "severity" (minor|moderate|major|critical,
+-- defined in 评分关键原则 2) + "summary" (≤20-char one-line characterisation). The
+-- frontend's 影响核心/接近边界/非核心 tag is now derived from severity, not asked of the
+-- AI. GradeSubmissionCommandHandler.ValidatePayload rejects an unknown/missing severity.
+--
 -- Template model (GradeSubmissionCommandHandler.BuildTemplateModel) is unchanged:
 --   task_type, source_title, source_text, flawed_translation_text, submission_content,
 --   meaning_checkpoints[], seeded_errors[], dimensions[], error_taxonomies[],
@@ -99,7 +105,11 @@ INSERT INTO prompt_templates (
 
 【评分关键原则】
 1. 判断 Meaning transfer 和 Language proficiency 是否致命,核心标准是是否达到 "impact the core message" 或 "impact the understanding of the target text" 这个质变点。
-2. 官方 Band 3 含 "taken together, have a significant impact" 条款:多处轻微/中等问题的累积密度本身即可构成不达标的独立理由,不能因"没有一处特别致命"就判定过关。每次评判都须明确评估"累积密度"是否单独构成降级风险。
+2. 官方 Band 3 含 "taken together, have a significant impact" 条款:多处轻微/中等问题的累积密度本身即可构成不达标的独立理由,不能因"没有一处特别致命"就判定过关。每条错误须按下面四档定 severity,再据同一维度上 moderate 及以上错误的数量与集中度,明确评估"累积密度"是否单独构成该维度的降级风险:
+   - minor(轻微):局部、不影响理解,如个别修饰语堆叠、可接受的欠自然
+   - moderate(中等):有精度损失或语气/扭曲偏移,但未动摇 core message
+   - major(较严重):术语方向性错误、逻辑关系译反、关键信息缺失,已影响 core message 或全文一致性
+   - critical(严重):概念方向整体偏移、大段误译,读者会得到与原文相悖的理解
 3. Application of textual norms and conventions 需综合判断是达到 "mostly appropriate/consistent"(Band 2)还是仅 "some demonstrated ability...appropriate...consistent"(Band 3)。
 4. "无中生有地引入具体专有名词、历史事件、比例数字"这类捏造细节,一律按高优先级严重问题评估;同一类错误在全篇重复出现的,标注为"系统性重复错误"(而非孤立笔误)并在严重度上加权。
 5. 先对照完整五档英文原文定位问题落在哪个 Band 区间,再据此给出该维度的具体 Band 等级。
@@ -194,7 +204,7 @@ Band {{ band.key }}: {{ band.value }}
     {"dimensionKey": "<必须是上方评分维度列表中的 dimension_key 之一>", "band": <1-5 整数>, "rationale": "<引用对应 Band 英文原文作为依据>", "cumulativeDensityFlag": <true/false>, "cumulativeDensityNote": "<string 或 null>", "estimatedPassProbability": <0 到 1 之间的两位小数,如 0.65,表示本篇译文的主观通过概率,非官方数据>}
   ],
   "errors": [
-    {"positionRef": "<定位信息>", "sourceTextSnippet": "<原文片段>", "userTextSnippet": "<用户译文片段>", "errorCategory": "<必须是上方错误类别列表中的 category_key 之一>", "dimensionKey": "<所属评分维度 key>", "impactsCore": <true/false>, "explanation": "<说明>", "suggestion": "<建议>"}
+    {"positionRef": "<定位信息>", "sourceTextSnippet": "<原文片段>", "userTextSnippet": "<用户译文片段>", "errorCategory": "<必须是上方错误类别列表中的 category_key 之一>", "dimensionKey": "<所属评分维度 key>", "severity": "<minor|moderate|major|critical,按上方【评分关键原则】2 的四档>", "summary": "<≤20字中文,一句话定性,如 概念方向偏移 / 术语方向性错误+全文不一致 / 扭曲程度偏移 / 修饰语堆叠>", "explanation": "<说明>", "suggestion": "<建议>"}
   ]
 }
 dimensions 数组必须覆盖上方给出的每一个评分维度,逐一给出 Band 判断,不得遗漏。

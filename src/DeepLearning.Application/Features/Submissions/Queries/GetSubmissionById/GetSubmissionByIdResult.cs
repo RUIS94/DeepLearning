@@ -28,7 +28,8 @@ namespace DeepLearning.Application.Features.Submissions.Queries.GetSubmissionByI
         string? UserTextSnippet,
         string ErrorCategory,
         string DimensionKey,
-        bool ImpactsCore,
+        ErrorSeverity Severity,
+        string? Summary,
         string? Explanation,
         string? Suggestion);
 

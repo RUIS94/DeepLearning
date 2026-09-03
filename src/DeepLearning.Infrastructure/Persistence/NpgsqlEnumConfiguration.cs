@@ -47,6 +47,7 @@ namespace DeepLearning.Infrastructure.Persistence
             o.MapEnum<TemplateLayer>("template_layer_enum", nameTranslator: t);
             o.MapEnum<CallStatus>("call_status_enum", nameTranslator: t);
             o.MapEnum<CheckpointImportance>("checkpoint_importance_enum", nameTranslator: t);
+            o.MapEnum<ErrorSeverity>("error_severity_enum", nameTranslator: t);
             o.MapEnum<KnowledgeItemType>("knowledge_item_type_enum", nameTranslator: t);
         }
     }

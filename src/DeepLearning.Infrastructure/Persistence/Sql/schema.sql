@@ -46,6 +46,10 @@ CREATE TYPE template_layer_enum AS ENUM ('shared_methodology','exam_specific');
 CREATE TYPE call_status_enum AS ENUM ('pending','calling','success','failed','final_failure');
 CREATE TYPE checkpoint_importance_enum AS ENUM ('core','peripheral');
 CREATE TYPE knowledge_item_type_enum AS ENUM ('sentence_pattern','vocab_expression','formula','concept','theorem','other');
+-- 标签顺序与 EF 迁移 AddErrorSeverityAndSummary 生成的一致(Npgsql 10 按字母排),
+-- 好让两条建库路径产出的 pg_enum 完全一致。严重度大小比较只在 C# 里做
+-- (ErrorSeverity 序数 minor<moderate<major<critical),没有任何 SQL 依赖此物理顺序。
+CREATE TYPE error_severity_enum AS ENUM ('critical','major','minor','moderate');
 
 -- =====================================================================
 -- 第九/十节:考试类型配置骨架(MVP阶段即实现,不是未来才做)
@@ -216,6 +220,9 @@ CREATE TABLE error_list (
     user_text_snippet       TEXT,
     error_taxonomy_id       UUID NOT NULL REFERENCES error_taxonomies(id),
     dimension_id            UUID NOT NULL REFERENCES assessment_dimensions(id),
+    severity                error_severity_enum NOT NULL DEFAULT 'moderate',
+    summary                 VARCHAR(60),
+    -- Legacy: kept for back-compat, no longer AI-driven. Written as (severity IN ('major','critical')).
     impacts_core            BOOLEAN NOT NULL DEFAULT FALSE,
     explanation             TEXT,
     suggestion              TEXT,
@@ -452,3 +459,23 @@ COMMIT;
 -- =====================================================================
 ALTER TABLE assessment_dimensions
     ADD COLUMN IF NOT EXISTS applicable_task_type task_type_enum;
+
+-- =====================================================================
+-- 增量迁移
+-- 对应 EF Core 迁移: AddErrorSeverityAndSummary
+-- 每条错误的严重程度(轻微/中等/较严重/严重)+ 一句话定性 tag。前端"影响核心/接近
+-- 边界/非核心"标签由 severity 派生,不单独存。impacts_core 保留,= severity in
+-- ('major','critical')。
+-- =====================================================================
+DO $$ BEGIN
+    -- 字母序,与 EF 迁移一致;物理顺序无人依赖(见上方类型定义处注释)。
+    CREATE TYPE error_severity_enum AS ENUM ('critical','major','minor','moderate');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+ALTER TABLE error_list
+    ADD COLUMN IF NOT EXISTS severity error_severity_enum NOT NULL DEFAULT 'moderate',
+    ADD COLUMN IF NOT EXISTS summary  VARCHAR(60);
+
+-- Backfill existing rows from the legacy boolean.
+UPDATE error_list SET severity = 'major' WHERE impacts_core AND severity = 'moderate';

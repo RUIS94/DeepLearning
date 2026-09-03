@@ -1,11 +1,19 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Flame } from "lucide-react";
+import { AlertCircle, AlertTriangle, CheckCircle2, Flame } from "lucide-react";
 import type { SubmissionDetail } from "@/lib/types/dtos";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { bandLabel, bandToColor } from "@/lib/band";
+import { ErrorSeverity, ErrorSeverityLabel, errorImpactLabel } from "@/lib/types/enums";
 import { cn } from "@/lib/utils";
+
+const SEVERITY_BADGE: Record<number, string> = {
+  [ErrorSeverity.minor]: "border-border text-muted-foreground",
+  [ErrorSeverity.moderate]: "border-warning/40 text-warning-foreground",
+  [ErrorSeverity.major]: "border-destructive/40 text-destructive",
+  [ErrorSeverity.critical]: "border-destructive bg-destructive/10 text-destructive",
+};
 
 function DimensionBandRow({
   name,
@@ -115,23 +123,46 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
           {submission.errorList.map((e) => (
             <div key={e.id} className="rounded-lg border border-border p-4">
               <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "font-medium",
+                    SEVERITY_BADGE[e.severity] ?? SEVERITY_BADGE[ErrorSeverity.moderate],
+                  )}
+                >
+                  {ErrorSeverityLabel[e.severity] ?? e.severity}
+                  {e.summary ? `，${e.summary}` : ""}
+                </Badge>
                 <Badge variant="outline" className="border-accent/40 text-accent">
                   {e.errorCategory}
                 </Badge>
                 <Badge variant="outline" className="border-border text-muted-foreground">
                   {e.dimensionKey}
                 </Badge>
-                {e.impactsCore ? (
-                  <span className="inline-flex items-center gap-1 text-xs text-destructive">
-                    <AlertCircle className="size-3.5" />
-                    影响核心意义点
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <CheckCircle2 className="size-3.5" />
-                    非核心
-                  </span>
-                )}
+                {(() => {
+                  const impact = errorImpactLabel(e.severity);
+                  const Icon =
+                    impact.tone === "danger"
+                      ? AlertCircle
+                      : impact.tone === "warning"
+                        ? AlertTriangle
+                        : CheckCircle2;
+                  return (
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 text-xs",
+                        impact.tone === "danger"
+                          ? "text-destructive"
+                          : impact.tone === "warning"
+                            ? "text-warning-foreground"
+                            : "text-muted-foreground",
+                      )}
+                    >
+                      <Icon className="size-3.5" />
+                      {impact.text}
+                    </span>
+                  );
+                })()}
               </div>
               {e.sourceTextSnippet ? (
                 <p className="mb-1 text-sm text-muted-foreground">原文：{e.sourceTextSnippet}</p>

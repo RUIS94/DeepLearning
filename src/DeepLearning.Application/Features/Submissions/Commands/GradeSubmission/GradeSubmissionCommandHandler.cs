@@ -187,19 +187,26 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 }).ToList();
                 await _submissionRepository.AddGradingResultsAsync(gradingResults, cancellationToken);
 
-                var errorItems = payload.Errors.Select(e => new ErrorListItem
+                var errorItems = payload.Errors.Select(e =>
                 {
-                    Id = Guid.NewGuid(),
-                    SubmissionId = submission.Id,
-                    PositionRef = e.PositionRef,
-                    SourceTextSnippet = e.SourceTextSnippet,
-                    UserTextSnippet = e.UserTextSnippet,
-                    ErrorTaxonomyId = taxonomiesByKey[e.ErrorCategory].Id,
-                    DimensionId = dimensionsByKey[e.DimensionKey].Id,
-                    ImpactsCore = e.ImpactsCore,
-                    Explanation = e.Explanation,
-                    Suggestion = e.Suggestion,
-                    CreatedAt = DateTimeOffset.UtcNow,
+                    var severity = Enum.Parse<ErrorSeverity>(e.Severity, ignoreCase: true);
+                    return new ErrorListItem
+                    {
+                        Id = Guid.NewGuid(),
+                        SubmissionId = submission.Id,
+                        PositionRef = e.PositionRef,
+                        SourceTextSnippet = e.SourceTextSnippet,
+                        UserTextSnippet = e.UserTextSnippet,
+                        ErrorTaxonomyId = taxonomiesByKey[e.ErrorCategory].Id,
+                        DimensionId = dimensionsByKey[e.DimensionKey].Id,
+                        Severity = severity,
+                        Summary = string.IsNullOrWhiteSpace(e.Summary) ? null : e.Summary.Trim(),
+                        // Legacy column, no longer AI-driven: an error is "core" iff it's major/critical.
+                        ImpactsCore = severity is ErrorSeverity.major or ErrorSeverity.critical,
+                        Explanation = e.Explanation,
+                        Suggestion = e.Suggestion,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                    };
                 }).ToList();
                 await _submissionRepository.AddErrorListItemsAsync(errorItems, cancellationToken);
 
@@ -422,6 +429,14 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 {
                     throw new RubricVersionNotFoundException(error.DimensionKey);
                 }
+
+                // severity is a hard constraint like error_category — reject an unknown/missing
+                // value here rather than letting Enum.Parse throw mid-persist.
+                if (!Enum.TryParse<ErrorSeverity>(error.Severity, ignoreCase: true, out _))
+                {
+                    throw new InvalidOperationException(
+                        $"severity '{error.Severity}' is not one of minor/moderate/major/critical.");
+                }
             }
         }
 
@@ -473,7 +488,11 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
 
             public string DimensionKey { get; set; } = string.Empty;
 
-            public bool ImpactsCore { get; set; }
+            /// <summary>minor | moderate | major | critical — validated in ValidatePayload.</summary>
+            public string Severity { get; set; } = string.Empty;
+
+            /// <summary>Terse per-error characterisation, e.g. "概念方向偏移".</summary>
+            public string? Summary { get; set; }
 
             public string? Explanation { get; set; }
 

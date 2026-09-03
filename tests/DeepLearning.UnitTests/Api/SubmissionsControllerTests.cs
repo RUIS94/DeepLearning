@@ -192,6 +192,8 @@ namespace DeepLearning.UnitTests.Api
             Assert.True(fetched.GradingResults[0].PassBool);
             Assert.Single(fetched.ErrorList);
             Assert.Equal(FakeGradingLlmClient.ErrorCategoryKey, fetched.ErrorList[0].ErrorCategory);
+            Assert.Equal(ErrorSeverity.moderate, fetched.ErrorList[0].Severity);
+            Assert.Equal("fake summary", fetched.ErrorList[0].Summary);
         }
 
         [Fact]

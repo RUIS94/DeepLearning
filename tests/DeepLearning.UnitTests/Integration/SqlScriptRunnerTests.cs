@@ -182,9 +182,9 @@ namespace DeepLearning.UnitTests.Integration
             // Throws if _manifest.txt and the embedded *.sql set disagree either way.
             var scripts = new EmbeddedSqlScriptSource().GetScripts();
 
-            Assert.Equal(33, scripts.Count);
+            Assert.Equal(34, scripts.Count);
             Assert.Equal("schema.sql", scripts[0].Name);
-            Assert.Equal("consolidate_question_gen_prompt_templates.sql", scripts[^1].Name);
+            Assert.Equal("consolidate_grading_prompt_templates.sql", scripts[^1].Name);
             Assert.All(scripts, s => Assert.False(string.IsNullOrWhiteSpace(s.Content)));
         }
     }

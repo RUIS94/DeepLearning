@@ -210,7 +210,10 @@ export interface ErrorListItem {
   userTextSnippet: string | null;
   errorCategory: string;
   dimensionKey: string;
-  impactsCore: boolean;
+  /** ErrorSeverity 序数（minor/moderate/major/critical）。"影响核心"标签由它派生。 */
+  severity: number;
+  /** 一句话定性 tag，如"概念方向偏移"。 */
+  summary: string | null;
   explanation: string | null;
   suggestion: string | null;
 }

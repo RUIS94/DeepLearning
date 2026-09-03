@@ -132,7 +132,7 @@ namespace DeepLearning.UnitTests.Api
                     {"dimensionKey": "{{DimensionKey}}", "band": 2, "rationale": "{{Rationale}}", "cumulativeDensityFlag": false, "cumulativeDensityNote": null, "estimatedPassProbability": 80}
                   ],
                   "errors": [
-                    {"positionRef": "p1", "sourceTextSnippet": "src snippet", "userTextSnippet": "user snippet", "errorCategory": "{{ErrorCategoryKey}}", "dimensionKey": "{{DimensionKey}}", "impactsCore": false, "explanation": "explanation text", "suggestion": "suggestion text"}
+                    {"positionRef": "p1", "sourceTextSnippet": "src snippet", "userTextSnippet": "user snippet", "errorCategory": "{{ErrorCategoryKey}}", "dimensionKey": "{{DimensionKey}}", "severity": "moderate", "summary": "fake summary", "explanation": "explanation text", "suggestion": "suggestion text"}
                   ]
                 }
                 """;
@@ -163,7 +163,7 @@ namespace DeepLearning.UnitTests.Api
                     {"dimensionKey": "{{FakeGradingLlmClient.DimensionKey}}", "band": 2, "rationale": "ok", "cumulativeDensityFlag": false, "cumulativeDensityNote": null, "estimatedPassProbability": 80}
                   ],
                   "errors": [
-                    {"positionRef": "p1", "sourceTextSnippet": "src", "userTextSnippet": "usr", "errorCategory": "not-a-real-category", "dimensionKey": "{{FakeGradingLlmClient.DimensionKey}}", "impactsCore": false, "explanation": "x", "suggestion": "y"}
+                    {"positionRef": "p1", "sourceTextSnippet": "src", "userTextSnippet": "usr", "errorCategory": "not-a-real-category", "dimensionKey": "{{FakeGradingLlmClient.DimensionKey}}", "severity": "moderate", "summary": "s", "explanation": "x", "suggestion": "y"}
                   ]
                 }
                 """;
