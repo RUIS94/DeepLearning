@@ -1,5 +1,7 @@
 # 一键启动前后端开发环境（各自独立终端窗口）
 # .\dev.ps1
+# dotnet test --filter "Category!=LlmIntegration"
+# dotnet ef database update --project src/DeepLearning.Api
 # http://localhost:3000/
 
 $ErrorActionPreference = 'Stop'
