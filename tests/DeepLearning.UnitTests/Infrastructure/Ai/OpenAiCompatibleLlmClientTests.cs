@@ -151,5 +151,73 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
             await Assert.ThrowsAsync<AiCallFailedException>(
                 () => client.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10)));
         }
+
+        private static HttpResponseMessage BuildResponse(string content, string finishReason) => new(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new
+            {
+                choices = new[] { new { message = new { content }, finish_reason = finishReason } },
+                model = "the-model",
+                usage = new { prompt_tokens = 12, completion_tokens = 34 },
+            }),
+        };
+
+        [Theory]
+        [InlineData("length", true)]
+        [InlineData("stop", false)]
+        [InlineData(null, false)]
+        public async Task Reports_whether_the_output_token_cap_stopped_the_model(string? finishReason, bool expected)
+        {
+            // Without this the caller sees only a half-written payload, and System.Text.Json
+            // describes that as a problem with whichever field the cut landed in — a message
+            // that reads like a bad value and sends the fix in the wrong direction.
+            var handler = new CapturingHandler { ResponseToReturn = BuildResponse("{\"a\": ", finishReason!) };
+            var httpClient = new HttpClient(handler);
+            var options = new OpenAiCompatibleOptions { ApiKey = "k", BaseUrl = "https://example.test/x", Model = "m" };
+            var client = new OpenAiCompatibleLlmClient(httpClient, options, "TestProvider");
+
+            var result = await client.CompleteAsync(
+                new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10));
+
+            Assert.Equal(expected, result.Truncated);
+        }
+
+        [Theory]
+        [InlineData(true, "enabled")]
+        [InlineData(false, "disabled")]
+        public async Task Sends_the_providers_thinking_switch_when_one_is_configured(bool thinkingEnabled, string expected)
+        {
+            var handler = new CapturingHandler { ResponseToReturn = BuildSuccessResponse("hello") };
+            var httpClient = new HttpClient(handler);
+            var options = new OpenAiCompatibleOptions
+            {
+                ApiKey = "k",
+                BaseUrl = "https://example.test/x",
+                Model = "m",
+                ThinkingParameterName = "thinking",
+            };
+            var client = new OpenAiCompatibleLlmClient(httpClient, options, "Mimo");
+
+            await client.CompleteAsync(new LlmCompletionRequest(
+                SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10, ThinkingEnabled: thinkingEnabled));
+
+            Assert.Contains($"\"thinking\":{{\"type\":\"{expected}\"}}", handler.CapturedBody);
+        }
+
+        [Fact]
+        public async Task Sends_no_thinking_switch_for_a_provider_that_declares_none()
+        {
+            // OpenAI selects reasoning by model id and DeepSeek by model name; sending them a
+            // "thinking" object would be inventing a field their API never documented.
+            var handler = new CapturingHandler { ResponseToReturn = BuildSuccessResponse("hello") };
+            var httpClient = new HttpClient(handler);
+            var options = new OpenAiCompatibleOptions { ApiKey = "k", BaseUrl = "https://example.test/x", Model = "m" };
+            var client = new OpenAiCompatibleLlmClient(httpClient, options, "TestProvider");
+
+            await client.CompleteAsync(new LlmCompletionRequest(
+                SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10, ThinkingEnabled: false));
+
+            Assert.DoesNotContain("thinking", handler.CapturedBody);
+        }
     }
 }

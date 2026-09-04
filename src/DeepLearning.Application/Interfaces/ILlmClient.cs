@@ -31,5 +31,19 @@ namespace DeepLearning.Application.Interfaces
         // != 1 while extended thinking is on).
         decimal? Temperature = null);
 
-    public record LlmCompletionResult(string Text, int InputTokens, int OutputTokens, string Model, int LatencyMs);
+    /// <param name="Truncated">
+    /// The provider stopped because the output-token cap was reached, not because the model
+    /// had finished. Each adapter maps its own vocabulary onto this flag (OpenAI-compatible
+    /// finish_reason "length", Claude stop_reason "max_tokens") so callers never have to match
+    /// provider dialects.
+    ///
+    /// <para>It matters because a truncated response is not a malformed one: the JSON simply
+    /// stops mid-token, and System.Text.Json reports that as "Expected end of string, but
+    /// instead reached end of data. Path: $.findings[9].errorCategory" — an error that names a
+    /// field and reads exactly like a bad value in it. That message sent a real investigation
+    /// after the wrong bug, and the retry it triggered told the model to check its
+    /// errorCategory values, which was not the problem.</para>
+    /// </param>
+    public record LlmCompletionResult(
+        string Text, int InputTokens, int OutputTokens, string Model, int LatencyMs, bool Truncated = false);
 }

@@ -307,5 +307,40 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             Assert.Throws<InvalidOperationException>(
                 () => GradeSubmissionCommandHandler.NormaliseQuestionScheme([finding]));
         }
+
+        [Fact]
+        public void A_truncated_attempt_is_re_prompted_to_finish_not_to_fix_a_field()
+        {
+            // The generic notice is wrong twice over for a cut-off response: it points the model
+            // at its errorCategory values, which were fine, and it says "fix just this one thing
+            // and keep everything else" — which, for a length problem, can only be obeyed by
+            // dropping findings. That is the one thing a collection stage must never do.
+            var notice = GradeSubmissionCommandHandler.BuildRejectionNotice(
+                "output was cut off at the 16384-token cap (provider reported truncation), not malformed.",
+                truncated: true);
+
+            Assert.Contains("没有写完", notice);
+            Assert.Contains("不要为了变短而减少 findings", notice);
+            Assert.DoesNotContain("errorCategory 只能取错误类别", notice);
+            Assert.DoesNotContain("请只修正这一处", notice);
+        }
+
+        [Fact]
+        public void A_malformed_attempt_still_gets_the_field_level_advice()
+        {
+            var notice = GradeSubmissionCommandHandler.BuildRejectionNotice(
+                "error_category 'textual_norms' is not a known error taxonomy for this exam type.",
+                truncated: false);
+
+            Assert.Contains("errorCategory 只能取错误类别", notice);
+            Assert.Contains("请只修正这一处", notice);
+            Assert.DoesNotContain("没有写完", notice);
+        }
+
+        [Fact]
+        public void A_first_attempt_carries_no_notice_at_all()
+        {
+            Assert.Equal(string.Empty, GradeSubmissionCommandHandler.BuildRejectionNotice(null, truncated: false));
+        }
     }
 }

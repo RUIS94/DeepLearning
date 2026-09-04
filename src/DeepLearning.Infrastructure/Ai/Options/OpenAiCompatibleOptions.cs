@@ -24,5 +24,23 @@ namespace DeepLearning.Infrastructure.Ai.Options
 
         /// <summary>"max_tokens" (DeepSeek) or "max_completion_tokens" (OpenAI, Mimo) — differs per provider docs.</summary>
         public string MaxTokensFieldName { get; set; } = "max_completion_tokens";
+
+        /// <summary>
+        /// Request field carrying this provider's reasoning switch, emitted as
+        /// <c>{"&lt;name&gt;": {"type": "enabled|disabled"}}</c>. Mimo calls it "thinking"
+        /// (mimo.mi.com → Usage Guide → Deep Thinking, supported on mimo-v2.5-pro and
+        /// mimo-v2.5). Null for providers with no such switch or a different shape — OpenAI's
+        /// reasoning models use separate model ids, DeepSeek's is a separate model name — and
+        /// nothing is sent when it is null, which is the pre-existing behaviour.
+        ///
+        /// <para>Worth setting where it exists, because on Mimo reasoning is ON by default and
+        /// has two consequences the caller cannot see: it is billed inside
+        /// <c>max_completion_tokens</c> together with the answer ("limits the total length of
+        /// thinking content and the final answer"), and while it is on the model "does not
+        /// support custom temperature and top_p" — they are forced to 1.0 / 0.95. So a call
+        /// that asks for temperature 0 in the name of reproducibility silently does not get
+        /// it.</para>
+        /// </summary>
+        public string? ThinkingParameterName { get; set; }
     }
 }

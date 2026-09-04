@@ -47,14 +47,18 @@ namespace DeepLearning.Infrastructure.Ai
                 [_options.MaxTokensFieldName] = request.MaxTokens,
             };
 
-            // "Thinking" isn't a universal boolean toggle across OpenAI-shaped providers —
-            // OpenAI's reasoning models use separate model ids or a Responses-API-only
-            // reasoning_effort field, DeepSeek's reasoning is a distinct model name
-            // ("deepseek-reasoner"), and Mimo's equivalent isn't confirmed. Rather than guess
-            // a field name, provider-specific reasoning controls go through ExtraSettings
-            // below (e.g. {"reasoning_effort":"high"}) once each provider's actual mechanism
-            // is confirmed against its docs — ThinkingEnabled/Effort are intentionally unused
-            // here (Claude-specific, see ClaudeLlmClient).
+            // "Thinking" isn't a universal toggle across OpenAI-shaped providers — OpenAI's
+            // reasoning models use separate model ids or a Responses-API-only reasoning_effort
+            // field, and DeepSeek's reasoning is a distinct model name ("deepseek-reasoner") —
+            // so it is only sent for a provider that has declared the field name it wants (see
+            // OpenAiCompatibleOptions.ThinkingParameterName). Mimo's is "thinking", an object
+            // rather than a bool. Anything else still goes through ExtraSettings below.
+            if (_options.ThinkingParameterName is { Length: > 0 } thinkingField
+                && request.ThinkingEnabled is { } thinkingEnabled)
+            {
+                body[thinkingField] = new { type = thinkingEnabled ? "enabled" : "disabled" };
+            }
+
             if (request.ExtraSettings is not null)
             {
                 foreach (var (key, value) in request.ExtraSettings)
@@ -99,14 +103,19 @@ namespace DeepLearning.Infrastructure.Ai
             var parsed = await response.Content.ReadFromJsonAsync<ChatCompletionResponse>(cancellationToken)
                 ?? throw new AiCallFailedException($"{_providerName} returned an empty response body.");
 
-            var text = parsed.Choices?.FirstOrDefault()?.Message?.Content ?? string.Empty;
+            var choice = parsed.Choices?.FirstOrDefault();
+            var text = choice?.Message?.Content ?? string.Empty;
 
             return new LlmCompletionResult(
                 text,
                 parsed.Usage?.PromptTokens ?? 0,
                 parsed.Usage?.CompletionTokens ?? 0,
                 parsed.Model ?? _options.Model,
-                (int)stopwatch.ElapsedMilliseconds);
+                (int)stopwatch.ElapsedMilliseconds,
+                // "length" is the OpenAI wire format's word for "I hit max_tokens and stopped
+                // mid-sentence". Reading it is what separates "the model produced bad JSON"
+                // from "the model was cut off", two failures with opposite fixes.
+                Truncated: string.Equals(choice?.FinishReason, "length", StringComparison.OrdinalIgnoreCase));
         }
 
         private class ChatCompletionResponse
@@ -125,6 +134,9 @@ namespace DeepLearning.Infrastructure.Ai
         {
             [JsonPropertyName("message")]
             public ChatMessage? Message { get; set; }
+
+            [JsonPropertyName("finish_reason")]
+            public string? FinishReason { get; set; }
         }
 
         private class ChatMessage

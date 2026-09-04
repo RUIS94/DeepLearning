@@ -111,7 +111,11 @@ namespace DeepLearning.Infrastructure.Ai
                 parsed.Usage?.InputTokens ?? 0,
                 parsed.Usage?.OutputTokens ?? 0,
                 parsed.Model ?? request.Model ?? _options.Model,
-                (int)stopwatch.ElapsedMilliseconds);
+                (int)stopwatch.ElapsedMilliseconds,
+                // Anthropic's word for the same thing the OpenAI-shaped providers call
+                // finish_reason "length": the max_tokens cap stopped the model, so the text
+                // above ends wherever it happened to be.
+                Truncated: string.Equals(parsed.StopReason, "max_tokens", StringComparison.OrdinalIgnoreCase));
         }
 
         private class ClaudeMessageResponse
@@ -124,6 +128,9 @@ namespace DeepLearning.Infrastructure.Ai
 
             [JsonPropertyName("usage")]
             public ClaudeUsage? Usage { get; set; }
+
+            [JsonPropertyName("stop_reason")]
+            public string? StopReason { get; set; }
         }
 
         private class ClaudeContentBlock

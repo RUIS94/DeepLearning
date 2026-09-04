@@ -63,6 +63,29 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         private const int MaxInjectedOverrides = 8;
 
         /// <summary>
+        /// Output-token cap every stage starts with.
+        ///
+        /// <para>The JSON these stages actually emit measured 2,675-4,160 completion tokens on
+        /// 2026-09-04, so this is roughly a 4x headroom rather than a target — it costs nothing
+        /// when unused, and the failure it prevents costs a full re-prompt plus a backoff.
+        /// 4096 was already too small once q3WrongReading and the termUsage table were added.
+        /// </para>
+        ///
+        /// <para>The reason for the size of the margin: on a provider that reasons inside the
+        /// same budget, the answer gets whatever the deliberation leaves behind, and that share
+        /// is not knowable in advance. Grading now asks for thinking to be off (see
+        /// RunStageAsync), but a provider that ignores the request, or one added later with a
+        /// different switch, must not be able to truncate a stage on its first attempt.</para>
+        /// </summary>
+        private const int StageOutputTokens = 16384;
+
+        /// <summary>
+        /// Hard ceiling for the doubling in <see cref="RunStageAsync"/>, so a response that
+        /// keeps growing cannot make each retry cost more than the last.
+        /// </summary>
+        private const int MaxStageOutputTokens = 32768;
+
+        /// <summary>
         /// Two findings are the same defect only if they are on the same dimension, in the same
         /// error category, AND quote the same span of the translation. Deliberately narrow: the
         /// three collection stages are meant to overlap, and a term that is both the wrong
@@ -362,12 +385,9 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 // of them is shown what the others found — the handler merges instead.
                 var stages = new[]
                 {
-                    (Stage: StageEvidence, Prefix: "E", MaxTokens: 8192, WeakPoints: new List<WeakPoint>(), Overrides: new List<StandardOverride>()),
-                    // 4096 was not enough once v4 added q3WrongReading to every finding and the
-                    // termUsage table on top: an observed run came back finish_reason=length,
-                    // which cost a full re-prompt plus backoff. All three share one budget now.
-                    (Stage: StageProofread, Prefix: "P", MaxTokens: 8192, WeakPoints: new List<WeakPoint>(), Overrides: new List<StandardOverride>()),
-                    (Stage: StageSweep, Prefix: "S", MaxTokens: 8192, WeakPoints: weakPoints, Overrides: activeOverrides),
+                    (Stage: StageEvidence, Prefix: "E", MaxTokens: StageOutputTokens, WeakPoints: new List<WeakPoint>(), Overrides: new List<StandardOverride>()),
+                    (Stage: StageProofread, Prefix: "P", MaxTokens: StageOutputTokens, WeakPoints: new List<WeakPoint>(), Overrides: new List<StandardOverride>()),
+                    (Stage: StageSweep, Prefix: "S", MaxTokens: StageOutputTokens, WeakPoints: weakPoints, Overrides: activeOverrides),
                 };
 
                 // Everything that touches the database happens HERE, before anything runs in
@@ -462,11 +482,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                     recoveredRejections,
                     verdictLog,
                     verdictPrompt,
-                    // 4096 was not enough: this provider emits its deliberation as ordinary
-                    // content (reasoning_tokens is 0), so the budget ran out before the JSON
-                    // started and the truncated payload failed to parse. v4 also caps each
-                    // rationale at 150 characters and forbids restating the procedure.
-                    maxTokens: 8192,
+                    maxTokens: StageOutputTokens,
                     validate: payload => ValidateVerdict(payload, dimensions),
                     workToken);
                 aiCallLog.AttemptCount += verdictLog.AttemptCount - 1;
@@ -652,6 +668,17 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         /// calls, five minutes, real tokens — died on a single mislabelled field that the model
         /// would almost certainly have fixed if anyone had told it. Determinism is what we want
         /// from the FIRST attempt and precisely what we must break on a retry.</para>
+        ///
+        /// <para><b>Thinking is off for grading.</b> Not a cost decision — on Mimo, the active
+        /// provider, reasoning is on by default and carries two consequences that are invisible
+        /// from here. It is billed inside max_completion_tokens together with the answer, and
+        /// on 2026-09-04 the evidence stage spent 31,000 characters deliberating and had ~200
+        /// characters of budget left for its JSON; the sweep stage did the same and was cut off
+        /// at findings[9]. Both retries then "succeeded" only because the model happened to
+        /// think less the second time. And while thinking is on, Mimo "does not support custom
+        /// temperature and top_p" — they are forced to 1.0 / 0.95, so the Temperature: 0 below,
+        /// and the reproducibility this whole pipeline is built around, were never in effect.
+        /// Providers that declare no thinking parameter are unaffected: nothing is sent.</para>
         /// </summary>
         private async Task<T> RunStageAsync<T>(
             ILlmClient llmClient,
@@ -664,6 +691,8 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             CancellationToken cancellationToken)
         {
             string? rejectionReason = null;
+            var lastAttemptWasTruncated = false;
+            var budget = maxTokens;
 
             return await _aiCallRetryExecutor.ExecuteAsync(stageLog, async () =>
             {
@@ -674,22 +703,44 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                     // llm_provider_settings.extra_settings without a code change.)
                     new LlmCompletionRequest(
                         SystemPrompt: null,
-                        UserPrompt: prompt + BuildRejectionNotice(rejectionReason),
-                        MaxTokens: maxTokens,
+                        UserPrompt: prompt + BuildRejectionNotice(rejectionReason, lastAttemptWasTruncated),
+                        MaxTokens: budget,
+                        ThinkingEnabled: false,
                         Temperature: 0m),
                     cancellationToken);
                 stageLog.LatencyMs = (stageLog.LatencyMs ?? 0) + completion.LatencyMs;
 
                 try
                 {
+                    // Checked before parsing, because parsing a truncated payload produces a
+                    // message that names whichever field the cut landed in and reads exactly
+                    // like a bad value in it.
+                    if (completion.Truncated)
+                    {
+                        throw new InvalidOperationException(
+                            $"output was cut off at the {budget}-token cap (provider reported truncation), not malformed.");
+                    }
+
                     var parsed = ParsePayload<T>(completion.Text);
                     validate(parsed);
+                    lastAttemptWasTruncated = false;
                     return parsed;
                 }
                 catch (Exception ex)
                 {
                     rejectionReason = ex.Message;
+                    lastAttemptWasTruncated = completion.Truncated;
                     recoveredRejections.Enqueue($"[{stageName} attempt {stageLog.AttemptCount}] {ex.Message}");
+
+                    // Asking for the same answer in the same space is how the last one failed.
+                    // Doubling once is enough for every payload measured here (the JSON itself
+                    // runs 2.7k-4.2k tokens) and is capped so a runaway response cannot make
+                    // each retry more expensive than the last.
+                    if (completion.Truncated)
+                    {
+                        budget = Math.Min(budget * 2, MaxStageOutputTokens);
+                    }
+
                     throw;
                 }
             }, cancellationToken);
@@ -721,19 +772,38 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         /// around the JSON — because a bare error string leaves the model free to "fix" it by
         /// rewriting something else.
         /// </summary>
-        private static string BuildRejectionNotice(string? rejectionReason)
-            => string.IsNullOrWhiteSpace(rejectionReason)
-                ? string.Empty
-                : "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    + "上一次输出已被系统拒绝,请重新输出。\n"
-                    + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    + $"拒绝原因:{rejectionReason}\n"
+        public static string BuildRejectionNotice(string? rejectionReason, bool truncated)
+        {
+            if (string.IsNullOrWhiteSpace(rejectionReason))
+            {
+                return string.Empty;
+            }
+
+            var header = "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                + "上一次输出已被系统拒绝,请重新输出。\n"
+                + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                + $"拒绝原因:{rejectionReason}\n";
+
+            // Truncation and a malformed field need opposite corrections, and the generic
+            // advice below is actively wrong for the first: it sends the model looking at its
+            // errorCategory values when the real problem is that it ran out of room. Telling
+            // it to "fix just this one thing" is worse still — the only way to obey that while
+            // shortening is to drop findings, which is the one thing this stage must not do.
+            return truncated
+                ? header
+                    + "上一次输出【没有写完】就被截断了,不是格式错误,判断本身也没有问题。\n"
+                    + "这一次请把同样的判断【完整】写出来,并从这两处省出篇幅:\n"
+                    + "1. 不要在 JSON 之前做长篇推演,直接开始输出;\n"
+                    + "2. explanation 与 suggestion 每条控制在两句以内。\n"
+                    + "【不要为了变短而减少 findings 条目或省略任何一句 sentences】——条目一条都不能少。\n"
+                : header
                     + "请只修正这一处,其余判断保持不变,然后重新输出【完整】的 JSON。\n"
                     + "两个最常见的原因,请对照检查:\n"
                     + "1. errorCategory 与 dimensionKey 是两个不同的字段,取值来自两份不同的清单。"
                     + "errorCategory 只能取错误类别 category_key(如 distortion、unidiomatic_expression、spelling_error),"
                     + "【绝不能】填维度名(如 textual_norms、language_proficiency、meaning_transfer)。\n"
                     + "2. 输出必须是纯 JSON:没有代码块围栏,没有前言,没有推理过程。\n";
+        }
 
         /// <summary>
         /// Records the failure and releases the submission back to a retryable state.

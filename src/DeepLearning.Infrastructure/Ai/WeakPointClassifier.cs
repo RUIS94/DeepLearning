@@ -99,7 +99,17 @@ namespace DeepLearning.Infrastructure.Ai
                     var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
                     var completion = await llmClient.CompleteAsync(
                         // Temperature 0: classification into a fixed catalog should be stable.
-                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 2048, Temperature: 0m),
+                        // ThinkingEnabled false for the same reason, not to save tokens: Mimo,
+                        // the active provider, ignores temperature and top_p entirely while
+                        // deep thinking is on (forced to 1.0 / 0.95), so asking for 0 with
+                        // thinking left at its default was asking for something that never
+                        // arrived. Providers that declare no thinking parameter are unaffected.
+                        new LlmCompletionRequest(
+                            SystemPrompt: null,
+                            UserPrompt: prompt,
+                            MaxTokens: 2048,
+                            ThinkingEnabled: false,
+                            Temperature: 0m),
                         cancellationToken);
                     aiCallLog.LatencyMs = completion.LatencyMs;
                     return ParsePayload(completion.Text);
