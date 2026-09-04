@@ -30,8 +30,8 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             string userSnippet = "晒斑表明着",
             string dimension = "meaning_transfer",
             string category = "distortion",
+            bool q1 = false,
             bool q2 = false,
-            bool q3 = false,
             string explanation = "说明") => new()
             {
                 Id = id,
@@ -40,8 +40,8 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
                 UserTextSnippet = userSnippet,
                 ErrorCategory = category,
                 DimensionKey = dimension,
+                Q1 = q1,
                 Q2 = q2,
-                Q3 = q3,
                 Summary = "摘要",
                 Explanation = explanation,
                 Suggestion = "建议",
@@ -49,14 +49,14 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
 
         [Theory]
         // NAATI's own definition, and the whole of it: Major iff it affects intent or
-        // purpose/function (q2), and/or impacts comprehension (q3). Nothing else moves the level.
+        // purpose/function (q1), and/or impacts comprehension (q2). Nothing else moves the level.
         [InlineData(false, false, ErrorSeverity.minor)]
         [InlineData(false, true, ErrorSeverity.major)]
         [InlineData(true, false, ErrorSeverity.major)]
         [InlineData(true, true, ErrorSeverity.major)]
-        public void Severity_is_the_official_two_level_test(bool q2, bool q3, ErrorSeverity expected)
+        public void Severity_is_the_official_two_level_test(bool q1, bool q2, ErrorSeverity expected)
         {
-            var severity = GradeSubmissionCommandHandler.DeriveSeverity(Finding("E1", q2: q2, q3: q3));
+            var severity = GradeSubmissionCommandHandler.DeriveSeverity(Finding("E1", q1: q1, q2: q2));
 
             Assert.Equal(expected, severity);
         }
@@ -64,34 +64,34 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
         [Fact]
         public void A_comprehension_claim_with_no_wrong_reading_named_is_demoted()
         {
-            // q3 alone promotes an error to officially Major, and the models answer it far too
+            // q2 alone promotes an error to officially Major, and the models answer it far too
             // readily: the first v3 run scored "還尚 is redundant, it affects fluency" as major.
             // The prompt requires the claim to be paid for by naming what the reader ends up
             // believing; this applies the prompt's own fallback when it is not.
-            var unpaid = Finding("E1", q3: true);
-            var paid = Finding("E2", userSnippet: "被晒伤的信号", q3: true);
-            paid.Q3WrongReading = "读者会以为信号本身被晒伤了";
+            var unpaid = Finding("E1", q2: true);
+            var paid = Finding("E2", userSnippet: "被晒伤的信号", q2: true);
+            paid.Q2WrongReading = "读者会以为信号本身被晒伤了";
 
             var findings = new List<GradeSubmissionCommandHandler.Finding> { unpaid, paid };
             GradeSubmissionCommandHandler.NormaliseComprehensionClaims(findings);
 
-            Assert.False(unpaid.Q3);
+            Assert.False(unpaid.Q2);
             Assert.Equal(ErrorSeverity.minor, GradeSubmissionCommandHandler.DeriveSeverity(unpaid));
-            Assert.True(paid.Q3);
+            Assert.True(paid.Q2);
             Assert.Equal(ErrorSeverity.major, GradeSubmissionCommandHandler.DeriveSeverity(paid));
         }
 
         [Fact]
-        public void Demotion_leaves_q1_and_q2_untouched()
+        public void Demotion_leaves_the_intent_question_untouched()
         {
-            // Only the unsubstantiated q3 is withdrawn — an error that genuinely changed the
-            // intent stays Major on q2 alone, with or without a named wrong reading.
-            var finding = Finding("E1", q2: true, q3: true);
+            // Only the unsubstantiated q2 is withdrawn — an error that genuinely changed the
+            // intent stays Major on q1 alone, with or without a named wrong reading.
+            var finding = Finding("E1", q1: true, q2: true);
 
             GradeSubmissionCommandHandler.NormaliseComprehensionClaims([finding]);
 
-            Assert.True(finding.Q2);
-            Assert.False(finding.Q3);
+            Assert.True(finding.Q1);
+            Assert.False(finding.Q2);
             Assert.Equal(ErrorSeverity.major, GradeSubmissionCommandHandler.DeriveSeverity(finding));
         }
 
@@ -115,8 +115,8 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             // The evidence pass called it a wording slip; the sweep pass, working from the
             // easy-to-miss checklist, saw that it reverses the mechanism. The harsher answer has
             // to survive, or the extra pass is worse than useless.
-            var strict = Finding("S1", q3: true, explanation: "更长的说明：主客关系颠倒，读者会读错。");
-            strict.Q3WrongReading = "读者会以为信号本身被晒伤了";
+            var strict = Finding("S1", q2: true, explanation: "更长的说明：主客关系颠倒，读者会读错。");
+            strict.Q2WrongReading = "读者会以为信号本身被晒伤了";
 
             var merged = GradeSubmissionCommandHandler.MergeCollectedFindings(
             [
@@ -128,7 +128,7 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             var only = Assert.Single(merged);
             Assert.Equal(ErrorSeverity.major, GradeSubmissionCommandHandler.DeriveSeverity(only));
             Assert.Contains("主客关系颠倒", only.Explanation);
-            Assert.Equal("读者会以为信号本身被晒伤了", only.Q3WrongReading);
+            Assert.Equal("读者会以为信号本身被晒伤了", only.Q2WrongReading);
         }
 
         [Fact]
@@ -140,7 +140,7 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             // exactly how it came out at Band 1 with "no evidence".
             var merged = GradeSubmissionCommandHandler.MergeCollectedFindings(
             [
-                Finding("E1", dimension: "meaning_transfer", category: "distortion", q3: true),
+                Finding("E1", dimension: "meaning_transfer", category: "distortion", q2: true),
                 Finding("P1", dimension: "textual_norms", category: "inappropriate_register"),
             ],
                 Translation);
@@ -205,30 +205,30 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
         public void The_wrong_reading_travels_with_the_comprehension_claim()
         {
             // The lenient stage is seen first, so without carrying this the merged finding would
-            // claim q3 with nothing behind it — and NormaliseComprehensionClaims would then
+            // claim q2 with nothing behind it — and NormaliseComprehensionClaims would then
             // rightly demote it, silently discarding the stricter stage's judgement.
             var lenient = Finding("E1", userSnippet: "释放一种被晒伤的信号");
-            var strict = Finding("S1", userSnippet: "释放一种被晒伤的信号", q3: true);
-            strict.Q3WrongReading = "读者会以为信号本身被晒伤了";
+            var strict = Finding("S1", userSnippet: "释放一种被晒伤的信号", q2: true);
+            strict.Q2WrongReading = "读者会以为信号本身被晒伤了";
 
             var merged = GradeSubmissionCommandHandler.MergeCollectedFindings([lenient, strict], Translation);
 
             var only = Assert.Single(merged);
-            Assert.True(only.Q3);
-            Assert.Equal("读者会以为信号本身被晒伤了", only.Q3WrongReading);
+            Assert.True(only.Q2);
+            Assert.Equal("读者会以为信号本身被晒伤了", only.Q2WrongReading);
             Assert.Equal(ErrorSeverity.major, GradeSubmissionCommandHandler.DeriveSeverity(only));
         }
 
         [Fact]
         public void A_merged_comprehension_claim_nobody_substantiated_is_still_demoted()
         {
-            var first = Finding("E1", userSnippet: "释放一种被晒伤的信号", q3: true);
-            var second = Finding("S1", userSnippet: "释放一种被晒伤的信号", q3: true);
+            var first = Finding("E1", userSnippet: "释放一种被晒伤的信号", q2: true);
+            var second = Finding("S1", userSnippet: "释放一种被晒伤的信号", q2: true);
 
             var merged = GradeSubmissionCommandHandler.MergeCollectedFindings([first, second], Translation);
 
             var only = Assert.Single(merged);
-            Assert.False(only.Q3);
+            Assert.False(only.Q2);
             Assert.Equal(ErrorSeverity.minor, GradeSubmissionCommandHandler.DeriveSeverity(only));
         }
 
@@ -257,6 +257,55 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             var merged = GradeSubmissionCommandHandler.MergeCollectedFindings([monolingual, Finding("S1")], Translation);
 
             Assert.Equal("Sunburn", Assert.Single(merged).SourceTextSnippet);
+        }
+
+        [Fact]
+        public void The_new_numbering_reads_q1_as_intent_and_q2_as_comprehension()
+        {
+            var finding = new GradeSubmissionCommandHandler.Finding
+            {
+                Id = "E1",
+                RawQ1 = true,
+                RawQ2 = false,
+                RawQ2WrongReading = null,
+            };
+
+            GradeSubmissionCommandHandler.NormaliseQuestionScheme([finding]);
+
+            Assert.True(finding.Q1);
+            Assert.False(finding.Q2);
+        }
+
+        [Fact]
+        public void The_old_numbering_shifts_q2_to_intent_and_q3_to_comprehension()
+        {
+            // v1 and v2 both use the key "q2", for OPPOSITE questions. Binding it straight onto
+            // one property would swap intent for comprehension silently, so the scheme is chosen
+            // by which of q1/q3 is present, and everything else follows from that.
+            var finding = new GradeSubmissionCommandHandler.Finding
+            {
+                Id = "E1",
+                RawQ2 = false,
+                RawQ3 = true,
+                RawQ3WrongReading = "读者会以为信号本身被晒伤了",
+            };
+
+            GradeSubmissionCommandHandler.NormaliseQuestionScheme([finding]);
+
+            Assert.False(finding.Q1);
+            Assert.True(finding.Q2);
+            Assert.Equal("读者会以为信号本身被晒伤了", finding.Q2WrongReading);
+        }
+
+        [Fact]
+        public void A_finding_answering_neither_numbering_is_rejected_rather_than_defaulted()
+        {
+            // Defaulting to false would make it a Minor, and a whole run of them a clean-looking
+            // grading that is entirely wrong. That has to be loud.
+            var finding = new GradeSubmissionCommandHandler.Finding { Id = "E1" };
+
+            Assert.Throws<InvalidOperationException>(
+                () => GradeSubmissionCommandHandler.NormaliseQuestionScheme([finding]));
         }
     }
 }

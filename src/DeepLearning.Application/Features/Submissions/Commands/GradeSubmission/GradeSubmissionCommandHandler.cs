@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DeepLearning.Application.Interfaces;
@@ -336,6 +337,17 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 .Take(MaxInjectedOverrides)
                 .ToList();
 
+            // Every content rejection that a retry went on to recover from. Without this the
+            // rejection reason dies inside RunStageAsync's closure the moment the retry
+            // succeeds, and all the run leaves behind is ai_call_logs.attempt_count — which is
+            // how five consecutive gradings came to sit at attempt_count = 2 with no way to
+            // tell which of the four stages was failing, or on what. LastErrorMessage is only
+            // written by FailAsync today, i.e. only when the whole grading dies; a rejection
+            // that cost a re-prompt, a backoff and a full stage's tokens is worth recording
+            // even when the run ends up green. Concurrent because the three collection stages
+            // run on Task.WhenAll.
+            var recoveredRejections = new ConcurrentQueue<string>();
+
             List<Finding> findings;
             List<CheckpointVerdict> checkpointVerdicts;
             VerdictPayload verdict;
@@ -390,12 +402,17 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 var collectedPerStage = await Task.WhenAll(prepared.Select(stage =>
                     RunStageAsync<CollectionPayload>(
                         llmClient,
+                        stage.Stage,
+                        recoveredRejections,
                         stage.Log,
                         stage.Prompt,
                         stage.MaxTokens,
                         payload =>
                         {
                             NormaliseFindingIds(payload.Findings, stage.Prefix);
+                            // Must run first: everything downstream reads Q1/Q2, and nothing
+                            // fills them in until the answering prompt's numbering is resolved.
+                            NormaliseQuestionScheme(payload.Findings);
                             NormaliseComprehensionClaims(payload.Findings);
                             ValidateFindings(payload.Findings, dimensions, errorTaxonomies);
                             if (stage.Stage == StageEvidence)
@@ -441,6 +458,8 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 var verdictLog = new AiCallLog { AttemptCount = 1, MaxRetries = aiCallLog.MaxRetries };
                 verdict = await RunStageAsync<VerdictPayload>(
                     llmClient,
+                    StageVerdict,
+                    recoveredRejections,
                     verdictLog,
                     verdictPrompt,
                     // 4096 was not enough: this provider emits its deliberation as ordinary
@@ -455,7 +474,10 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             }
             catch (Exception ex)
             {
-                await FailAsync(submission, aiCallLog, $"Failed after {aiCallLog.AttemptCount} attempt(s): {ex.Message}");
+                await FailAsync(
+                    submission,
+                    aiCallLog,
+                    $"Failed after {aiCallLog.AttemptCount} attempt(s): {ex.Message}{FormatRecoveredRejections(recoveredRejections)}");
                 throw new AiCallFailedException($"Grading response could not be used: {ex.Message}", ex);
             }
 
@@ -571,6 +593,12 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 });
 
                 aiCallLog.Status = CallStatus.success;
+                // Green, but not necessarily clean: a stage that was rejected once and got it
+                // right on the re-prompt still cost a round trip and a backoff, and it is the
+                // only trace of a prompt defect that is otherwise invisible from the database.
+                aiCallLog.LastErrorMessage = recoveredRejections.IsEmpty
+                    ? null
+                    : $"Recovered on retry.{FormatRecoveredRejections(recoveredRejections)}";
                 aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
 
                 await _unitOfWork.SaveChangesAsync(workToken);
@@ -627,6 +655,8 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         /// </summary>
         private async Task<T> RunStageAsync<T>(
             ILlmClient llmClient,
+            string stageName,
+            ConcurrentQueue<string> recoveredRejections,
             AiCallLog stageLog,
             string prompt,
             int maxTokens,
@@ -659,9 +689,30 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 catch (Exception ex)
                 {
                     rejectionReason = ex.Message;
+                    recoveredRejections.Enqueue($"[{stageName} attempt {stageLog.AttemptCount}] {ex.Message}");
                     throw;
                 }
             }, cancellationToken);
+        }
+
+        /// <summary>
+        /// Renders the collected rejections onto one line for ai_call_logs.last_error_message.
+        /// Truncated because that column carries a run's whole failure story and a stack of
+        /// JSON parse errors can be arbitrarily long; the stage name and the head of the
+        /// message are the parts anyone reads.
+        /// </summary>
+        private static string FormatRecoveredRejections(ConcurrentQueue<string> recoveredRejections)
+        {
+            if (recoveredRejections.IsEmpty)
+            {
+                return string.Empty;
+            }
+
+            var rendered = string.Join(
+                " | ",
+                recoveredRejections.Select(r => r.Length <= 300 ? r : r[..300] + "…"));
+
+            return $" Rejected then re-prompted: {rendered}";
         }
 
         /// <summary>
@@ -795,9 +846,15 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                     DimensionKey = f.DimensionKey,
                     Severity = DeriveSeverity(f).ToString(),
                     // Rendered under the finding so the verdict stage can check a comprehension
-                    // claim rather than trust the severity label it was derived into. Every q3
-                    // that survives NormaliseComprehensionClaims carries one.
-                    Q3WrongReading = f.Q3WrongReading,
+                    // claim rather than trust the severity label it was derived into. Every
+                    // surviving claim carries one — see NormaliseComprehensionClaims.
+                    //
+                    // Two keys, one value: v1's verdict template reads q3_wrong_reading and v2's
+                    // reads q2_wrong_reading, because the two prompt versions number the same
+                    // question differently. Dropping either would render that line blank rather
+                    // than fail, so both stay until v1 is retired.
+                    Q3WrongReading = f.Q2WrongReading,
+                    Q2WrongReading = f.Q2WrongReading,
                     Summary = f.Summary,
                     Explanation = f.Explanation,
                     Suggestion = f.Suggestion,
@@ -980,7 +1037,45 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         /// intermediate levels.</para>
         /// </summary>
         public static ErrorSeverity DeriveSeverity(Finding finding)
-            => finding.Q2 || finding.Q3 ? ErrorSeverity.major : ErrorSeverity.minor;
+            => finding.Q1 || finding.Q2 ? ErrorSeverity.major : ErrorSeverity.minor;
+
+        /// <summary>
+        /// Resolves which numbering the answering prompt used, and fills in the canonical
+        /// <see cref="Finding.Q1"/> / <see cref="Finding.Q2"/> / <see cref="Finding.Q2WrongReading"/>.
+        ///
+        /// <para>v1 numbers the two official questions q2/q3 (a leftover from the version that
+        /// still had a q1); v2 numbers them q1/q2. The two overlap on the key "q2" with opposite
+        /// meanings, so the scheme has to be identified before anything is read: presence of
+        /// "q1" means the new numbering, presence of "q3" means the old one.</para>
+        ///
+        /// <para>Hard-fails when neither is present rather than defaulting to false. A finding
+        /// with both questions silently false is a Minor, and a whole run of them is a clean,
+        /// plausible-looking grading that is entirely wrong — the one failure mode this pipeline
+        /// must never produce quietly.</para>
+        /// </summary>
+        public static void NormaliseQuestionScheme(List<Finding> findings)
+        {
+            foreach (var finding in findings)
+            {
+                if (finding.RawQ1 is { } q1)
+                {
+                    finding.Q1 = q1;
+                    finding.Q2 = finding.RawQ2 ?? false;
+                    finding.Q2WrongReading = finding.RawQ2WrongReading;
+                }
+                else if (finding.RawQ3 is { } q3)
+                {
+                    finding.Q1 = finding.RawQ2 ?? false;
+                    finding.Q2 = q3;
+                    finding.Q2WrongReading = finding.RawQ3WrongReading;
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        $"finding '{finding.Id}' answered neither question pair: expected q1 + q2, or q2 + q3.");
+                }
+            }
+        }
 
         /// <summary>
         /// Demotes any q3 the stage could not substantiate. The prompt states the rule -
@@ -997,9 +1092,9 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         /// </summary>
         public static void NormaliseComprehensionClaims(List<Finding> findings)
         {
-            foreach (var finding in findings.Where(f => f.Q3 && string.IsNullOrWhiteSpace(f.Q3WrongReading)))
+            foreach (var finding in findings.Where(f => f.Q2 && string.IsNullOrWhiteSpace(f.Q2WrongReading)))
             {
-                finding.Q3 = false;
+                finding.Q2 = false;
             }
         }
 
@@ -1037,15 +1132,15 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 // land first: if any stage judged that this defect impacts comprehension, that
                 // judgement stands. Averaging them would quietly reinstate the reviewing stage
                 // this pipeline was built to remove.
+                existing.Q1 |= finding.Q1;
                 existing.Q2 |= finding.Q2;
-                existing.Q3 |= finding.Q3;
 
                 // The substantiation has to travel with the claim. Without this a merged finding
                 // could carry q3 = true from one stage and no wrong-reading from the other, and
                 // the verdict stage would be shown a comprehension failure with nothing behind it.
-                if (string.IsNullOrWhiteSpace(existing.Q3WrongReading))
+                if (string.IsNullOrWhiteSpace(existing.Q2WrongReading))
                 {
-                    existing.Q3WrongReading = finding.Q3WrongReading;
+                    existing.Q2WrongReading = finding.Q2WrongReading;
                 }
 
                 if ((finding.Explanation?.Length ?? 0) > (existing.Explanation?.Length ?? 0))
@@ -1218,23 +1313,49 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
 
             public string DimensionKey { get; set; } = string.Empty;
 
+            /// <summary>
+            /// As emitted. Two prompt versions number the same two questions differently — v1
+            /// asks q2/q3, v2 asks q1/q2 — so the raw keys cannot be bound straight onto the
+            /// canonical properties: v1's "q2" and v2's "q2" mean OPPOSITE things, and binding
+            /// them to one property would silently swap intent for comprehension rather than
+            /// fail. <see cref="NormaliseQuestionScheme"/> resolves which scheme was answered
+            /// and fills in Q1/Q2 below; nothing else in the pipeline reads these.
+            /// </summary>
+            [JsonPropertyName("q1")]
+            public bool? RawQ1 { get; set; }
+
+            [JsonPropertyName("q2")]
+            public bool? RawQ2 { get; set; }
+
+            [JsonPropertyName("q3")]
+            public bool? RawQ3 { get; set; }
+
+            [JsonPropertyName("q2WrongReading")]
+            public string? RawQ2WrongReading { get; set; }
+
+            [JsonPropertyName("q3WrongReading")]
+            public string? RawQ3WrongReading { get; set; }
+
             /// <summary>Changed the intent, or the purpose and function of the passage.</summary>
-            public bool Q2 { get; set; }
+            [JsonIgnore]
+            public bool Q1 { get; set; }
 
             /// <summary>
             /// Impacts comprehension of the target text - NAATI's own wording. Not "reads
             /// awkwardly": the official Minor tier explicitly covers everything that "does not
             /// impact on the comprehension".
             /// </summary>
-            public bool Q3 { get; set; }
+            [JsonIgnore]
+            public bool Q2 { get; set; }
 
             /// <summary>
-            /// What the reader actually ends up believing, when <see cref="Q3"/> is true. The
+            /// What the reader actually ends up believing, when <see cref="Q2"/> is true. The
             /// prompt requires it, and <see cref="NormaliseComprehensionClaims"/> demotes an
-            /// unsubstantiated Q3 to false - naming the wrong reading is the whole difference
+            /// unsubstantiated Q2 to false - naming the wrong reading is the whole difference
             /// between a comprehension failure and prose that is merely clumsy.
             /// </summary>
-            public string? Q3WrongReading { get; set; }
+            [JsonIgnore]
+            public string? Q2WrongReading { get; set; }
 
             /// <summary>Terse per-error characterisation.</summary>
             public string Summary { get; set; } = string.Empty;

@@ -74,3 +74,6 @@ rebuild_grading_prompt_v10_official_two_levels.sql
 
 # --- 2026-09-04: grading prompt frozen as production v1 (must stay last of the grading scripts) ---
 freeze_grading_prompt_v1_production.sql
+
+# --- 2026-09-04: grading prompt v2 candidate, inserted INACTIVE for A/B against v1 ---
+add_grading_prompt_v2_candidate.sql
