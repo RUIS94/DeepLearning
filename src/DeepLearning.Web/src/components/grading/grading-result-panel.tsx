@@ -15,6 +15,12 @@ const SEVERITY_BADGE: Record<number, string> = {
   [ErrorSeverity.critical]: "border-destructive bg-destructive/10 text-destructive",
 };
 
+const CONFIDENCE_LABEL: Record<string, string> = {
+  high: "判定把握 高",
+  medium: "判定把握 中",
+  low: "判定把握 低",
+};
+
 function DimensionBandRow({
   name,
   band,
@@ -22,6 +28,8 @@ function DimensionBandRow({
   rationale,
   densityNote,
   probability,
+  confidence,
+  alternativeBand,
 }: {
   name: string;
   band: number;
@@ -29,7 +37,11 @@ function DimensionBandRow({
   rationale: string;
   densityNote: string | null;
   probability: number | null;
+  confidence: "high" | "medium" | "low" | null;
+  alternativeBand: number | null;
 }) {
+  // 只有在评卷阶段确实给出了另一个候选档时才提示：alternativeBand === band 表示"没有第二选择"。
+  const contested = alternativeBand !== null && alternativeBand !== band;
   return (
     <div className="space-y-2 border-b border-border py-4 last:border-0">
       <div className="flex flex-wrap items-center gap-3">
@@ -46,6 +58,8 @@ function DimensionBandRow({
             {probability !== null
               ? ` · 预估通过概率 ${Math.round((probability > 1 ? probability / 100 : probability) * 100)}%`
               : ""}
+            {confidence ? ` · ${CONFIDENCE_LABEL[confidence]}` : ""}
+            {contested ? `（另一可能：Band ${alternativeBand}）` : ""}
           </p>
         </div>
         <Badge
@@ -193,6 +207,8 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
               rationale={r.rationale}
               densityNote={r.cumulativeDensityNote}
               probability={r.estimatedPassProbability}
+              confidence={r.confidence}
+              alternativeBand={r.alternativeBand}
             />
           ))}
         </CardContent>

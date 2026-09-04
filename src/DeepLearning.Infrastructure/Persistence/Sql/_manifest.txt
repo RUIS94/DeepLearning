@@ -59,3 +59,10 @@ consolidate_grading_prompt_templates.sql
 
 # --- 2026-09-03: weak-point model rework — per-learner pattern_summary (v2 classification prompt) ---
 fix_weak_point_classification_prompt_add_summaries.sql
+
+# --- 2026-09-04: grading prompt v2 — three-stage (evidence / audit / verdict) in one row ---
+rebuild_grading_prompt_three_stage.sql
+fix_grading_prompt_v2_verdict_scope_and_drop_reason.sql
+rebuild_grading_prompt_v3_four_stage.sql
+rebuild_grading_prompt_v4_comprehension_test.sql
+rebuild_grading_prompt_v5_field_confusion.sql

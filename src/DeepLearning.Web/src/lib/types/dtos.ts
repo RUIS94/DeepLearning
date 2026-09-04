@@ -215,7 +215,12 @@ export interface GradingResultItem {
   rationale: string;
   cumulativeDensityFlag: boolean;
   cumulativeDensityNote: string | null;
+  /** 后端按 band vs 通过线 + confidence + 累积密度机械推导，不再由 AI 估算。 */
   estimatedPassProbability: number | null;
+  /** 定档阶段对本档的把握：high | medium | low。三阶段评判上线前的旧记录为 null。 */
+  confidence: "high" | "medium" | "low" | null;
+  /** 定档阶段认为第二贴合的 Band；无第二选择时等于 band。旧记录为 null。 */
+  alternativeBand: number | null;
 }
 
 export interface ErrorListItem {

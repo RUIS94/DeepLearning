@@ -121,6 +121,17 @@ RecurringJob.AddOrUpdate<ProgressSnapshotJob>(
     job => job.RunAsync(CancellationToken.None),
     Cron.Weekly);
 
+// A submission is committed to Grading before the first LLM call, so an in-progress grading
+// survives a crash — but the state machine has no Grading->Grading transition, so a process that
+// dies mid-run leaves the row permanently ungradeable. This sweep is the only way back out; see
+// StrandedGradingReclaimJob for the two incidents that motivated it. Hourly is frequent enough
+// that a stranded submission is never stuck for long, and cheap enough to ignore (one indexed
+// query that usually matches nothing).
+RecurringJob.AddOrUpdate<StrandedGradingReclaimJob>(
+    "reclaim-stranded-grading-hourly",
+    job => job.RunAsync(CancellationToken.None),
+    Cron.Hourly);
+
 app.Run();
 return 0;
 

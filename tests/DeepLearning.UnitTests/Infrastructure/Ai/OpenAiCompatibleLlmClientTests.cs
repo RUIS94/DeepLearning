@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Exceptions;
 using DeepLearning.Infrastructure.Ai;
@@ -105,6 +106,32 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
             Assert.Equal("the generated text", result.Text);
             Assert.Equal(12, result.InputTokens);
             Assert.Equal(34, result.OutputTokens);
+        }
+
+        [Fact]
+        public async Task Forwards_a_seed_from_the_provider_extra_settings_without_letting_it_shadow_an_explicit_temperature()
+        {
+            // Grading's reproducibility story ends here: the three-stage split removes the
+            // coupled-reasoning and shifting-prompt causes of run-to-run drift, but a single
+            // call is only as deterministic as the provider makes it. GradeSubmissionCommandHandler
+            // passes ExtraSettings: null precisely so LlmClientResolver can merge
+            // llm_provider_settings.extra_settings in — this pins that such a seed really does
+            // reach the wire, and that the explicit Temperature: 0 still wins over an
+            // extra_settings temperature rather than being overwritten by it.
+            var handler = new CapturingHandler { ResponseToReturn = BuildSuccessResponse("hello") };
+            var httpClient = new HttpClient(handler);
+            var options = new OpenAiCompatibleOptions { ApiKey = "k", BaseUrl = "https://example.test/x", Model = "m" };
+            var client = new OpenAiCompatibleLlmClient(httpClient, options, "TestProvider");
+
+            using var extraJson = JsonDocument.Parse("{\"seed\":7,\"temperature\":0.9}");
+            var extra = extraJson.RootElement.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone());
+
+            await client.CompleteAsync(new LlmCompletionRequest(
+                SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10, ExtraSettings: extra, Temperature: 0m));
+
+            Assert.Contains("\"seed\":7", handler.CapturedBody);
+            Assert.Contains("\"temperature\":0", handler.CapturedBody);
+            Assert.DoesNotContain("\"temperature\":0.9", handler.CapturedBody);
         }
 
         [Fact]

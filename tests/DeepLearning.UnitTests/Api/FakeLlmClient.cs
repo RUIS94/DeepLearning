@@ -112,11 +112,61 @@ namespace DeepLearning.UnitTests.Api
     }
 
     /// <summary>
-    /// Fixed-JSON stand-in for a grading call — dimension_key/error_category are fixed
-    /// constants rather than parameterized, matching FakeLlmClient's own fixed-value
-    /// convention; tests seed an AssessmentDimension/ErrorTaxonomy using these same keys so
-    /// GradeSubmissionCommandHandler's structured-output validation (design doc §10.3) accepts
-    /// them.
+    /// Grading is four sequential LLM calls that expect two different payload shapes — three
+    /// collection stages (evidence, proofread, sweep) and then the verdict. The tests seed a stub
+    /// prompt template with no {{ stage }} branch, so every call renders the same text and a fake
+    /// cannot tell the stages apart by content.
+    ///
+    /// Rather than count calls — which breaks the moment a test's follow-up prompt also matches
+    /// the grading marker, and which makes every fixture order-dependent — one payload carries
+    /// BOTH shapes at once. System.Text.Json ignores properties a target type does not declare,
+    /// so the collection stages read sentences/findings and ignore dimensions, and the verdict
+    /// stage reads dimensions and ignores the rest. All three collection stages then report the
+    /// same single finding, which MergeCollectedFindings de-duplicates back to one, so a test
+    /// asserting "one error was persisted" still means what it says.
+    /// </summary>
+    internal static class FakeGradingPayloads
+    {
+        /// <summary>
+        /// q1 true / q2 false / q3 false is NAATI's Minor with real propositional loss, which
+        /// DeriveSeverity maps to moderate — the severity the old single-call fake stated
+        /// outright, before severity stopped being something a model is allowed to name.
+        /// </summary>
+        /// <param name="errorCategoryKey">
+        /// Null for a clean run that reports no errors at all. Tests that only need a submission
+        /// to reach Graded (the follow-up flow, for one) seed an AssessmentDimension but no
+        /// ErrorTaxonomy, and a finding citing a category they never seeded would be rejected by
+        /// the very hard constraint those tests are not about.
+        /// </param>
+        public static string Build(
+            string dimensionKey,
+            string? errorCategoryKey,
+            int band = 2,
+            string rationale = "ok") => $$"""
+            {
+              "sentences": [{"n": 1, "head": "fake source sentence", "status": "{{(errorCategoryKey is null ? "ok" : "deviation")}}"}],
+              "checkpointVerdicts": [],
+              "termUsage": [],
+              "findings": [{{Findings(dimensionKey, errorCategoryKey)}}],
+              "dimensions": [
+                {"dimensionKey": "{{dimensionKey}}", "band": {{band}}, "alternativeBand": {{band}}, "confidence": "high", "cumulativeDensityFlag": false, "cumulativeDensityNote": null, "rationale": "{{rationale}}"}
+              ]
+            }
+            """;
+
+        private static string Findings(string dimensionKey, string? errorCategoryKey)
+            => errorCategoryKey is null
+                ? string.Empty
+                : $$"""
+                    {"id": "E1", "positionRef": "p1", "sourceTextSnippet": "src snippet", "userTextSnippet": "user snippet", "errorCategory": "{{errorCategoryKey}}", "dimensionKey": "{{dimensionKey}}", "q1": true, "q2": false, "q3": false, "q3WrongReading": null, "scopeBeyondSentence": false, "summary": "fake summary", "explanation": "explanation text", "suggestion": "suggestion text"}
+                    """;
+    }
+
+    /// <summary>
+    /// Stand-in for a whole grading run — dimension_key/error_category are fixed constants rather
+    /// than parameterized, matching FakeLlmClient's own fixed-value convention; tests seed an
+    /// AssessmentDimension/ErrorTaxonomy using these same keys so GradeSubmissionCommandHandler's
+    /// structured-output validation (design doc §10.3) accepts them.
     /// </summary>
     public class FakeGradingLlmClient : ILlmClient
     {
@@ -125,20 +175,8 @@ namespace DeepLearning.UnitTests.Api
         public const string Rationale = "Meets Band 2 per the rubric text.";
 
         public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
-        {
-            var json = $$"""
-                {
-                  "dimensions": [
-                    {"dimensionKey": "{{DimensionKey}}", "band": 2, "rationale": "{{Rationale}}", "cumulativeDensityFlag": false, "cumulativeDensityNote": null, "estimatedPassProbability": 80}
-                  ],
-                  "errors": [
-                    {"positionRef": "p1", "sourceTextSnippet": "src snippet", "userTextSnippet": "user snippet", "errorCategory": "{{ErrorCategoryKey}}", "dimensionKey": "{{DimensionKey}}", "severity": "moderate", "summary": "fake summary", "explanation": "explanation text", "suggestion": "suggestion text"}
-                  ]
-                }
-                """;
-
-            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
-        }
+            => Task.FromResult(new LlmCompletionResult(
+                FakeGradingPayloads.Build(DimensionKey, ErrorCategoryKey, rationale: Rationale), 10, 20, "fake-model", 5));
     }
 
     public class FakeGradingLlmClientResolver : ILlmClientResolver
@@ -148,28 +186,17 @@ namespace DeepLearning.UnitTests.Api
     }
 
     /// <summary>
-    /// Same shape as FakeGradingLlmClient but reports an error_category no seeded
-    /// ErrorTaxonomy will ever match — proves GradeSubmissionCommandHandler really rejects an
-    /// AI response referencing an unknown category (design doc §10.3's hard constraint) instead
-    /// of silently persisting it.
+    /// Reports an error_category no seeded ErrorTaxonomy will ever match — proves
+    /// GradeSubmissionCommandHandler really rejects an AI response referencing an unknown
+    /// category (design doc §10.3's hard constraint) instead of silently persisting it. It never
+    /// stops returning the bad category, so the first collection stage exhausts its re-prompts
+    /// and the whole grading fails, which is the behaviour under test.
     /// </summary>
     public class FakeGradingLlmClientWithInvalidCategory : ILlmClient
     {
         public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
-        {
-            var json = $$"""
-                {
-                  "dimensions": [
-                    {"dimensionKey": "{{FakeGradingLlmClient.DimensionKey}}", "band": 2, "rationale": "ok", "cumulativeDensityFlag": false, "cumulativeDensityNote": null, "estimatedPassProbability": 80}
-                  ],
-                  "errors": [
-                    {"positionRef": "p1", "sourceTextSnippet": "src", "userTextSnippet": "usr", "errorCategory": "not-a-real-category", "dimensionKey": "{{FakeGradingLlmClient.DimensionKey}}", "severity": "moderate", "summary": "s", "explanation": "x", "suggestion": "y"}
-                  ]
-                }
-                """;
-
-            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
-        }
+            => Task.FromResult(new LlmCompletionResult(
+                FakeGradingPayloads.Build(FakeGradingLlmClient.DimensionKey, "not-a-real-category"), 10, 20, "fake-model", 5));
     }
 
     public class FakeGradingLlmClientResolverWithInvalidCategory : ILlmClientResolver
@@ -179,26 +206,18 @@ namespace DeepLearning.UnitTests.Api
     }
 
     /// <summary>
-    /// Same shape as FakeGradingLlmClient but reports a band outside grading_results' 1-5 CHECK
-    /// constraint — proves GradeSubmissionCommandHandler rejects this before ever reaching the
-    /// DB (ValidatePayload's band-range check) instead of leaving the submission stuck in
-    /// Grading when the constraint violation would otherwise surface from SaveChangesAsync.
+    /// Reports a band outside grading_results' 1-5 CHECK constraint — proves the handler rejects
+    /// it before ever reaching the DB (ValidateVerdict's band-range check) instead of leaving the
+    /// submission stuck in Grading when the constraint violation would otherwise surface from
+    /// SaveChangesAsync. The collection stages ignore the dimensions block, so only the verdict
+    /// trips on it.
     /// </summary>
     public class FakeGradingLlmClientWithOutOfRangeBand : ILlmClient
     {
         public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
-        {
-            var json = $$"""
-                {
-                  "dimensions": [
-                    {"dimensionKey": "{{FakeGradingLlmClient.DimensionKey}}", "band": 9, "rationale": "ok", "cumulativeDensityFlag": false, "cumulativeDensityNote": null, "estimatedPassProbability": 80}
-                  ],
-                  "errors": []
-                }
-                """;
-
-            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
-        }
+            => Task.FromResult(new LlmCompletionResult(
+                FakeGradingPayloads.Build(FakeGradingLlmClient.DimensionKey, FakeGradingLlmClient.ErrorCategoryKey, band: 9),
+                10, 20, "fake-model", 5));
     }
 
     public class FakeGradingLlmClientResolverWithOutOfRangeBand : ILlmClientResolver
@@ -208,28 +227,23 @@ namespace DeepLearning.UnitTests.Api
     }
 
     /// <summary>
-    /// Records the rendered prompt it was called with (CapturedPrompt) while still returning a
-    /// valid grading JSON payload — lets a test assert on what GradeSubmissionCommandHandler
-    /// actually sent the LLM, e.g. that TaskB's flawed_translation_text made it into the prompt.
+    /// Records every rendered prompt it was called with while still driving a valid grading run —
+    /// lets a test assert on what GradeSubmissionCommandHandler actually sent the LLM, e.g. that
+    /// TaskB's flawed_translation_text made it into the prompt. CapturedPrompt is the first
+    /// prompt (the evidence stage); CapturedPrompts holds all four.
     /// </summary>
     public class CapturingGradingLlmClient : ILlmClient
     {
-        public string? CapturedPrompt { get; private set; }
+        public List<string> CapturedPrompts { get; } = [];
+
+        public string? CapturedPrompt => CapturedPrompts.FirstOrDefault();
 
         public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
         {
-            CapturedPrompt = request.UserPrompt;
-
-            var json = $$"""
-                {
-                  "dimensions": [
-                    {"dimensionKey": "{{FakeGradingLlmClient.DimensionKey}}", "band": 2, "rationale": "ok", "cumulativeDensityFlag": false, "cumulativeDensityNote": null, "estimatedPassProbability": 80}
-                  ],
-                  "errors": []
-                }
-                """;
-
-            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
+            CapturedPrompts.Add(request.UserPrompt);
+            return Task.FromResult(new LlmCompletionResult(
+                FakeGradingPayloads.Build(FakeGradingLlmClient.DimensionKey, FakeGradingLlmClient.ErrorCategoryKey),
+                10, 20, "fake-model", 5));
         }
     }
 
@@ -296,14 +310,9 @@ namespace DeepLearning.UnitTests.Api
         {
             if (request.UserPrompt.Contains(GradingMarker, StringComparison.Ordinal))
             {
-                var gradingJson = $$"""
-                    {
-                      "dimensions": [
-                        {"dimensionKey": "{{_dimensionKey}}", "band": 2, "rationale": "ok", "cumulativeDensityFlag": false, "cumulativeDensityNote": null, "estimatedPassProbability": 80}
-                      ],
-                      "errors": []
-                    }
-                    """;
+                // These tests seed a dimension but no error taxonomy — they only need the
+                // submission to reach Graded, so the grading reports no errors.
+                var gradingJson = FakeGradingPayloads.Build(_dimensionKey, errorCategoryKey: null);
                 return Task.FromResult(new LlmCompletionResult(gradingJson, 10, 20, "fake-model", 5));
             }
 

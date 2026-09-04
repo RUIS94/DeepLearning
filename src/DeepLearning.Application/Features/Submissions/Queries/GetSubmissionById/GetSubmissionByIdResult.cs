@@ -12,7 +12,11 @@ namespace DeepLearning.Application.Features.Submissions.Queries.GetSubmissionByI
         string Rationale,
         bool CumulativeDensityFlag,
         string? CumulativeDensityNote,
-        decimal? EstimatedPassProbability);
+        decimal? EstimatedPassProbability,
+        // How firmly the verdict stage settled on this band (high|medium|low) and the band it
+        // considered second-best. Null on rows graded before the three-stage grading pipeline.
+        string? Confidence,
+        int? AlternativeBand);
 
     public record GradingSummaryResult(
         decimal OverallPassProbability,

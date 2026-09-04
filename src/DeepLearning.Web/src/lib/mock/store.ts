@@ -1061,7 +1061,9 @@ export async function gradeSubmission(
           "核心信息点基本完整，条件类信息（时间限制、资格范围）传达准确；个别限定语处理略松，未影响整体意义。",
         cumulativeDensityFlag: false,
         cumulativeDensityNote: null,
-        estimatedPassProbability: 0.78,
+        estimatedPassProbability: 0.90,
+        confidence: "high",
+        alternativeBand: 2,
       },
       {
         id: nextId("gr"),
@@ -1074,7 +1076,9 @@ export async function gradeSubmission(
           "公告体例把握不稳：称谓与落款风格不统一，部分句子沿用英文语序，读者阅读成本偏高。",
         cumulativeDensityFlag: true,
         cumulativeDensityNote: "同类语域问题近 5 次提交中出现 4 次，已达密度提示阈值。",
-        estimatedPassProbability: 0.41,
+        estimatedPassProbability: 0.25,
+        confidence: "medium",
+        alternativeBand: 2,
       },
       {
         id: nextId("gr"),
@@ -1086,7 +1090,9 @@ export async function gradeSubmission(
         rationale: "语法与搭配整体可靠，标点使用符合中文规范，长句拆分仍可更自然。",
         cumulativeDensityFlag: false,
         cumulativeDensityNote: null,
-        estimatedPassProbability: 0.72,
+        estimatedPassProbability: 0.62,
+        confidence: "low",
+        alternativeBand: 3,
       },
     ],
     errorList: [

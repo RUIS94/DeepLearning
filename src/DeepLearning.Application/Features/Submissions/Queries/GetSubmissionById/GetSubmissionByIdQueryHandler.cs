@@ -46,7 +46,9 @@ namespace DeepLearning.Application.Features.Submissions.Queries.GetSubmissionByI
                     r.Rationale,
                     r.CumulativeDensityFlag,
                     r.CumulativeDensityNote,
-                    r.EstimatedPassProbability)).ToList(),
+                    r.EstimatedPassProbability,
+                    r.Confidence,
+                    r.AlternativeBand)).ToList(),
                 errorList.Select(e => new ErrorListResultItem(
                     e.Id,
                     e.PositionRef,

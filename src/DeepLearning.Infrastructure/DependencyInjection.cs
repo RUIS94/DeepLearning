@@ -146,6 +146,7 @@ namespace DeepLearning.Infrastructure
             services.AddHangfireServer();
 
             services.AddScoped<ProgressSnapshotJob>();
+            services.AddScoped<StrandedGradingReclaimJob>();
 
             return services;
         }
