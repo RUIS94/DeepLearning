@@ -1,4 +1,5 @@
 using DeepLearning.Domain.Entities;
+using DeepLearning.Domain.Enums;
 
 namespace DeepLearning.Application.Interfaces
 {
@@ -10,6 +11,16 @@ namespace DeepLearning.Application.Interfaces
     public interface ISubmissionRepository
     {
         Task<Submission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Just the status, read fresh every time.
+        ///
+        /// <para><see cref="GetByIdAsync"/> is a tracked query: call it twice in one scope and EF
+        /// hands back the instance it already has, so a caller watching for a status change would
+        /// wait forever on a stale copy. A projection is never tracked, so this always reflects
+        /// what is actually in the row — which is the whole point for the grading long-poll.</para>
+        /// </summary>
+        Task<SubmissionStatus?> GetStatusAsync(Guid id, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// A user's submissions, newest first, optionally scoped to one question. Backs both the

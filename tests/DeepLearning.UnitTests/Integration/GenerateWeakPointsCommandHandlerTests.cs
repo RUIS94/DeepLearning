@@ -1,5 +1,5 @@
 using DeepLearning.Application.Common;
-using DeepLearning.Application.Features.WeakPoints.EventHandlers;
+using DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoints;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
@@ -23,11 +23,11 @@ namespace DeepLearning.UnitTests.Integration
     /// promoted to a minted proposed catalog kind. Both paths are exercised here.
     /// </summary>
     [Collection(PostgresCollection.Name)]
-    public class UpdateWeakPointsOnGradedTests
+    public class GenerateWeakPointsCommandHandlerTests
     {
         private readonly PostgresContainerFixture _fixture;
 
-        public UpdateWeakPointsOnGradedTests(PostgresContainerFixture fixture)
+        public GenerateWeakPointsCommandHandlerTests(PostgresContainerFixture fixture)
         {
             _fixture = fixture;
         }
@@ -49,6 +49,8 @@ namespace DeepLearning.UnitTests.Integration
             }
 
             public Task<Submission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
+            public Task<SubmissionStatus?> GetStatusAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
             public Task<List<Submission>> ListByUserAsync(Guid userId, Guid? questionId, CancellationToken cancellationToken = default)
                 => Task.FromResult(_userSubmissions);
@@ -218,7 +220,7 @@ namespace DeepLearning.UnitTests.Integration
                 .Include(x => x.Dimension)
                 .ToListAsync();
 
-            var handler = new UpdateWeakPointsOnGraded(
+            var handler = new GenerateWeakPointsCommandHandler(
                 new FixedSubmissionRepository(errors, gradingResults, userSubmissions),
                 new WeakPointRepository(context),
                 new WeakPointCatalogRepository(context),   // real repo, no catalog rows seeded -> empty
@@ -234,7 +236,9 @@ namespace DeepLearning.UnitTests.Integration
                 TaskType = TaskType.A,
                 GradedAt = DateTimeOffset.UtcNow,
             };
-            await handler.Handle(new DomainEventNotification<SubmissionGradedEvent>(domainEvent), CancellationToken.None);
+            await handler.Handle(
+                new GenerateWeakPointsCommand(domainEvent.SubmissionId, domainEvent.UserId, domainEvent.ExamTypeId),
+                CancellationToken.None);
             return examTypeId;
         }
 

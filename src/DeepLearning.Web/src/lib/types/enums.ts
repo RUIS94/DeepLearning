@@ -22,6 +22,24 @@ export const FollowUpVerdict = {
   partial: 2,
   pending: 3,
 } as const;
+/**
+ * 评判之后的薄弱点生成进度（后端 WeakPointGenerationStatus）。null 表示"不适用"——没评判过，
+ * 或者是这个字段上线前就已经评完的旧记录，此时前端什么标签都不显示。
+ */
+export const WeakPointGenerationStatus = {
+  pending: 0,
+  running: 1,
+  succeeded: 2,
+  failed: 3,
+} as const;
+
+export const WeakPointGenerationStatusLabel: Record<number, string> = {
+  [WeakPointGenerationStatus.pending]: "薄弱点待生成",
+  [WeakPointGenerationStatus.running]: "正在生成薄弱点",
+  [WeakPointGenerationStatus.succeeded]: "薄弱点已生成",
+  [WeakPointGenerationStatus.failed]: "薄弱点生成失败",
+};
+
 export const OverrideScope = { grading_rubric: 0, translation_reference: 1 } as const;
 export const OverrideStatus = { observing: 0, active: 1, deprecated: 2 } as const;
 // 薄弱点种类生命周期。proposed = 运行期/后台新建待审;active = 已策展;deprecated = 合并后退役。

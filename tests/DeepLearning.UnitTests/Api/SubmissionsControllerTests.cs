@@ -175,11 +175,11 @@ namespace DeepLearning.UnitTests.Api
 
             var gradeResponse = await client.PostAsJsonAsync(
                 $"{ApiRoutes.Submissions.Base}/{submission.Id}/grade", new { ExamTypeId = examTypeId });
-            Assert.Equal(HttpStatusCode.OK, gradeResponse.StatusCode);
-            var graded = await gradeResponse.Content.ReadFromJsonAsync<GradeSubmissionResult>();
-            Assert.Equal(SubmissionStatus.graded, graded!.Status);
-            Assert.Equal(1, graded.GradingResultCount);
-            Assert.Equal(1, graded.ErrorListCount);
+            // 202, not 200: grading is queued. The test host runs the queue inline, so by
+            // the time this returns the work is done (see ApiWebApplicationFactory). The
+            // counts the response used to carry now come from the submission itself, which
+            // is where a real polling client reads them anyway.
+            Assert.Equal(HttpStatusCode.Accepted, gradeResponse.StatusCode);
 
             var getResponse = await client.GetAsync($"{ApiRoutes.Submissions.Base}/{submission.Id}");
             Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
@@ -216,7 +216,7 @@ namespace DeepLearning.UnitTests.Api
             var submission = await createResponse.Content.ReadFromJsonAsync<CreateSubmissionResult>();
 
             var firstGrade = await client.PostAsJsonAsync($"{ApiRoutes.Submissions.Base}/{submission!.Id}/grade", new { ExamTypeId = examTypeId });
-            Assert.Equal(HttpStatusCode.OK, firstGrade.StatusCode);
+            Assert.Equal(HttpStatusCode.Accepted, firstGrade.StatusCode);
 
             var secondGrade = await client.PostAsJsonAsync($"{ApiRoutes.Submissions.Base}/{submission.Id}/grade", new { ExamTypeId = examTypeId });
             Assert.Equal(HttpStatusCode.Conflict, secondGrade.StatusCode);
@@ -323,7 +323,7 @@ namespace DeepLearning.UnitTests.Api
             var submission = await createResponse.Content.ReadFromJsonAsync<CreateSubmissionResult>();
 
             var gradeResponse = await client.PostAsJsonAsync($"{ApiRoutes.Submissions.Base}/{submission!.Id}/grade", new { ExamTypeId = examTypeId });
-            Assert.Equal(HttpStatusCode.OK, gradeResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.Accepted, gradeResponse.StatusCode);
 
             Assert.Contains($"FLAWED TEXT MARKER: {TaskBFlawedText}", capturingClient.CapturedPrompt);
         }

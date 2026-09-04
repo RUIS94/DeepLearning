@@ -133,7 +133,7 @@ namespace DeepLearning.UnitTests.Api
 
             var gradeResponse = await client.PostAsJsonAsync(
                 $"{ApiRoutes.Submissions.Base}/{submission!.Id}/grade", new { ExamTypeId = examType.Id });
-            Assert.Equal(HttpStatusCode.OK, gradeResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.Accepted, gradeResponse.StatusCode);
 
             using (var scope = _factory.Services.CreateScope())
             {

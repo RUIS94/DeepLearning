@@ -147,6 +147,12 @@ namespace DeepLearning.Infrastructure
 
             services.AddScoped<ProgressSnapshotJob>();
             services.AddScoped<StrandedGradingReclaimJob>();
+            services.AddScoped<GradeSubmissionJob>();
+            // Grading is queued rather than run on the request thread — see IGradingJobQueue.
+            services.AddScoped<IGradingJobQueue, HangfireGradingJobQueue>();
+            services.AddScoped<GenerateWeakPointsJob>();
+            // Weak-point extraction runs after grading, not inside it — see IWeakPointGenerationQueue.
+            services.AddScoped<IWeakPointGenerationQueue, HangfireWeakPointGenerationQueue>();
 
             return services;
         }

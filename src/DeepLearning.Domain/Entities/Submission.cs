@@ -12,6 +12,13 @@ namespace DeepLearning.Domain.Entities
         public string Content { get; set; } = string.Empty;
         public SubmissionStatus Status { get; set; } = SubmissionStatus.draft;
         public DateTimeOffset? SubmittedAt { get; set; }
+        /// <summary>
+        /// Progress of the weak-point extraction that follows a successful grading. Null until
+        /// this submission is graded (and on rows graded before the field existed) — see
+        /// <see cref="WeakPointGenerationStatus"/> for why null is not the same as pending.
+        /// </summary>
+        public WeakPointGenerationStatus? WeakPointGenerationStatus { get; set; }
+
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset UpdatedAt { get; set; }
 

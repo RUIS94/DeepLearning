@@ -1009,6 +1009,8 @@ export async function createSubmission(
     taskType: req.taskType,
     content: req.content,
     status: SubmissionStatus.submitted,
+    // 还没评判，所以不适用——评判完成后后端才会写入进度。
+    weakPointGenerationStatus: null,
     submittedAt: now,
     createdAt: now,
     gradingResults: [],
@@ -1061,7 +1063,7 @@ export async function gradeSubmission(
           "核心信息点基本完整，条件类信息（时间限制、资格范围）传达准确；个别限定语处理略松，未影响整体意义。",
         cumulativeDensityFlag: false,
         cumulativeDensityNote: null,
-        estimatedPassProbability: 0.90,
+        estimatedPassProbability: 0.9,
         confidence: "high",
         alternativeBand: 2,
       },

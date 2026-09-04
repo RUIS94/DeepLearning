@@ -205,6 +205,19 @@ export interface GradeSubmissionResult {
   errorListCount: number;
 }
 
+/** POST /submissions/{id}/grade 的 202 应答：任务已入队，结果要靠 watchGradingStatus 等。 */
+export interface GradeSubmissionAccepted {
+  submissionId: string;
+  status: string;
+}
+
+/** GET /submissions/{id}/grading-status 的应答。terminal=true 表示批改已结束（成功或失败）。 */
+export interface GradingStatusResult {
+  submissionId: string;
+  status: number;
+  terminal: boolean;
+}
+
 export interface GradingResultItem {
   id: string;
   dimensionKey: string;
@@ -254,6 +267,11 @@ export interface SubmissionDetail {
   taskType: number;
   content: string;
   status: number;
+  /**
+   * 评判之后的薄弱点生成进度（WeakPointGenerationStatus 序数）。
+   * null = 不适用：没评判过，或者是这个字段上线前就已经评完的旧记录——此时不显示任何标签。
+   */
+  weakPointGenerationStatus: number | null;
   submittedAt: string | null;
   createdAt: string;
   gradingResults: GradingResultItem[];

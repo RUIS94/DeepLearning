@@ -150,7 +150,7 @@ namespace DeepLearning.UnitTests.Api
             var submission = await createResponse.Content.ReadFromJsonAsync<CreateSubmissionResult>();
             var gradeResponse = await gradingClient.PostAsJsonAsync(
                 $"{ApiRoutes.Submissions.Base}/{submission!.Id}/grade", new { ExamTypeId = examTypeId });
-            Assert.Equal(HttpStatusCode.OK, gradeResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.Accepted, gradeResponse.StatusCode);
 
             var fakeClient = new FakeDeepLearningLlmClient();
             var deepLearningClient = _factory
@@ -255,7 +255,7 @@ namespace DeepLearning.UnitTests.Api
             var submission = await createResponse.Content.ReadFromJsonAsync<CreateSubmissionResult>();
             var gradeResponse = await gradingClient.PostAsJsonAsync(
                 $"{ApiRoutes.Submissions.Base}/{submission!.Id}/grade", new { ExamTypeId = examTypeId });
-            Assert.Equal(HttpStatusCode.OK, gradeResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.Accepted, gradeResponse.StatusCode);
 
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();

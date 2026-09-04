@@ -83,6 +83,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         private readonly IExamConfigLoader _examConfigLoader;
         private readonly ILlmClientResolver _llmClientResolver;
         private readonly IAiCallRetryExecutor _aiCallRetryExecutor;
+        private readonly IWeakPointGenerationQueue _weakPointGenerationQueue;
         private readonly IUnitOfWork _unitOfWork;
         private readonly Dictionary<ScaleType, IGradingResultInterpreter> _interpreters;
 
@@ -99,6 +100,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             IExamConfigLoader examConfigLoader,
             ILlmClientResolver llmClientResolver,
             IAiCallRetryExecutor aiCallRetryExecutor,
+            IWeakPointGenerationQueue weakPointGenerationQueue,
             IUnitOfWork unitOfWork,
             IEnumerable<IGradingResultInterpreter> interpreters)
         {
@@ -114,6 +116,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             _examConfigLoader = examConfigLoader;
             _llmClientResolver = llmClientResolver;
             _aiCallRetryExecutor = aiCallRetryExecutor;
+            _weakPointGenerationQueue = weakPointGenerationQueue;
             _unitOfWork = unitOfWork;
             _interpreters = interpreters.ToDictionary(x => x.ScaleType);
         }
@@ -203,58 +206,96 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 var stages = new[]
                 {
                     (Stage: StageEvidence, Prefix: "E", MaxTokens: 8192, WeakPoints: new List<WeakPoint>(), Overrides: new List<StandardOverride>()),
-                    // 4096 was not enough once v4 added q3WrongReading to every finding and the termUsage
-                    // table on top: an observed run came back finish_reason=length, which cost a
-                    // full re-prompt plus backoff and pushed the whole grading past the client's
-                    // 300s ceiling. All three collection stages now share one budget.
+                    // 4096 was not enough once v4 added q3WrongReading to every finding and the
+                    // termUsage table on top: an observed run came back finish_reason=length,
+                    // which cost a full re-prompt plus backoff. All three share one budget now.
                     (Stage: StageProofread, Prefix: "P", MaxTokens: 8192, WeakPoints: new List<WeakPoint>(), Overrides: new List<StandardOverride>()),
                     (Stage: StageSweep, Prefix: "S", MaxTokens: 8192, WeakPoints: weakPoints, Overrides: activeOverrides),
                 };
 
-                var collected = new List<Finding>();
-                checkpointVerdicts = [];
-
+                // Everything that touches the database happens HERE, before anything runs in
+                // parallel: BuildPromptAsync reads prompt_templates and GetActiveClientAsync
+                // reads llm_provider_settings, both through the request's scoped DbContext, and
+                // EF Core's DbContext is not thread-safe — two concurrent reads on it throw
+                // "a second operation was started on this context instance".
+                var prepared = new List<(string Stage, string Prefix, int MaxTokens, string Prompt, AiCallLog Log)>();
                 foreach (var stage in stages)
                 {
-                    var payload = await RunStageAsync<CollectionPayload>(
-                        aiCallLog,
-                        request.ExamTypeId,
-                        BuildTemplateModel(
-                            stage.Stage, submission, question, checkpoints, seededErrors, dimensions,
-                            errorTaxonomies, stage.WeakPoints, stage.Overrides, [], []),
+                    var model = BuildTemplateModel(
+                        stage.Stage, submission, question, checkpoints, seededErrors, dimensions,
+                        errorTaxonomies, stage.WeakPoints, stage.Overrides, [], []);
+                    var stagePrompt = await _examConfigLoader.BuildPromptAsync(
+                        request.ExamTypeId, AiOperationType.grading, model, workToken);
+
+                    // Each stage gets its own retry bookkeeping. Sharing the one persisted
+                    // AiCallLog would have three threads racing on AttemptCount, so a retry in
+                    // one stage would silently eat another stage's budget. Detached, in-memory
+                    // only — the totals are rolled back onto the real row below.
+                    prepared.Add((stage.Stage, stage.Prefix, stage.MaxTokens, stagePrompt,
+                        new AiCallLog { AttemptCount = 1, MaxRetries = aiCallLog.MaxRetries }));
+                }
+
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(workToken);
+
+                // The three collection stages are independent by construction — none of them is
+                // ever shown what the others found, which is the whole reason the union is taken
+                // in code — so there is nothing to serialise them for. Running them concurrently
+                // turns three round trips into one, roughly halving a grading that measured over
+                // five minutes end to end.
+                var collectedPerStage = await Task.WhenAll(prepared.Select(stage =>
+                    RunStageAsync<CollectionPayload>(
+                        llmClient,
+                        stage.Log,
+                        stage.Prompt,
                         stage.MaxTokens,
-                        validate: p =>
+                        payload =>
                         {
-                            NormaliseFindingIds(p.Findings, stage.Prefix);
-                            NormaliseComprehensionClaims(p.Findings);
-                            ValidateFindings(p.Findings, dimensions, errorTaxonomies);
+                            NormaliseFindingIds(payload.Findings, stage.Prefix);
+                            NormaliseComprehensionClaims(payload.Findings);
+                            ValidateFindings(payload.Findings, dimensions, errorTaxonomies);
                             if (stage.Stage == StageEvidence)
                             {
                                 // The forced per-sentence enumeration: without it the model stops
-                                // once it feels it has found enough (observed: seven findings, then
-                                // silence, in a text with more than twice that many).
-                                ValidateSentenceCoverage(p.Sentences);
+                                // once it feels it has found enough (observed: seven findings,
+                                // then silence, in a text with more than twice that many).
+                                ValidateSentenceCoverage(payload.Sentences);
                             }
                         },
-                        workToken);
+                        workToken)));
 
-                    if (stage.Stage == StageEvidence)
-                    {
-                        checkpointVerdicts = BuildCheckpointVerdicts(checkpoints, payload.CheckpointVerdicts);
-                    }
-
-                    collected.AddRange(payload.Findings);
+                foreach (var stage in prepared)
+                {
+                    aiCallLog.AttemptCount += stage.Log.AttemptCount - 1;
+                    aiCallLog.LatencyMs = (aiCallLog.LatencyMs ?? 0) + (stage.Log.LatencyMs ?? 0);
                 }
 
-                findings = MergeCollectedFindings(collected);
+                var evidencePayload = collectedPerStage[Array.FindIndex(prepared.ToArray(), x => x.Stage == StageEvidence)];
+                checkpointVerdicts = BuildCheckpointVerdicts(checkpoints, evidencePayload.CheckpointVerdicts);
+
+                // Deterministic order regardless of which stage finished first — the merge keeps
+                // the first copy of a duplicate, so a race here would change which explanation
+                // the learner reads.
+                findings = MergeCollectedFindings(
+                    prepared
+                        .Select((stage, i) => (stage.Prefix, Payload: collectedPerStage[i]))
+                        .OrderBy(x => x.Prefix, StringComparer.Ordinal)
+                        .SelectMany(x => x.Payload.Findings)
+                        .ToList());
 
                 // ---- Verdict: official Band text only, over the merged evidence ----------
-                verdict = await RunStageAsync<VerdictPayload>(
-                    aiCallLog,
+                var verdictPrompt = await _examConfigLoader.BuildPromptAsync(
                     request.ExamTypeId,
+                    AiOperationType.grading,
                     BuildTemplateModel(
                         StageVerdict, submission, question, checkpoints, seededErrors, dimensions,
                         errorTaxonomies, [], [], findings, checkpointVerdicts),
+                    workToken);
+
+                var verdictLog = new AiCallLog { AttemptCount = 1, MaxRetries = aiCallLog.MaxRetries };
+                verdict = await RunStageAsync<VerdictPayload>(
+                    llmClient,
+                    verdictLog,
+                    verdictPrompt,
                     // 4096 was not enough: this provider emits its deliberation as ordinary
                     // content (reasoning_tokens is 0), so the budget ran out before the JSON
                     // started and the truncated payload failed to parse. v4 also caps each
@@ -262,6 +303,8 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                     maxTokens: 8192,
                     validate: payload => ValidateVerdict(payload, dimensions),
                     workToken);
+                aiCallLog.AttemptCount += verdictLog.AttemptCount - 1;
+                aiCallLog.LatencyMs = (aiCallLog.LatencyMs ?? 0) + (verdictLog.LatencyMs ?? 0);
             }
             catch (Exception ex)
             {
@@ -366,6 +409,10 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 }
 
                 submission.TransitionTo(SubmissionStatus.graded);
+                // Queued below, once the save has actually committed. Recorded here so the UI can
+                // show "generating" the moment the result appears, rather than a gap where the
+                // tag is missing entirely.
+                submission.WeakPointGenerationStatus = Domain.Enums.WeakPointGenerationStatus.pending;
                 submission.AddDomainEvent(new SubmissionGradedEvent
                 {
                     SubmissionId = submission.Id,
@@ -380,6 +427,15 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
 
                 await _unitOfWork.SaveChangesAsync(workToken);
+
+                // AFTER the commit, and outside the try/catch that owns the grading status:
+                // weak-point extraction makes its own LLM call, and when it ran as a
+                // SubmissionGradedEvent subscriber a failure inside it propagated out of the save
+                // above and flipped a perfectly good grading to GradingFailed — results already
+                // written, status saying they were not. Its own failures now live on
+                // Submission.WeakPointGenerationStatus and cannot touch this one.
+                await _weakPointGenerationQueue.EnqueueAsync(
+                    submission.Id, submission.UserId, request.ExamTypeId, workToken);
 
                 return new GradeSubmissionResult(submission.Id, submission.Status, gradingResults.Count, errorItems.Count);
             }
@@ -403,11 +459,16 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         }
 
         /// <summary>
-        /// One pipeline stage: render this stage's slice of the grading template, call the LLM,
-        /// parse and hard-validate. Design doc §4.2's retry sub-state-machine — distinct from
-        /// Polly's transport-level retries inside CompleteAsync, which already ran and gave up
-        /// before this ever throws. The retry budget is reset per stage so one stage's content
-        /// failure doesn't leave a later stage with none.
+        /// One pipeline stage: call the LLM with an already-rendered prompt, parse and
+        /// hard-validate. Design doc §4.2's retry sub-state-machine — distinct from Polly's
+        /// transport-level retries inside CompleteAsync, which already ran and gave up before
+        /// this ever throws.
+        ///
+        /// <para>The prompt and the client are passed in rather than resolved here because the
+        /// three collection stages run concurrently and both of those come from the database,
+        /// through a DbContext that is not thread-safe. <paramref name="stageLog"/> is a detached
+        /// AiCallLog used purely as this stage's own retry counter, so concurrent stages cannot
+        /// consume each other's budget.</para>
         ///
         /// <para><b>Each retry re-prompts with the rejection reason attached.</b> It used to
         /// re-send the byte-identical prompt, which at temperature 0 is a guaranteed way to get
@@ -418,20 +479,17 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         /// from the FIRST attempt and precisely what we must break on a retry.</para>
         /// </summary>
         private async Task<T> RunStageAsync<T>(
-            AiCallLog aiCallLog,
-            Guid examTypeId,
-            object templateModel,
+            ILlmClient llmClient,
+            AiCallLog stageLog,
+            string prompt,
             int maxTokens,
             Action<T> validate,
             CancellationToken cancellationToken)
         {
-            var prompt = await _examConfigLoader.BuildPromptAsync(examTypeId, AiOperationType.grading, templateModel, cancellationToken);
-            aiCallLog.AttemptCount = 1;
             string? rejectionReason = null;
 
-            return await _aiCallRetryExecutor.ExecuteAsync(aiCallLog, async () =>
+            return await _aiCallRetryExecutor.ExecuteAsync(stageLog, async () =>
             {
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
                 var completion = await llmClient.CompleteAsync(
                     // Temperature 0: grading must be reproducible — the same submission against
                     // the same rubric should not swing bands run to run. (It is necessary, not
@@ -443,7 +501,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                         MaxTokens: maxTokens,
                         Temperature: 0m),
                     cancellationToken);
-                aiCallLog.LatencyMs = (aiCallLog.LatencyMs ?? 0) + completion.LatencyMs;
+                stageLog.LatencyMs = (stageLog.LatencyMs ?? 0) + completion.LatencyMs;
 
                 try
                 {

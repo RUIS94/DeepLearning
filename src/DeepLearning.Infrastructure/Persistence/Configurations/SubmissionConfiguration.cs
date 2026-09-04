@@ -11,6 +11,11 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
             builder.ToTable("submissions");
             builder.HasKey(x => x.Id);
 
+            // Stored as text rather than a Postgres enum: unlike submission_status this is pure
+            // progress reporting with no DB-side constraint depending on it, and a plain string
+            // means adding a state later is a code change, not a migration on a live enum type.
+            builder.Property(x => x.WeakPointGenerationStatus).HasConversion<string>().HasMaxLength(20);
+
             builder.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
             builder.Property(x => x.Content).HasColumnType("jsonb").IsRequired();
             builder.Property(x => x.Status).HasDefaultValue(Domain.Enums.SubmissionStatus.draft).ValueGeneratedNever();

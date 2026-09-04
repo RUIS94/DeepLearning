@@ -42,7 +42,27 @@ namespace DeepLearning.UnitTests.TestInfrastructure
             // retry behavior (attempt counting, eventual success/failure) is still exercised for
             // real, just fast.
             builder.ConfigureTestServices(services =>
-                services.AddSingleton<IAiCallRetryExecutor>(new AiCallRetryExecutor(TimeSpan.FromMilliseconds(1))));
+            {
+                services.AddSingleton<IAiCallRetryExecutor>(new AiCallRetryExecutor(TimeSpan.FromMilliseconds(1)));
+
+                // Grading is queued to Hangfire in production so the HTTP request can return in
+                // milliseconds instead of minutes. A test that had to wait for a background
+                // worker would have to poll, which is slow and flaky for no gain — the thing
+                // under test is the handler, not the queue. Running it inline keeps every
+                // grading assertion deterministic and still exercises the real command.
+                //
+                // One deliberate divergence: inline, a grading failure surfaces on the POST as
+                // 503/409, whereas in production the request has already returned 202 and the
+                // failure shows up as the submission's own GradingFailed status. The tests that
+                // assert those status codes are asserting the handler's error policy, which is
+                // identical either way.
+                services.AddScoped<IGradingJobQueue, InlineGradingJobQueue>();
+
+                // Same reasoning for the weak-point extraction that follows a grading: a
+                // test asserting on the weak points a submission produced should not have to
+                // wait on a background worker to get there.
+                services.AddScoped<IWeakPointGenerationQueue, InlineWeakPointGenerationQueue>();
+            });
         }
 
         public async Task InitializeAsync()

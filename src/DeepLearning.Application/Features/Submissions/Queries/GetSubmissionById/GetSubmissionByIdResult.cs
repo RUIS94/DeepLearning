@@ -44,6 +44,9 @@ namespace DeepLearning.Application.Features.Submissions.Queries.GetSubmissionByI
         TaskType TaskType,
         string Content,
         SubmissionStatus Status,
+        // Progress of the post-grading weak-point extraction. Null = not applicable (never
+        // graded, or graded before this was tracked), which the UI shows as no tag at all.
+        WeakPointGenerationStatus? WeakPointGenerationStatus,
         DateTimeOffset? SubmittedAt,
         DateTimeOffset CreatedAt,
         List<GradingResultItem> GradingResults,

@@ -34,6 +34,7 @@ namespace DeepLearning.Application.Features.Submissions.Queries.GetSubmissionByI
                 submission.TaskType,
                 submission.Content,
                 submission.Status,
+                submission.WeakPointGenerationStatus,
                 submission.SubmittedAt,
                 submission.CreatedAt,
                 gradingResults.Select(r => new GradingResultItem(

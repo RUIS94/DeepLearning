@@ -6,10 +6,12 @@ using DeepLearning.Domain.Enums;
 using DeepLearning.Domain.Events;
 using MediatR;
 
-namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
+namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoints
 {
     /// <summary>
-    /// Design doc §10.4/§10.5's weak-point tracking. Each graded error is matched to a
+    /// Design doc §10.4/§10.5's weak-point tracking, run as a background job after grading
+    /// (see GenerateWeakPointsCommand for why it is no longer a SubmissionGradedEvent
+    /// subscriber). Each graded error is matched to a
     /// <see cref="WeakPointCatalog"/> kind and the resulting <see cref="WeakPointOccurrence"/> is
     /// tied back to the specific ErrorListItem, its snippet and its dimension's band.
     ///
@@ -29,7 +31,7 @@ namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
     /// minted for it and the weak point re-pointed, so it stops being a coarse free-text row and
     /// becomes reviewable/mergeable in admin.
     /// </summary>
-    public class UpdateWeakPointsOnGraded : INotificationHandler<DomainEventNotification<SubmissionGradedEvent>>
+    public class GenerateWeakPointsCommandHandler : IRequestHandler<GenerateWeakPointsCommand>
     {
         /// <summary>
         /// An active weak point not seen again within the user's most recent this-many graded
@@ -44,7 +46,7 @@ namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
         private readonly IWeakPointClassifier _weakPointClassifier;
         private readonly IUnitOfWork _unitOfWork;
 
-        public UpdateWeakPointsOnGraded(
+        public GenerateWeakPointsCommandHandler(
             ISubmissionRepository submissionRepository,
             IWeakPointRepository weakPointRepository,
             IWeakPointCatalogRepository weakPointCatalogRepository,
@@ -58,9 +60,9 @@ namespace DeepLearning.Application.Features.WeakPoints.EventHandlers
             _unitOfWork = unitOfWork;
         }
 
-        public async Task Handle(DomainEventNotification<SubmissionGradedEvent> notification, CancellationToken cancellationToken)
+        public async Task Handle(GenerateWeakPointsCommand request, CancellationToken cancellationToken)
         {
-            var gradedEvent = notification.DomainEvent;
+            var gradedEvent = request;
             var errors = await _submissionRepository.GetErrorListAsync(gradedEvent.SubmissionId, cancellationToken);
             if (errors.Count == 0)
             {

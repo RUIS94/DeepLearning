@@ -17,6 +17,20 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
         public Task<Submission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
             => _context.Submissions.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
+        /// <inheritdoc />
+        public async Task<SubmissionStatus?> GetStatusAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            // Projection, not GetByIdAsync: a projected read is never tracked, so repeated calls
+            // in one scope really do go back to the database instead of replaying the first
+            // result out of the change tracker.
+            var statuses = await _context.Submissions
+                .Where(x => x.Id == id)
+                .Select(x => x.Status)
+                .ToListAsync(cancellationToken);
+
+            return statuses.Count == 0 ? null : statuses[0];
+        }
+
         public Task<List<Submission>> ListByUserAsync(Guid userId, Guid? questionId, CancellationToken cancellationToken = default)
             => _context.Submissions
                 .Where(x => x.UserId == userId && (questionId == null || x.QuestionId == questionId))
