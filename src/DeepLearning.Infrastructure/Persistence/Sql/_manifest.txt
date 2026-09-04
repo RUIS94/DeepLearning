@@ -77,3 +77,6 @@ freeze_grading_prompt_v1_production.sql
 
 # --- 2026-09-04: grading prompt v2 candidate, inserted INACTIVE for A/B against v1 ---
 add_grading_prompt_v2_candidate.sql
+
+# --- 2026-09-05: the v2 candidate promoted to production v1 (must stay last of the grading scripts) ---
+promote_grading_prompt_v2_to_production_v1.sql

@@ -32,9 +32,11 @@ namespace DeepLearning.UnitTests.Api
             Assert.Equal("distortion", finding.GetProperty("errorCategory").GetString());
             Assert.Equal("meaning_transfer", finding.GetProperty("dimensionKey").GetString());
 
-            // Both false is NAATI's Minor once derived.
+            // Both false is NAATI's Minor once derived. Both must be PRESENT: an absent answer
+            // is rejected by NormaliseQuestionScheme rather than defaulted, so a fake that
+            // stopped emitting one would fail every grading test with the same message.
+            Assert.False(finding.GetProperty("q1").GetBoolean());
             Assert.False(finding.GetProperty("q2").GetBoolean());
-            Assert.False(finding.GetProperty("q3").GetBoolean());
         }
 
         [Fact]

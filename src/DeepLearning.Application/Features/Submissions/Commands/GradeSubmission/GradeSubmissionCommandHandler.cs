@@ -68,7 +68,8 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         /// <para>The JSON these stages actually emit measured 2,675-4,160 completion tokens on
         /// 2026-09-04, so this is roughly a 4x headroom rather than a target — it costs nothing
         /// when unused, and the failure it prevents costs a full re-prompt plus a backoff.
-        /// 4096 was already too small once q3WrongReading and the termUsage table were added.
+        /// 4096 was already too small once the wrong-reading field and the termUsage table
+        /// were added.
         /// </para>
         ///
         /// <para>The reason for the size of the margin: on a provider that reasons inside the
@@ -918,12 +919,6 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                     // Rendered under the finding so the verdict stage can check a comprehension
                     // claim rather than trust the severity label it was derived into. Every
                     // surviving claim carries one — see NormaliseComprehensionClaims.
-                    //
-                    // Two keys, one value: v1's verdict template reads q3_wrong_reading and v2's
-                    // reads q2_wrong_reading, because the two prompt versions number the same
-                    // question differently. Dropping either would render that line blank rather
-                    // than fail, so both stay until v1 is retired.
-                    Q3WrongReading = f.Q2WrongReading,
                     Q2WrongReading = f.Q2WrongReading,
                     Summary = f.Summary,
                     Explanation = f.Explanation,
@@ -1093,64 +1088,54 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
 
         /// <summary>
         /// Applies NAATI's own definition: an error is Major when it affects the intent or the
-        /// purpose/function of the message (q2), and/or impacts comprehension of the target text
-        /// (q3). Everything else is Minor.
+        /// purpose/function of the message (q1), and/or impacts comprehension of the target text
+        /// (q2). Everything else is Minor.
         ///
         /// <para>A pure function on purpose (AGENTS.md #1): asking a model to answer the
-        /// questions AND then name the level let it write "q2 no, q3 no -> major" whenever the
-        /// prompt's wording nudged it that way, and it repeatedly did.</para>
+        /// questions AND then name the level let it answer no to both and write "major" anyway
+        /// whenever the prompt's wording nudged it that way, and it repeatedly did. The prompt
+        /// no longer even states how the answers map to a level, for the same reason.</para>
         ///
-        /// <para>q2 is close to always false for expository prose — "report this study" survives
-        /// almost any sentence-level slip — so in practice this is q3 alone. That is not a
+        /// <para>q1 is close to always false for expository prose — "report this study" survives
+        /// almost any sentence-level slip — so in practice this is q2 alone. That is not a
         /// shortcut, it is what the official Major clause reduces to for this genre, and it is
-        /// why the whole calibration effort goes into what q3 means rather than into inventing
+        /// why the whole calibration effort goes into what q2 means rather than into inventing
         /// intermediate levels.</para>
         /// </summary>
         public static ErrorSeverity DeriveSeverity(Finding finding)
             => finding.Q1 || finding.Q2 ? ErrorSeverity.major : ErrorSeverity.minor;
 
         /// <summary>
-        /// Resolves which numbering the answering prompt used, and fills in the canonical
-        /// <see cref="Finding.Q1"/> / <see cref="Finding.Q2"/> / <see cref="Finding.Q2WrongReading"/>.
+        /// Copies the emitted answers onto the canonical <see cref="Finding.Q1"/> /
+        /// <see cref="Finding.Q2"/> / <see cref="Finding.Q2WrongReading"/>, and rejects a
+        /// finding that left either question unanswered.
         ///
-        /// <para>v1 numbers the two official questions q2/q3 (a leftover from the version that
-        /// still had a q1); v2 numbers them q1/q2. The two overlap on the key "q2" with opposite
-        /// meanings, so the scheme has to be identified before anything is read: presence of
-        /// "q1" means the new numbering, presence of "q3" means the old one.</para>
-        ///
-        /// <para>Hard-fails when neither is present rather than defaulting to false. A finding
-        /// with both questions silently false is a Minor, and a whole run of them is a clean,
-        /// plausible-looking grading that is entirely wrong — the one failure mode this pipeline
-        /// must never produce quietly.</para>
+        /// <para>Rejecting rather than defaulting to false is the whole point of the step.
+        /// Both questions false is a Minor, so an unanswered pair does not look like an error —
+        /// it looks like a mild finding, and a run of them looks like a clean grading of a
+        /// competent translation. That is the one wrong result this pipeline must never
+        /// produce quietly, and it is cheap to make loud.</para>
         /// </summary>
         public static void NormaliseQuestionScheme(List<Finding> findings)
         {
             foreach (var finding in findings)
             {
-                if (finding.RawQ1 is { } q1)
-                {
-                    finding.Q1 = q1;
-                    finding.Q2 = finding.RawQ2 ?? false;
-                    finding.Q2WrongReading = finding.RawQ2WrongReading;
-                }
-                else if (finding.RawQ3 is { } q3)
-                {
-                    finding.Q1 = finding.RawQ2 ?? false;
-                    finding.Q2 = q3;
-                    finding.Q2WrongReading = finding.RawQ3WrongReading;
-                }
-                else
+                if (finding.RawQ1 is not { } q1 || finding.RawQ2 is not { } q2)
                 {
                     throw new InvalidOperationException(
-                        $"finding '{finding.Id}' answered neither question pair: expected q1 + q2, or q2 + q3.");
+                        $"finding '{finding.Id}' must answer both q1 and q2 with true or false.");
                 }
+
+                finding.Q1 = q1;
+                finding.Q2 = q2;
+                finding.Q2WrongReading = finding.RawQ2WrongReading;
             }
         }
 
         /// <summary>
-        /// Demotes any q3 the stage could not substantiate. The prompt states the rule -
-        /// "if you cannot write down what the reader would misunderstand, then it does not
-        /// impact comprehension and q3 is false" - and this applies it, because q3 alone
+        /// Demotes any comprehension claim the stage could not substantiate. The prompt states
+        /// the rule - "if you cannot write down what the reader would misunderstand, then it does
+        /// not impact comprehension and q2 is false" - and this applies it, because q2 alone
         /// promotes an error to officially Major and the models answer it far too readily:
         /// the first v3 run came back 38 major / 2 moderate / 8 minor, with "還尚 is redundant,
         /// it affects fluency" scored major. That is NAATI's Minor, verbatim.
@@ -1206,7 +1191,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 existing.Q2 |= finding.Q2;
 
                 // The substantiation has to travel with the claim. Without this a merged finding
-                // could carry q3 = true from one stage and no wrong-reading from the other, and
+                // could carry q2 = true from one stage and no wrong-reading from the other, and
                 // the verdict stage would be shown a comprehension failure with nothing behind it.
                 if (string.IsNullOrWhiteSpace(existing.Q2WrongReading))
                 {
@@ -1222,7 +1207,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 existing.SourceTextSnippet ??= finding.SourceTextSnippet;
             }
 
-            // A q3 that survived the merge still has to be paid for.
+            // A comprehension claim that survived the merge still has to be paid for.
             NormaliseComprehensionClaims(merged);
 
             for (var i = 0; i < merged.Count; i++)
@@ -1384,12 +1369,11 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             public string DimensionKey { get; set; } = string.Empty;
 
             /// <summary>
-            /// As emitted. Two prompt versions number the same two questions differently — v1
-            /// asks q2/q3, v2 asks q1/q2 — so the raw keys cannot be bound straight onto the
-            /// canonical properties: v1's "q2" and v2's "q2" mean OPPOSITE things, and binding
-            /// them to one property would silently swap intent for comprehension rather than
-            /// fail. <see cref="NormaliseQuestionScheme"/> resolves which scheme was answered
-            /// and fills in Q1/Q2 below; nothing else in the pipeline reads these.
+            /// As emitted, and nullable on purpose: an absent answer must be distinguishable
+            /// from a false one. <see cref="NormaliseQuestionScheme"/> copies these onto the
+            /// canonical properties below and rejects a finding that answered neither; nothing
+            /// else in the pipeline reads them. A bool would have made a missing answer indistinguishable
+            /// from "no", i.e. a Minor, which is the one failure that looks entirely plausible.
             /// </summary>
             [JsonPropertyName("q1")]
             public bool? RawQ1 { get; set; }
@@ -1397,14 +1381,8 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             [JsonPropertyName("q2")]
             public bool? RawQ2 { get; set; }
 
-            [JsonPropertyName("q3")]
-            public bool? RawQ3 { get; set; }
-
             [JsonPropertyName("q2WrongReading")]
             public string? RawQ2WrongReading { get; set; }
-
-            [JsonPropertyName("q3WrongReading")]
-            public string? RawQ3WrongReading { get; set; }
 
             /// <summary>Changed the intent, or the purpose and function of the passage.</summary>
             [JsonIgnore]

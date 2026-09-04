@@ -157,7 +157,7 @@ namespace DeepLearning.UnitTests.Api
             => errorCategoryKey is null
                 ? string.Empty
                 : $$"""
-                    {"id": "E1", "positionRef": "p1", "sourceTextSnippet": "src snippet", "userTextSnippet": "user snippet", "errorCategory": "{{errorCategoryKey}}", "dimensionKey": "{{dimensionKey}}", "q2": false, "q3": false, "q3WrongReading": null, "summary": "fake summary", "explanation": "explanation text", "suggestion": "suggestion text"}
+                    {"id": "E1", "positionRef": "p1", "sourceTextSnippet": "src snippet", "userTextSnippet": "user snippet", "errorCategory": "{{errorCategoryKey}}", "dimensionKey": "{{dimensionKey}}", "q1": false, "q2": false, "q2WrongReading": null, "summary": "fake summary", "explanation": "explanation text", "suggestion": "suggestion text"}
                     """;
     }
 

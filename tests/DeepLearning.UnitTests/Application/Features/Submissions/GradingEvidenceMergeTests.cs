@@ -260,7 +260,7 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
         }
 
         [Fact]
-        public void The_new_numbering_reads_q1_as_intent_and_q2_as_comprehension()
+        public void The_emitted_answers_land_on_the_intent_and_comprehension_questions()
         {
             var finding = new GradeSubmissionCommandHandler.Finding
             {
@@ -276,33 +276,17 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             Assert.False(finding.Q2);
         }
 
-        [Fact]
-        public void The_old_numbering_shifts_q2_to_intent_and_q3_to_comprehension()
+        [Theory]
+        [InlineData(null, null)]
+        [InlineData(true, null)]
+        [InlineData(null, true)]
+        public void A_finding_that_left_either_question_unanswered_is_rejected_rather_than_defaulted(
+            bool? q1, bool? q2)
         {
-            // v1 and v2 both use the key "q2", for OPPOSITE questions. Binding it straight onto
-            // one property would swap intent for comprehension silently, so the scheme is chosen
-            // by which of q1/q3 is present, and everything else follows from that.
-            var finding = new GradeSubmissionCommandHandler.Finding
-            {
-                Id = "E1",
-                RawQ2 = false,
-                RawQ3 = true,
-                RawQ3WrongReading = "读者会以为信号本身被晒伤了",
-            };
-
-            GradeSubmissionCommandHandler.NormaliseQuestionScheme([finding]);
-
-            Assert.False(finding.Q1);
-            Assert.True(finding.Q2);
-            Assert.Equal("读者会以为信号本身被晒伤了", finding.Q2WrongReading);
-        }
-
-        [Fact]
-        public void A_finding_answering_neither_numbering_is_rejected_rather_than_defaulted()
-        {
-            // Defaulting to false would make it a Minor, and a whole run of them a clean-looking
-            // grading that is entirely wrong. That has to be loud.
-            var finding = new GradeSubmissionCommandHandler.Finding { Id = "E1" };
+            // Defaulting a missing answer to false makes the finding a Minor, so the mistake
+            // does not look like one: a whole run of them reads as a clean grading of a
+            // competent translation. That has to be loud.
+            var finding = new GradeSubmissionCommandHandler.Finding { Id = "E1", RawQ1 = q1, RawQ2 = q2 };
 
             Assert.Throws<InvalidOperationException>(
                 () => GradeSubmissionCommandHandler.NormaliseQuestionScheme([finding]));
