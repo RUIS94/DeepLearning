@@ -61,7 +61,12 @@ export const TemplateLayer = { shared_methodology: 0, exam_specific: 1 } as cons
 export const CheckpointImportance = { core: 0, peripheral: 1 } as const;
 // 每条评分错误的严重程度。后端 error_severity_enum。前端"影响核心/接近边界/非核心"
 // 标签由它派生（见 errorImpactLabel），不是后端单独字段。
-export const ErrorSeverity = { minor: 0, moderate: 1, major: 2, critical: 3 } as const;
+/**
+ * NAATI 官方只分两级：Major = 影响意图/功能，或影响读者理解；Minor = 只有精度损失。
+ * 原来还有 moderate / critical 两个本项目自造的中间档，55 条真实结果里 40 moderate、14 major、
+ * 1 critical、minor 一条都没有——四档当两档用，而且两个落点都不在官方定义的位置上。
+ */
+export const ErrorSeverity = { minor: 0, major: 1 } as const;
 // 已对照 Domain/Enums/AiOperationType.cs 核实：prompt_templates.template_type 实际存的是
 // 这个 6 员枚举，不是只有 question_gen/grading/followup/standard_revision 4 个值——
 // deep_learning/progress_trend 两个模板类型在 Supabase 里已经有真实行（AGENTS.md 有记录），
@@ -159,24 +164,20 @@ export const CheckpointImportanceLabel: Record<number, string> = {
 };
 
 export const ErrorSeverityLabel: Record<number, string> = {
-  [ErrorSeverity.minor]: "轻微",
-  [ErrorSeverity.moderate]: "中等",
-  [ErrorSeverity.major]: "较严重",
-  [ErrorSeverity.critical]: "严重",
+  [ErrorSeverity.minor]: "Minor",
+  [ErrorSeverity.major]: "Major",
 };
 
 /**
- * 由 severity 派生的“是否影响核心意义”标签 + 语气。后端不再单独存这个字段
- * （旧的 impacts_core 布尔已退役），major/critical → 影响核心，moderate → 接近边界，
- * minor → 非核心。
+ * 由 severity 派生的“是否影响核心意义”标签 + 语气（旧的 impacts_core 布尔已退役）。
+ * 官方 Major 的判据就是"影响意图/功能，或影响读者理解"，所以这个标签与 severity 一一对应。
  */
 export function errorImpactLabel(severity: number): {
   text: string;
-  tone: "danger" | "warning" | "muted";
+  tone: "danger" | "muted";
 } {
-  if (severity >= ErrorSeverity.major) return { text: "影响核心意义点", tone: "danger" };
-  if (severity === ErrorSeverity.moderate) return { text: "接近边界", tone: "warning" };
-  return { text: "非核心", tone: "muted" };
+  if (severity === ErrorSeverity.major) return { text: "影响理解", tone: "danger" };
+  return { text: "仅精度损失", tone: "muted" };
 }
 
 export const AiOperationTypeLabel: Record<number, string> = {

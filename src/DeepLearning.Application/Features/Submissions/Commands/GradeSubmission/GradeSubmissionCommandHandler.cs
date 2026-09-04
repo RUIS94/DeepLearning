@@ -56,6 +56,12 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         private const string StageVerdict = "verdict";
 
         /// <summary>
+        /// Ceiling on how many correction patches reach the sweep stage. See where it is applied
+        /// for why an uncapped, one-directionally growing set is a hazard rather than a feature.
+        /// </summary>
+        private const int MaxInjectedOverrides = 8;
+
+        /// <summary>
         /// Two findings are the same defect only if they are on the same dimension, in the same
         /// error category, AND quote the same span of the translation. Deliberately narrow: the
         /// three collection stages are meant to overlap, and a term that is both the wrong
@@ -63,11 +69,140 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         /// is two real defects, not one counted twice. Over-merging silently destroys evidence;
         /// a surviving near-duplicate only costs the verdict stage a line of reading.
         /// </summary>
-        private static string DuplicateKey(Finding f)
-            => string.Join("|", f.DimensionKey, f.ErrorCategory, Normalise(f.UserTextSnippet));
+        /// <summary>
+        /// Splits the source into the numbered sentences the evidence stage has to account for.
+        ///
+        /// <para>The model used to be told to "split the source on full stops and number from 1"
+        /// and report coverage against its own split. That made the coverage check decorative: a
+        /// model that stopped early could simply emit fewer sentences and still look complete,
+        /// and there is no way to tell a short text from a lazy read. This text also opens
+        /// <c>Why people get sunburn Sunburn shows that...</c> — a title run straight into the
+        /// body with no full stop between them — so a model-side split starts out wrong anyway.
+        /// Splitting here means the numbering is fixed, identical on every attempt, and the model
+        /// only ever fills in a status.</para>
+        ///
+        /// <para>Best-effort, and that is enough: the split does not have to be linguistically
+        /// perfect, it has to be the SAME split every time, because its only job is to give the
+        /// model a fixed set of slots and the handler something countable.</para>
+        /// </summary>
+        public static List<string> SplitSentences(string sourceText)
+        {
+            // Abbreviations that end in a full stop and should not end a sentence. Short and
+            // deliberately not exhaustive — a wrong split costs a slightly odd slot, not a wrong
+            // grade.
+            string[] abbreviations = ["e.g.", "i.e.", "etc.", "vs.", "Dr.", "Mr.", "Mrs.", "Ms.", "Prof.", "St.", "cf.", "approx."];
 
-        /// <summary>Punctuation- and whitespace-insensitive form of a quoted snippet, so two
-        /// stages quoting the same span with different surrounding punctuation still match.</summary>
+            var sentences = new List<string>();
+            foreach (var paragraph in sourceText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var start = 0;
+                for (var i = 0; i < paragraph.Length; i++)
+                {
+                    if (paragraph[i] is not ('.' or '?' or '!'))
+                    {
+                        continue;
+                    }
+
+                    // A terminator only ends a sentence when whitespace and a new word follow it.
+                    var next = i + 1;
+                    while (next < paragraph.Length && paragraph[next] == '"')
+                    {
+                        next++;
+                    }
+
+                    if (next < paragraph.Length && !char.IsWhiteSpace(paragraph[next]))
+                    {
+                        continue;
+                    }
+
+                    var candidate = paragraph[start..next].Trim();
+                    if (candidate.Length == 0
+                        || abbreviations.Any(a => candidate.EndsWith(a, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        continue;
+                    }
+
+                    sentences.Add(candidate);
+                    start = next;
+                }
+
+                var tail = paragraph[start..].Trim();
+                if (tail.Length > 0)
+                {
+                    sentences.Add(tail);
+                }
+            }
+
+            return sentences.Count > 0 ? sentences : [sourceText.Trim()];
+        }
+
+        /// <summary>
+        /// The counted facts the verdict stage judges "taken together" against.
+        ///
+        /// <para>Its 2b step asks whether the minor and moderate findings, taken together, amount
+        /// to a significant impact — and it used to answer that from an unaided impression of how
+        /// long the text was and how much of it was affected. Models have no stable intuition for
+        /// "a lot"; they have a perfectly good one for "8 of this text's 12 sentences". Computing
+        /// it here costs nothing and replaces the single softest judgement in the pipeline with
+        /// an arithmetic fact.</para>
+        /// </summary>
+        public static string BuildCoverageNote(
+            List<string> sentences, List<Finding> findings, List<AssessmentDimension> dimensions)
+        {
+            var words = sentences.Sum(sentence =>
+                sentence.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length);
+
+            // A finding covers a sentence when that sentence contains the source it quotes.
+            var touched = sentences
+                .Where(sentence => findings.Any(f =>
+                    !string.IsNullOrWhiteSpace(f.SourceTextSnippet)
+                    && sentence.Contains(f.SourceTextSnippet.Trim(), StringComparison.OrdinalIgnoreCase)))
+                .Count();
+
+            var lines = new List<string>
+            {
+                $"- 原文共 {sentences.Count} 句、约 {words} 词;其中 {touched} 句被证据点到(约 {Percent(touched, sentences.Count)}%)。",
+            };
+
+            foreach (var dimension in dimensions)
+            {
+                var forDimension = findings.Where(f => f.DimensionKey == dimension.DimensionKey).ToList();
+                var severities = forDimension.Select(DeriveSeverity).ToList();
+                lines.Add(
+                    $"- {dimension.DimensionKey}:证据 {forDimension.Count} 条"
+                    + $"(major {severities.Count(x => x == ErrorSeverity.major)} / "
+                    + $"minor {severities.Count(x => x == ErrorSeverity.minor)})。");
+            }
+
+            return string.Join("\n", lines);
+        }
+
+        private static int Percent(int part, int whole) => whole == 0 ? 0 : (int)Math.Round(100.0 * part / whole);
+
+        /// <summary>
+        /// Where in the translation a finding is pointing, as a character range, or null when its
+        /// quoted snippet cannot be located.
+        ///
+        /// <para>Three stages quote the same defect at different lengths - one takes the clause,
+        /// another the whole sentence - so matching on snippet equality misses the overlap and
+        /// leaves duplicates in. That is not cosmetic: the verdict stage now receives counted
+        /// coverage figures, and a duplicate inflates them.</para>
+        /// </summary>
+        private static (int Start, int End)? SpanOf(Finding f, string translation)
+        {
+            var snippet = f.UserTextSnippet?.Trim();
+            if (string.IsNullOrEmpty(snippet))
+            {
+                return null;
+            }
+
+            var start = translation.IndexOf(snippet, StringComparison.Ordinal);
+            return start < 0 ? null : (start, start + snippet.Length);
+        }
+
+        /// <summary>Punctuation- and whitespace-insensitive form of a quoted snippet, used when a
+        /// snippet cannot be located in the translation (the model paraphrased rather than
+        /// copied) and only exact-ish matching is left.</summary>
         private static string Normalise(string? text)
             => new((text ?? string.Empty).Where(char.IsLetterOrDigit).ToArray());
 
@@ -176,6 +311,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             var seededErrors = submission.TaskType == TaskType.B
                 ? await _questionRepository.GetSeededErrorsAsync(submission.QuestionId, workToken)
                 : [];
+            var sourceSentences = SplitSentences(question.SourceText);
             var dimensions = await _assessmentDimensionRepository.ListByExamTypeAsync(request.ExamTypeId, submission.TaskType, workToken);
             var errorTaxonomies = await _errorTaxonomyRepository.ListByExamTypeAsync(request.ExamTypeId, workToken);
 
@@ -189,7 +325,16 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             // error, but they can no longer reach the Band decision.
             var weakPoints = await _weakPointRepository.ListActiveWithCatalogByUserAsync(
                 submission.UserId, IWeakPointRepository.GradingPromptWeakPointLimit, workToken);
-            var activeOverrides = await _standardOverrideRepository.ListActiveByExamTypeAsync(request.ExamTypeId, workToken);
+            // Capped and deterministically ordered. These patches are distilled from disputes,
+            // and a learner disputes a mark they think was too harsh far more often than one they
+            // think was too lenient — so the set drifts one way over time, and it is injected into
+            // a COLLECTION stage, where it shapes what gets recorded at all. A cap keeps that
+            // drift bounded and the prompt a fixed size; ordering keeps two runs comparable.
+            var activeOverrides = (await _standardOverrideRepository.ListActiveByExamTypeAsync(request.ExamTypeId, workToken))
+                .OrderBy(o => o.DimensionOrRule, StringComparer.Ordinal)
+                .ThenBy(o => o.Id)
+                .Take(MaxInjectedOverrides)
+                .ToList();
 
             List<Finding> findings;
             List<CheckpointVerdict> checkpointVerdicts;
@@ -223,7 +368,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 {
                     var model = BuildTemplateModel(
                         stage.Stage, submission, question, checkpoints, seededErrors, dimensions,
-                        errorTaxonomies, stage.WeakPoints, stage.Overrides, [], []);
+                        errorTaxonomies, stage.WeakPoints, stage.Overrides, [], [], sourceSentences, coverageNote: null);
                     var stagePrompt = await _examConfigLoader.BuildPromptAsync(
                         request.ExamTypeId, AiOperationType.grading, model, workToken);
 
@@ -258,7 +403,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                                 // The forced per-sentence enumeration: without it the model stops
                                 // once it feels it has found enough (observed: seven findings,
                                 // then silence, in a text with more than twice that many).
-                                ValidateSentenceCoverage(payload.Sentences);
+                                ValidateSentenceCoverage(payload.Sentences, sourceSentences.Count);
                             }
                         },
                         workToken)));
@@ -280,7 +425,8 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                         .Select((stage, i) => (stage.Prefix, Payload: collectedPerStage[i]))
                         .OrderBy(x => x.Prefix, StringComparer.Ordinal)
                         .SelectMany(x => x.Payload.Findings)
-                        .ToList());
+                        .ToList(),
+                    submission.Content);
 
                 // ---- Verdict: official Band text only, over the merged evidence ----------
                 var verdictPrompt = await _examConfigLoader.BuildPromptAsync(
@@ -288,7 +434,8 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                     AiOperationType.grading,
                     BuildTemplateModel(
                         StageVerdict, submission, question, checkpoints, seededErrors, dimensions,
-                        errorTaxonomies, [], [], findings, checkpointVerdicts),
+                        errorTaxonomies, [], [], findings, checkpointVerdicts, sourceSentences,
+                        BuildCoverageNote(sourceSentences, findings, dimensions)),
                     workToken);
 
                 var verdictLog = new AiCallLog { AttemptCount = 1, MaxRetries = aiCallLog.MaxRetries };
@@ -363,9 +510,9 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                         DimensionId = dimensionsByKey[f.DimensionKey].Id,
                         Severity = severity,
                         Summary = string.IsNullOrWhiteSpace(f.Summary) ? null : f.Summary.Trim(),
-                        // Legacy column, no longer AI-driven: an error is "core" iff it's
-                        // major/critical — i.e. iff it met NAATI's official Major-error test.
-                        ImpactsCore = severity is ErrorSeverity.major or ErrorSeverity.critical,
+                        // Legacy column, no longer AI-driven: an error is "core" iff it met
+                        // NAATI's official Major-error test.
+                        ImpactsCore = severity == ErrorSeverity.major,
                         Explanation = f.Explanation,
                         Suggestion = f.Suggestion,
                         CreatedAt = DateTimeOffset.UtcNow,
@@ -567,7 +714,9 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             List<WeakPoint> weakPoints,
             List<StandardOverride> activeOverrides,
             List<Finding> findings,
-            List<CheckpointVerdict> checkpointVerdicts) => new
+            List<CheckpointVerdict> checkpointVerdicts,
+            List<string> sourceSentences,
+            string? coverageNote) => new
             {
                 // Which slice of the single grading template to render: evidence | audit | verdict.
                 Stage = stage,
@@ -645,10 +794,18 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                     ErrorCategory = f.ErrorCategory,
                     DimensionKey = f.DimensionKey,
                     Severity = DeriveSeverity(f).ToString(),
+                    // Rendered under the finding so the verdict stage can check a comprehension
+                    // claim rather than trust the severity label it was derived into. Every q3
+                    // that survives NormaliseComprehensionClaims carries one.
+                    Q3WrongReading = f.Q3WrongReading,
                     Summary = f.Summary,
                     Explanation = f.Explanation,
                     Suggestion = f.Suggestion,
                 }),
+                // Numbered here rather than by the model — see SplitSentences.
+                SourceSentences = sourceSentences.Select((text, i) => new { N = i + 1, Text = text }),
+                // Verdict stage only: the counted facts behind its "taken together" judgement.
+                CoverageNote = coverageNote,
                 CheckpointVerdicts = checkpointVerdicts.Select(v => new
                 {
                     Index = v.Index,
@@ -808,30 +965,22 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         }
 
         /// <summary>
-        /// Turns a finding's three official answers into a stored severity. A pure function on
-        /// purpose (AGENTS.md #1): v2 asked the model to answer the three questions AND then name
-        /// the level itself, and it repeatedly wrote "Q1 yes, Q2 no, Q3 no -> minor" when its own
-        /// rules made that moderate - because v2 called the official tier "official Minor" and one
-        /// of the four output values "minor", and the model collapsed the two names. A naming
-        /// collision cannot survive a lookup table.
+        /// Applies NAATI's own definition: an error is Major when it affects the intent or the
+        /// purpose/function of the message (q2), and/or impacts comprehension of the target text
+        /// (q3). Everything else is Minor.
         ///
-        /// The mapping is NAATI's own: an error is officially Major iff it affects intent or
-        /// purpose/function (q2) or impacts comprehension (q3); everything else is officially
-        /// Minor. The four stored values subdivide those two - critical is a Major whose reach
-        /// goes past the sentence it sits in, moderate is a Minor that still cost real
-        /// propositional content (q1).
+        /// <para>A pure function on purpose (AGENTS.md #1): asking a model to answer the
+        /// questions AND then name the level let it write "q2 no, q3 no -> major" whenever the
+        /// prompt's wording nudged it that way, and it repeatedly did.</para>
+        ///
+        /// <para>q2 is close to always false for expository prose — "report this study" survives
+        /// almost any sentence-level slip — so in practice this is q3 alone. That is not a
+        /// shortcut, it is what the official Major clause reduces to for this genre, and it is
+        /// why the whole calibration effort goes into what q3 means rather than into inventing
+        /// intermediate levels.</para>
         /// </summary>
         public static ErrorSeverity DeriveSeverity(Finding finding)
-        {
-            if (finding.Q2 || finding.Q3)
-            {
-                return finding.Q2 && finding.Q3 && finding.ScopeBeyondSentence
-                    ? ErrorSeverity.critical
-                    : ErrorSeverity.major;
-            }
-
-            return finding.Q1 ? ErrorSeverity.moderate : ErrorSeverity.minor;
-        }
+            => finding.Q2 || finding.Q3 ? ErrorSeverity.major : ErrorSeverity.minor;
 
         /// <summary>
         /// Demotes any q3 the stage could not substantiate. The prompt states the rule -
@@ -862,33 +1011,42 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         /// argued the case at greatest length, since that is the one the learner reads. Ids are
         /// renumbered so the verdict stage sees one clean sequence.
         /// </summary>
-        public static List<Finding> MergeCollectedFindings(List<Finding> collected)
+        public static List<Finding> MergeCollectedFindings(List<Finding> collected, string translation)
         {
             var merged = new List<Finding>();
-            var byKey = new Dictionary<string, Finding>(StringComparer.Ordinal);
+            var spans = new List<((int Start, int End)? Span, string Fallback, Finding Finding)>();
 
             foreach (var finding in collected)
             {
-                // A finding that quotes nothing cannot be matched against anything - keep it as
-                // its own entry rather than collapsing every such finding onto a single key.
-                if (Normalise(finding.UserTextSnippet).Length == 0)
+                var span = SpanOf(finding, translation);
+                var fallback = Normalise(finding.UserTextSnippet);
+
+                var existing = spans.FirstOrDefault(candidate =>
+                    candidate.Finding.DimensionKey == finding.DimensionKey
+                    && candidate.Finding.ErrorCategory == finding.ErrorCategory
+                    && Overlaps(candidate.Span, candidate.Fallback, span, fallback)).Finding;
+
+                if (existing is null)
                 {
+                    spans.Add((span, fallback, finding));
                     merged.Add(finding);
                     continue;
                 }
 
-                var key = DuplicateKey(finding);
-                if (!byKey.TryGetValue(key, out var existing))
-                {
-                    byKey[key] = finding;
-                    merged.Add(finding);
-                    continue;
-                }
-
-                existing.Q1 |= finding.Q1;
+                // Every question is OR-ed, never voted on or taken from whichever copy happened to
+                // land first: if any stage judged that this defect impacts comprehension, that
+                // judgement stands. Averaging them would quietly reinstate the reviewing stage
+                // this pipeline was built to remove.
                 existing.Q2 |= finding.Q2;
                 existing.Q3 |= finding.Q3;
-                existing.ScopeBeyondSentence |= finding.ScopeBeyondSentence;
+
+                // The substantiation has to travel with the claim. Without this a merged finding
+                // could carry q3 = true from one stage and no wrong-reading from the other, and
+                // the verdict stage would be shown a comprehension failure with nothing behind it.
+                if (string.IsNullOrWhiteSpace(existing.Q3WrongReading))
+                {
+                    existing.Q3WrongReading = finding.Q3WrongReading;
+                }
 
                 if ((finding.Explanation?.Length ?? 0) > (existing.Explanation?.Length ?? 0))
                 {
@@ -899,6 +1057,9 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 existing.SourceTextSnippet ??= finding.SourceTextSnippet;
             }
 
+            // A q3 that survived the merge still has to be paid for.
+            NormaliseComprehensionClaims(merged);
+
             for (var i = 0; i < merged.Count; i++)
             {
                 merged[i].Id = $"F{i + 1}";
@@ -908,25 +1069,45 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         }
 
         /// <summary>
-        /// The evidence stage must account for every source sentence, ok or not. Without it the
-        /// model stops as soon as it feels it has found enough - observed stopping at seven
-        /// findings on a text that had more than twice that many, with no signal that it had
-        /// stopped early. Contiguous numbering from 1 is the cheapest way to make "I gave up half
-        /// way" impossible to express in a valid payload.
+        /// Two findings point at the same place when their character ranges in the translation
+        /// overlap at all. Findings whose snippet could not be located fall back to normalised
+        /// string equality, and a finding that quotes nothing matches nothing - otherwise every
+        /// snippet-less finding would collapse onto one entry.
         /// </summary>
-        private static void ValidateSentenceCoverage(List<SentenceRow> sentences)
+        private static bool Overlaps(
+            (int Start, int End)? a, string aFallback, (int Start, int End)? b, string bFallback)
         {
-            if (sentences.Count == 0)
+            if (a is { } first && b is { } second)
             {
-                throw new InvalidOperationException("evidence stage returned no per-sentence coverage rows.");
+                return first.Start < second.End && second.Start < first.End;
             }
 
-            for (var i = 0; i < sentences.Count; i++)
+            return aFallback.Length > 0 && aFallback == bFallback;
+        }
+
+        /// <summary>
+        /// The evidence stage must return exactly one row per source sentence, in order.
+        ///
+        /// <para>The sentences are numbered by <see cref="SplitSentences"/> and handed to the
+        /// model, so this is not asking it to count anything — only to say, for each slot it was
+        /// given, whether that sentence has a deviation. Without the check the field is
+        /// decorative: a model that stopped after seven findings can emit seven rows and look
+        /// finished, which is exactly what happened before the split moved into code.</para>
+        /// </summary>
+        private static void ValidateSentenceCoverage(List<SentenceRow> rows, int expected)
+        {
+            if (rows.Count != expected)
             {
-                if (sentences[i].N != i + 1)
+                throw new InvalidOperationException(
+                    $"per-sentence coverage must have exactly {expected} row(s), one per numbered source sentence; got {rows.Count}.");
+            }
+
+            for (var i = 0; i < rows.Count; i++)
+            {
+                if (rows[i].N != i + 1)
                 {
                     throw new InvalidOperationException(
-                        $"per-sentence coverage must be numbered contiguously from 1; got {sentences[i].N} at position {i + 1}.");
+                        $"per-sentence coverage must be numbered 1..{expected} in order; got {rows[i].N} at position {i + 1}.");
                 }
             }
         }
@@ -1037,9 +1218,6 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
 
             public string DimensionKey { get; set; } = string.Empty;
 
-            /// <summary>Changed the propositional content (referent, scope, logic, tense/aspect, modality).</summary>
-            public bool Q1 { get; set; }
-
             /// <summary>Changed the intent, or the purpose and function of the passage.</summary>
             public bool Q2 { get; set; }
 
@@ -1057,9 +1235,6 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             /// between a comprehension failure and prose that is merely clumsy.
             /// </summary>
             public string? Q3WrongReading { get; set; }
-
-            /// <summary>Reach extends past the sentence it sits in (e.g. a whole-text term swap).</summary>
-            public bool ScopeBeyondSentence { get; set; }
 
             /// <summary>Terse per-error characterisation.</summary>
             public string Summary { get; set; } = string.Empty;

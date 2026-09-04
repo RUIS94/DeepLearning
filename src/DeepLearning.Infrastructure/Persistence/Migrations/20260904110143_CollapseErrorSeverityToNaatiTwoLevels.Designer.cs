@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DeepLearning.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260903041042_AddErrorSeverityAndSummary")]
-    partial class AddErrorSeverityAndSummary
+    [Migration("20260904110143_CollapseErrorSeverityToNaatiTwoLevels")]
+    partial class CollapseErrorSeverityToNaatiTwoLevels
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -29,7 +29,7 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "category_type_enum", new[] { "domain", "scenario" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "checkpoint_importance_enum", new[] { "core", "peripheral" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "difficulty_enum", new[] { "easy", "medium", "hard" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "error_severity_enum", new[] { "critical", "major", "minor", "moderate" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "error_severity_enum", new[] { "major", "minor" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "follow_up_message_role_enum", new[] { "user", "ai" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "follow_up_thread_status_enum", new[] { "open", "closed" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "followup_verdict_enum", new[] { "user_correct", "user_incorrect", "partial", "pending" });
@@ -46,6 +46,7 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "task_type_enum", new[] { "A", "B" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "template_layer_enum", new[] { "shared_methodology", "exam_specific" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "visibility_enum", new[] { "private", "shared" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "weak_point_catalog_status_enum", new[] { "active", "deprecated", "proposed" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "weak_point_status_enum", new[] { "active", "resolved" });
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pgcrypto");
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "vector");
@@ -632,9 +633,18 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<int?>("AlternativeBand")
+                        .HasColumnType("integer")
+                        .HasColumnName("alternative_band");
+
                     b.Property<int>("Band")
                         .HasColumnType("integer")
                         .HasColumnName("band");
+
+                    b.Property<string>("Confidence")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("confidence");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -691,6 +701,8 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
 
                     b.ToTable("grading_results", null, t =>
                         {
+                            t.HasCheckConstraint("ck_grading_results_alternative_band_range", "alternative_band IS NULL OR alternative_band BETWEEN 1 AND 5");
+
                             t.HasCheckConstraint("ck_grading_results_band_range", "band BETWEEN 1 AND 5");
                         });
                 });
@@ -1544,6 +1556,11 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
+                    b.Property<string>("WeakPointGenerationStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("weak_point_generation_status");
+
                     b.Property<uint>("xmin")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
@@ -1907,14 +1924,9 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnName("catalog_id");
 
                     b.Property<string>("Category")
-                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("category");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text")
-                        .HasColumnName("description");
 
                     b.Property<string>("DetectionSource")
                         .IsRequired()
@@ -1922,10 +1934,6 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasDefaultValue("rule")
                         .HasColumnName("detection_source");
-
-                    b.Property<string>("EvidenceNote")
-                        .HasColumnType("text")
-                        .HasColumnName("evidence_note");
 
                     b.Property<Guid?>("ExamTypeId")
                         .HasColumnType("uuid")
@@ -1942,6 +1950,10 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_seen_at")
                         .HasDefaultValueSql("now()");
+
+                    b.Property<string>("PatternSummary")
+                        .HasColumnType("text")
+                        .HasColumnName("pattern_summary");
 
                     b.Property<Priority>("Priority")
                         .HasColumnType("priority_enum")
@@ -1983,7 +1995,8 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UserId", "Category")
                         .IsUnique()
-                        .HasDatabaseName("ux_weak_points_user_category");
+                        .HasDatabaseName("ux_weak_points_user_category")
+                        .HasFilter("catalog_id IS NULL");
 
                     b.HasIndex("UserId", "Status")
                         .HasDatabaseName("idx_weak_points_user_status");
@@ -2030,16 +2043,23 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("exam_type_id");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true)
-                        .HasColumnName("is_active");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("seed")
+                        .HasColumnName("origin");
+
+                    b.Property<WeakPointCatalogStatus>("Status")
+                        .HasColumnType("weak_point_catalog_status_enum")
+                        .HasDefaultValue(WeakPointCatalogStatus.active)
+                        .HasColumnName("status");
 
                     b.HasKey("Id")
                         .HasName("pk_weak_point_catalog");
@@ -2102,6 +2122,10 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("WeakPointId")
                         .HasDatabaseName("idx_weak_point_occurrences_wp");
+
+                    b.HasIndex("WeakPointId", "SubmissionId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_weak_point_occurrences_wp_submission");
 
                     b.ToTable("weak_point_occurrences", (string)null);
                 });

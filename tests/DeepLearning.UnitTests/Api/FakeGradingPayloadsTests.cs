@@ -32,8 +32,7 @@ namespace DeepLearning.UnitTests.Api
             Assert.Equal("distortion", finding.GetProperty("errorCategory").GetString());
             Assert.Equal("meaning_transfer", finding.GetProperty("dimensionKey").GetString());
 
-            // q1 alone is NAATI's Minor with real propositional loss -> moderate once derived.
-            Assert.True(finding.GetProperty("q1").GetBoolean());
+            // Both false is NAATI's Minor once derived.
             Assert.False(finding.GetProperty("q2").GetBoolean());
             Assert.False(finding.GetProperty("q3").GetBoolean());
         }

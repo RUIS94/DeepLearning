@@ -1,4 +1,4 @@
-﻿using DeepLearning.Domain.Enums;
+using DeepLearning.Domain.Enums;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -67,7 +67,7 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                 table: "error_list",
                 type: "error_severity_enum",
                 nullable: false,
-                defaultValue: ErrorSeverity.moderate);
+                defaultValue: "moderate");
 
             migrationBuilder.AddColumn<string>(
                 name: "summary",

@@ -128,9 +128,8 @@ namespace DeepLearning.UnitTests.Api
     internal static class FakeGradingPayloads
     {
         /// <summary>
-        /// q1 true / q2 false / q3 false is NAATI's Minor with real propositional loss, which
-        /// DeriveSeverity maps to moderate — the severity the old single-call fake stated
-        /// outright, before severity stopped being something a model is allowed to name.
+        /// Both questions false is NAATI's Minor: a propositional inaccuracy that leaves intent,
+        /// function and comprehension intact.
         /// </summary>
         /// <param name="errorCategoryKey">
         /// Null for a clean run that reports no errors at all. Tests that only need a submission
@@ -158,7 +157,7 @@ namespace DeepLearning.UnitTests.Api
             => errorCategoryKey is null
                 ? string.Empty
                 : $$"""
-                    {"id": "E1", "positionRef": "p1", "sourceTextSnippet": "src snippet", "userTextSnippet": "user snippet", "errorCategory": "{{errorCategoryKey}}", "dimensionKey": "{{dimensionKey}}", "q1": true, "q2": false, "q3": false, "q3WrongReading": null, "scopeBeyondSentence": false, "summary": "fake summary", "explanation": "explanation text", "suggestion": "suggestion text"}
+                    {"id": "E1", "positionRef": "p1", "sourceTextSnippet": "src snippet", "userTextSnippet": "user snippet", "errorCategory": "{{errorCategoryKey}}", "dimensionKey": "{{dimensionKey}}", "q2": false, "q3": false, "q3WrongReading": null, "summary": "fake summary", "explanation": "explanation text", "suggestion": "suggestion text"}
                     """;
     }
 

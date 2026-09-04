@@ -18,15 +18,20 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
     /// </summary>
     public class GradingEvidenceMergeTests
     {
+        /// <summary>
+        /// The submission the fixtures' snippets are quoted from. Merging resolves each snippet to
+        /// a character range in this text, so the snippets have to actually occur in it.
+        /// </summary>
+        private const string Translation =
+            "晒斑表明着人们曾处在阳光之下。被破坏的RNA会释放一种被晒伤的信号。带有某些免疫疾病的人会体会到灼烧感。";
+
         private static GradeSubmissionCommandHandler.Finding Finding(
             string id,
-            string userSnippet = "晒斑",
+            string userSnippet = "晒斑表明着",
             string dimension = "meaning_transfer",
             string category = "distortion",
-            bool q1 = false,
             bool q2 = false,
             bool q3 = false,
-            bool scope = false,
             string explanation = "说明") => new()
             {
                 Id = id,
@@ -35,34 +40,23 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
                 UserTextSnippet = userSnippet,
                 ErrorCategory = category,
                 DimensionKey = dimension,
-                Q1 = q1,
                 Q2 = q2,
                 Q3 = q3,
-                ScopeBeyondSentence = scope,
                 Summary = "摘要",
                 Explanation = explanation,
                 Suggestion = "建议",
             };
 
         [Theory]
-        // q1 alone is NAATI's Minor error: propositional content moved, intent and comprehension
-        // intact. This is the exact case v2 kept mislabelling as minor.
-        [InlineData(true, false, false, false, ErrorSeverity.moderate)]
-        [InlineData(false, false, false, false, ErrorSeverity.minor)]
-        // Either q2 or q3 makes it officially Major.
-        [InlineData(true, true, false, false, ErrorSeverity.major)]
-        [InlineData(true, false, true, false, ErrorSeverity.major)]
-        [InlineData(false, false, true, false, ErrorSeverity.major)]
-        // critical needs both halves of the official Major test AND reach past the sentence.
-        [InlineData(true, true, true, true, ErrorSeverity.critical)]
-        [InlineData(true, true, true, false, ErrorSeverity.major)]
-        // Scope alone never promotes an officially-Minor error.
-        [InlineData(true, false, false, true, ErrorSeverity.moderate)]
-        public void Severity_comes_from_the_three_official_answers(
-            bool q1, bool q2, bool q3, bool scope, ErrorSeverity expected)
+        // NAATI's own definition, and the whole of it: Major iff it affects intent or
+        // purpose/function (q2), and/or impacts comprehension (q3). Nothing else moves the level.
+        [InlineData(false, false, ErrorSeverity.minor)]
+        [InlineData(false, true, ErrorSeverity.major)]
+        [InlineData(true, false, ErrorSeverity.major)]
+        [InlineData(true, true, ErrorSeverity.major)]
+        public void Severity_is_the_official_two_level_test(bool q2, bool q3, ErrorSeverity expected)
         {
-            var severity = GradeSubmissionCommandHandler.DeriveSeverity(
-                Finding("E1", q1: q1, q2: q2, q3: q3, scope: scope));
+            var severity = GradeSubmissionCommandHandler.DeriveSeverity(Finding("E1", q2: q2, q3: q3));
 
             Assert.Equal(expected, severity);
         }
@@ -74,15 +68,15 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             // readily: the first v3 run scored "還尚 is redundant, it affects fluency" as major.
             // The prompt requires the claim to be paid for by naming what the reader ends up
             // believing; this applies the prompt's own fallback when it is not.
-            var unpaid = Finding("E1", q1: true, q3: true);
-            var paid = Finding("E2", userSnippet: "被晒伤的信号", q1: true, q3: true);
+            var unpaid = Finding("E1", q3: true);
+            var paid = Finding("E2", userSnippet: "被晒伤的信号", q3: true);
             paid.Q3WrongReading = "读者会以为信号本身被晒伤了";
 
             var findings = new List<GradeSubmissionCommandHandler.Finding> { unpaid, paid };
             GradeSubmissionCommandHandler.NormaliseComprehensionClaims(findings);
 
             Assert.False(unpaid.Q3);
-            Assert.Equal(ErrorSeverity.moderate, GradeSubmissionCommandHandler.DeriveSeverity(unpaid));
+            Assert.Equal(ErrorSeverity.minor, GradeSubmissionCommandHandler.DeriveSeverity(unpaid));
             Assert.True(paid.Q3);
             Assert.Equal(ErrorSeverity.major, GradeSubmissionCommandHandler.DeriveSeverity(paid));
         }
@@ -92,11 +86,10 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
         {
             // Only the unsubstantiated q3 is withdrawn — an error that genuinely changed the
             // intent stays Major on q2 alone, with or without a named wrong reading.
-            var finding = Finding("E1", q1: true, q2: true, q3: true);
+            var finding = Finding("E1", q2: true, q3: true);
 
             GradeSubmissionCommandHandler.NormaliseComprehensionClaims([finding]);
 
-            Assert.True(finding.Q1);
             Assert.True(finding.Q2);
             Assert.False(finding.Q3);
             Assert.Equal(ErrorSeverity.major, GradeSubmissionCommandHandler.DeriveSeverity(finding));
@@ -107,9 +100,10 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
         {
             var merged = GradeSubmissionCommandHandler.MergeCollectedFindings(
             [
-                Finding("E1", q1: true),
-                Finding("S1", q1: true),
-            ]);
+                Finding("E1"),
+                Finding("S1"),
+            ],
+                Translation);
 
             Assert.Single(merged);
             Assert.Equal("F1", merged[0].Id);
@@ -121,15 +115,20 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             // The evidence pass called it a wording slip; the sweep pass, working from the
             // easy-to-miss checklist, saw that it reverses the mechanism. The harsher answer has
             // to survive, or the extra pass is worse than useless.
+            var strict = Finding("S1", q3: true, explanation: "更长的说明：主客关系颠倒，读者会读错。");
+            strict.Q3WrongReading = "读者会以为信号本身被晒伤了";
+
             var merged = GradeSubmissionCommandHandler.MergeCollectedFindings(
             [
-                Finding("E1", q1: true),
-                Finding("S1", q1: true, q3: true, explanation: "更长的说明：主客关系颠倒，读者需要回读。"),
-            ]);
+                Finding("E1"),
+                strict,
+            ],
+                Translation);
 
             var only = Assert.Single(merged);
             Assert.Equal(ErrorSeverity.major, GradeSubmissionCommandHandler.DeriveSeverity(only));
             Assert.Contains("主客关系颠倒", only.Explanation);
+            Assert.Equal("读者会以为信号本身被晒伤了", only.Q3WrongReading);
         }
 
         [Fact]
@@ -141,9 +140,10 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             // exactly how it came out at Band 1 with "no evidence".
             var merged = GradeSubmissionCommandHandler.MergeCollectedFindings(
             [
-                Finding("E1", dimension: "meaning_transfer", category: "distortion", q1: true, q3: true),
-                Finding("P1", dimension: "textual_norms", category: "inappropriate_register", q1: true),
-            ]);
+                Finding("E1", dimension: "meaning_transfer", category: "distortion", q3: true),
+                Finding("P1", dimension: "textual_norms", category: "inappropriate_register"),
+            ],
+                Translation);
 
             Assert.Equal(2, merged.Count);
             Assert.Equal(["F1", "F2"], merged.Select(f => f.Id));
@@ -154,9 +154,10 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
         {
             var merged = GradeSubmissionCommandHandler.MergeCollectedFindings(
             [
-                Finding("E1", userSnippet: "晒斑"),
-                Finding("E2", userSnippet: "表明着"),
-            ]);
+                Finding("E1", userSnippet: "晒斑表明着"),
+                Finding("E2", userSnippet: "带有某些免疫疾病的人"),
+            ],
+                Translation);
 
             Assert.Equal(2, merged.Count);
         }
@@ -168,9 +169,67 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             [
                 Finding("E1", userSnippet: "带有某些免疫疾病的人"),
                 Finding("P1", userSnippet: "「带有某些免疫疾病的人」，"),
-            ]);
+            ],
+                Translation);
 
             Assert.Single(merged);
+        }
+
+        [Fact]
+        public void Two_stages_quoting_the_same_place_at_different_lengths_still_merge()
+        {
+            // The real shape of a duplicate: one stage takes the clause, another the whole
+            // sentence. Matching on snippet equality misses this and leaves both in — which now
+            // matters twice over, because the verdict stage is handed counted coverage figures
+            // and a duplicate inflates them.
+            var clause = Finding("E1", userSnippet: "释放一种被晒伤的信号");
+            var sentence = Finding("S1", userSnippet: "被破坏的RNA会释放一种被晒伤的信号");
+
+            var merged = GradeSubmissionCommandHandler.MergeCollectedFindings([clause, sentence], Translation);
+
+            Assert.Single(merged);
+        }
+
+        [Fact]
+        public void Neighbouring_but_non_overlapping_spans_are_left_alone()
+        {
+            var first = Finding("E1", userSnippet: "晒斑表明着");
+            var second = Finding("E2", userSnippet: "带有某些免疫疾病的人");
+
+            var merged = GradeSubmissionCommandHandler.MergeCollectedFindings([first, second], Translation);
+
+            Assert.Equal(2, merged.Count);
+        }
+
+        [Fact]
+        public void The_wrong_reading_travels_with_the_comprehension_claim()
+        {
+            // The lenient stage is seen first, so without carrying this the merged finding would
+            // claim q3 with nothing behind it — and NormaliseComprehensionClaims would then
+            // rightly demote it, silently discarding the stricter stage's judgement.
+            var lenient = Finding("E1", userSnippet: "释放一种被晒伤的信号");
+            var strict = Finding("S1", userSnippet: "释放一种被晒伤的信号", q3: true);
+            strict.Q3WrongReading = "读者会以为信号本身被晒伤了";
+
+            var merged = GradeSubmissionCommandHandler.MergeCollectedFindings([lenient, strict], Translation);
+
+            var only = Assert.Single(merged);
+            Assert.True(only.Q3);
+            Assert.Equal("读者会以为信号本身被晒伤了", only.Q3WrongReading);
+            Assert.Equal(ErrorSeverity.major, GradeSubmissionCommandHandler.DeriveSeverity(only));
+        }
+
+        [Fact]
+        public void A_merged_comprehension_claim_nobody_substantiated_is_still_demoted()
+        {
+            var first = Finding("E1", userSnippet: "释放一种被晒伤的信号", q3: true);
+            var second = Finding("S1", userSnippet: "释放一种被晒伤的信号", q3: true);
+
+            var merged = GradeSubmissionCommandHandler.MergeCollectedFindings([first, second], Translation);
+
+            var only = Assert.Single(merged);
+            Assert.False(only.Q3);
+            Assert.Equal(ErrorSeverity.minor, GradeSubmissionCommandHandler.DeriveSeverity(only));
         }
 
         [Fact]
@@ -182,7 +241,8 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             [
                 Finding("E1", userSnippet: ""),
                 Finding("E2", userSnippet: ""),
-            ]);
+            ],
+                Translation);
 
             Assert.Equal(2, merged.Count);
         }
@@ -194,7 +254,7 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             var monolingual = Finding("P1");
             monolingual.SourceTextSnippet = null;
 
-            var merged = GradeSubmissionCommandHandler.MergeCollectedFindings([monolingual, Finding("S1")]);
+            var merged = GradeSubmissionCommandHandler.MergeCollectedFindings([monolingual, Finding("S1")], Translation);
 
             Assert.Equal("Sunburn", Assert.Single(merged).SourceTextSnippet);
         }

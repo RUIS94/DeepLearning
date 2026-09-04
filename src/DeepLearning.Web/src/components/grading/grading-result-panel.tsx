@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, AlertTriangle, CheckCircle2, Flame } from "lucide-react";
+import { AlertCircle, CheckCircle2, Flame } from "lucide-react";
 import type { SubmissionDetail } from "@/lib/types/dtos";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,9 +10,7 @@ import { cn } from "@/lib/utils";
 
 const SEVERITY_BADGE: Record<number, string> = {
   [ErrorSeverity.minor]: "border-border text-muted-foreground",
-  [ErrorSeverity.moderate]: "border-warning/40 text-warning-foreground",
   [ErrorSeverity.major]: "border-destructive/40 text-destructive",
-  [ErrorSeverity.critical]: "border-destructive bg-destructive/10 text-destructive",
 };
 
 const CONFIDENCE_LABEL: Record<string, string> = {
@@ -141,7 +139,7 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
                   variant="outline"
                   className={cn(
                     "font-medium",
-                    SEVERITY_BADGE[e.severity] ?? SEVERITY_BADGE[ErrorSeverity.moderate],
+                    SEVERITY_BADGE[e.severity] ?? SEVERITY_BADGE[ErrorSeverity.minor],
                   )}
                 >
                   {ErrorSeverityLabel[e.severity] ?? e.severity}
@@ -155,21 +153,12 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
                 </Badge>
                 {(() => {
                   const impact = errorImpactLabel(e.severity);
-                  const Icon =
-                    impact.tone === "danger"
-                      ? AlertCircle
-                      : impact.tone === "warning"
-                        ? AlertTriangle
-                        : CheckCircle2;
+                  const Icon = impact.tone === "danger" ? AlertCircle : CheckCircle2;
                   return (
                     <span
                       className={cn(
                         "inline-flex items-center gap-1 text-xs",
-                        impact.tone === "danger"
-                          ? "text-destructive"
-                          : impact.tone === "warning"
-                            ? "text-warning-foreground"
-                            : "text-muted-foreground",
+                        impact.tone === "danger" ? "text-destructive" : "text-muted-foreground",
                       )}
                     >
                       <Icon className="size-3.5" />

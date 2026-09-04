@@ -5,7 +5,7 @@ using DeepLearning.Infrastructure.Persistence.Sql;
 namespace DeepLearning.UnitTests.Infrastructure.Ai
 {
     /// <summary>
-    /// Renders the REAL grading template shipped in rebuild_grading_prompt_v5_field_confusion.sql
+    /// Renders the REAL grading template shipped in rebuild_grading_prompt_v10_official_two_levels.sql
     /// (read out of the embedded SQL script, so a hand edit to that file is covered) through the
     /// same PromptRenderer.Render call GradeSubmissionCommandHandler uses.
     ///
@@ -21,7 +21,7 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
         {
             var script = new EmbeddedSqlScriptSource()
                 .GetScripts()
-                .Single(s => s.Name == "rebuild_grading_prompt_v5_field_confusion.sql")
+                .Single(s => s.Name == "rebuild_grading_prompt_v10_official_two_levels.sql")
                 .Content;
 
             var match = Regex.Match(script, @"\$tpl\$(?<body>.*)\$tpl\$", RegexOptions.Singleline);
@@ -47,6 +47,8 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
                 new { Index = 3, CheckpointText = "炎症反应本身是正常保护机制", Importance = "medium" },
             },
             SeededErrors = Array.Empty<object>(),
+            SourceSentences = new[] { new { N = 1, Text = SourceSentence } },
+            CoverageNote = stage == "verdict" ? "- 原文共 1 句、约 9 词;其中 1 句被证据点到(约 100%)。" : null,
             Dimensions = new[]
             {
                 new
@@ -83,6 +85,7 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
                         ErrorCategory = "distortion",
                         DimensionKey = "meaning_transfer",
                         Severity = "major",
+                        Q3WrongReading = "读者会以为信号本身被晒伤了",
                         Summary = "核心术语方向性错误",
                         Explanation = "sunburn 指晒伤，译文用了晒斑。",
                         Suggestion = "改为「晒伤」。",
@@ -104,7 +107,11 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
 
             Assert.Contains("证据采集员", rendered);
             Assert.Contains("Major error: An error which causes inaccuracies", rendered);
-            Assert.Contains("强制逐句枚举", rendered);
+            // The source is split and numbered by SplitSentences, not by the model — otherwise a
+            // model that stopped early could emit fewer rows and still look complete.
+            Assert.Contains("强制逐句核对", rendered);
+            Assert.Contains("你【不需要也不要】自己切句", rendered);
+            Assert.Contains($"[1] {SourceSentence}", rendered);
             Assert.Contains("\"sentences\"", rendered);
             Assert.Contains("- distortion(Distortion):An element of meaning is altered.", rendered);
 
@@ -116,15 +123,34 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
 
             // The model must ask for booleans, never for a level name — that collision is what
             // let the audit stage write "minor" while its own reasoning said otherwise.
-            Assert.Contains("\"q1\"", rendered);
-            Assert.Contains("\"scopeBeyondSentence\"", rendered);
-            Assert.DoesNotContain("minor|moderate|major|critical", rendered);
+            Assert.Contains("\"q2\"", rendered);
+            Assert.Contains("\"q3\"", rendered);
+            // Two questions, two levels — the invented middle grades are gone entirely.
+            Assert.DoesNotContain("moderate", rendered);
+            Assert.DoesNotContain("critical", rendered);
+            Assert.DoesNotContain("scopeBeyondSentence", rendered);
 
             // q3 has to be paid for: naming the wrong reading is the difference between a
             // comprehension failure and prose that is merely clumsy. Without this the first v3
             // run answered q3 = true for almost everything and came back 38 major / 8 minor.
             Assert.Contains("\"q3WrongReading\"", rendered);
-            Assert.Contains("写不出具体的错误理解", rendered);
+
+            // q3 must ask about the RESULT only. When it listed the same content categories as
+            // q1 (指称对象 / 逻辑关系 / 范围 …), every precision loss read as a comprehension
+            // failure and a dropped article came back as a major error.
+            Assert.Contains("精度受损不等于理解出错", rendered);
+            Assert.Contains("官方 Major", rendered);
+
+            // …and that severity guidance must not be read as recording guidance. Saying "most
+            // findings are not severe" once halved recall: the stage marked 10 of 13 sentences ok
+            // and reported two findings.
+            Assert.Contains("两问只决定这一处是 Major 还是 Minor,不决定记不记", rendered);
+            Assert.Contains("同样必须原样记进 findings[]", rendered);
+
+            // "ok" is a strong claim, not the default.
+            Assert.Contains("这是一个很强的声明", rendered);
+            Assert.Contains("拿不准就填 deviation", rendered);
+            Assert.DoesNotContain("拿不到,或拿到的是错的——指称对象", rendered);
 
             Assert.DoesNotContain("Band 1: Translates the intent", rendered);
             Assert.DoesNotContain("定档评卷员", rendered);
@@ -145,6 +171,8 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
                 SubmissionContent = Translation,
                 MeaningCheckpoints = Array.Empty<object>(),
                 SeededErrors = Array.Empty<object>(),
+                SourceSentences = new[] { new { N = 1, Text = SourceSentence } },
+                CoverageNote = (string?)null,
                 Dimensions = Array.Empty<object>(),
                 ErrorTaxonomies = Array.Empty<object>(),
                 WeakPoints = Array.Empty<object>(),
@@ -192,6 +220,11 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
             // v5 warning that errorCategory and dimensionKey draw on disjoint lists — hence two
             // mentions, both prohibitions, and never as an offered value.)
             Assert.Contains("不要往 meaning_transfer 上挂", rendered);
+
+            // Completeness needs the source and is out of scope; an ambiguous modifier does not
+            // and is exactly what this pass is for.
+            Assert.Contains("完整性判断一律不属于你", rendered);
+            Assert.Contains("指代不清、修饰关系含混", rendered);
             Assert.Equal(2, Regex.Matches(rendered, "meaning_transfer").Count);
         }
 
@@ -200,9 +233,36 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
         {
             var rendered = new PromptRenderer().Render(GradingTemplate(), Model("sweep"));
 
-            Assert.Contains("复筛员", rendered);
+            Assert.Contains("专项排查员", rendered);
             Assert.Contains("易漏检核清单", rendered);
             Assert.Contains("主客关系与被动", rendered);
+
+            // The list is a way of looking, not a word list to match — and the stage is not told
+            // about colleagues it cannot see and cannot act on.
+            Assert.Contains("不是穷举清单", rendered);
+            Assert.Contains("清单没写到的同类问题,同样要记", rendered);
+            Assert.DoesNotContain("另有评卷员", rendered);
+            Assert.DoesNotContain("复筛员", rendered);
+
+            // The checklist must teach a method, not recite one article's answers. Quoting the
+            // text it was tuned on would score well on that text and generalise to nothing —
+            // and would destroy the only instrument for telling whether a change helped.
+            //
+            // Scoped to the checklist section: the same words legitimately appear further down,
+            // where the article actually under grading is quoted.
+            var checklistStart = rendered.IndexOf("三、易漏检核清单", StringComparison.Ordinal);
+            var checklistEnd = rendered.IndexOf("待筛材料", StringComparison.Ordinal);
+            Assert.True(checklistStart >= 0 && checklistEnd > checklistStart);
+            var checklist = rendered[checklistStart..checklistEnd];
+
+            foreach (var leaked in new[]
+                     {
+                         "released as a signal", "marker for injury", "radiation",
+                         "sunburn", "psoriasis", "micro-RNA", "晒伤", "晒斑",
+                     })
+            {
+                Assert.DoesNotContain(leaked, checklist, StringComparison.OrdinalIgnoreCase);
+            }
             Assert.Contains("保留性语气词(已多次复发):倾向把不确定表述译得过于肯定", rendered);
             Assert.Contains("[dimension / meaning_transfer] 标题误译按 major 处理", rendered);
 
@@ -229,6 +289,16 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
             // Empty evidence must not read as a perfect performance — that is how textual_norms
             // came out at Band 1 with the rationale "没有证据显示文本规范方面的问题".
             Assert.Contains("证据为空 ≠ 表现完美", rendered);
+
+            // "Taken together" now judges against counted facts rather than an impression of how
+            // long the text felt — the step that waved off five errors in a 250-word text.
+            // The evidence line carries the reader's mistaken reading, so 2a can check the claim
+            // instead of trusting a severity label derived somewhere it cannot see.
+            Assert.Contains("读者会误以为:读者会以为信号本身被晒伤了", rendered);
+
+            Assert.Contains("【篇幅与证据分布】", rendered);
+            Assert.Contains("其中 1 句被证据点到", rendered);
+            Assert.Contains("不要凭印象估", rendered);
             Assert.Contains("最高只能判 Band 2", rendered);
 
             // The source and translation stay, so proportion words like "mostly" can be judged —

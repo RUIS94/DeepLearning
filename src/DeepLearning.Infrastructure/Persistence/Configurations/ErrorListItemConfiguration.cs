@@ -14,7 +14,7 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
             builder.Property(x => x.PositionRef).HasMaxLength(100);
-            builder.Property(x => x.Severity).HasDefaultValue(ErrorSeverity.moderate);
+            builder.Property(x => x.Severity).HasDefaultValue(ErrorSeverity.minor);
             builder.Property(x => x.Summary).HasMaxLength(60);
             builder.Property(x => x.ImpactsCore).HasDefaultValue(false);
             builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");

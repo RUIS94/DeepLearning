@@ -12,8 +12,8 @@ namespace DeepLearning.Domain.Entities
         public Guid ErrorTaxonomyId { get; set; }
         public Guid DimensionId { get; set; }
 
-        /// <summary>Per-error gravity from the grader. Drives the severity badge and the 累积密度 roll-up.</summary>
-        public ErrorSeverity Severity { get; set; } = ErrorSeverity.moderate;
+        /// <summary>NAATI's Major/Minor for this one error. Drives the severity badge and the 累积密度 roll-up.</summary>
+        public ErrorSeverity Severity { get; set; } = ErrorSeverity.minor;
 
         /// <summary>
         /// Short summarising label the grader writes per error — a terse characterisation such as
