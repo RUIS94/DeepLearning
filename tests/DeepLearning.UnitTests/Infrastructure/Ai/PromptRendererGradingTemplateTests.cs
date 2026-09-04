@@ -5,7 +5,7 @@ using DeepLearning.Infrastructure.Persistence.Sql;
 namespace DeepLearning.UnitTests.Infrastructure.Ai
 {
     /// <summary>
-    /// Renders the REAL grading template shipped in rebuild_grading_prompt_v10_official_two_levels.sql
+    /// Renders the REAL grading template shipped in freeze_grading_prompt_v1_production.sql
     /// (read out of the embedded SQL script, so a hand edit to that file is covered) through the
     /// same PromptRenderer.Render call GradeSubmissionCommandHandler uses.
     ///
@@ -21,7 +21,7 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
         {
             var script = new EmbeddedSqlScriptSource()
                 .GetScripts()
-                .Single(s => s.Name == "rebuild_grading_prompt_v10_official_two_levels.sql")
+                .Single(s => s.Name == "freeze_grading_prompt_v1_production.sql")
                 .Content;
 
             var match = Regex.Match(script, @"\$tpl\$(?<body>.*)\$tpl\$", RegexOptions.Singleline);
