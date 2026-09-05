@@ -69,6 +69,14 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
             return query.ToListAsync(cancellationToken);
         }
 
+        public Task<List<WeakPoint>> ListCatalogMappedWithCatalogByUserAsync(
+            Guid userId, CancellationToken cancellationToken = default)
+            => _context.WeakPoints
+                .Where(x => x.UserId == userId && x.CatalogId != null)
+                .Include(x => x.Catalog)
+                .OrderByDescending(x => x.LastSeenAt)
+                .ToListAsync(cancellationToken);
+
         public Task<bool> OccurrenceExistsAsync(Guid weakPointId, Guid submissionId, CancellationToken cancellationToken = default)
             => _context.WeakPointOccurrences
                 .AnyAsync(x => x.WeakPointId == weakPointId && x.SubmissionId == submissionId, cancellationToken);

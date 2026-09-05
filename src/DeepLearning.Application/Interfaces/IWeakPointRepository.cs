@@ -33,10 +33,18 @@ namespace DeepLearning.Application.Interfaces
         /// <summary>
         /// Active weak points for a user with <see cref="WeakPoint.Catalog"/> eager-loaded,
         /// ordered high-priority first then most-recently-seen. <paramref name="limit"/> caps the
-        /// result (grading prompt passes <see cref="Persistence.Repositories.WeakPointRepository.GradingPromptLimit"/>;
-        /// the classifier pass passes null to get the full active set for summary merging).
+        /// result (grading prompt passes <see cref="Persistence.Repositories.WeakPointRepository.GradingPromptLimit"/>).
         /// </summary>
         Task<List<WeakPoint>> ListActiveWithCatalogByUserAsync(Guid userId, int? limit = null, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Every catalog-mapped weak point for a user in ANY status (tracking / active / resolved),
+        /// with <see cref="WeakPoint.Catalog"/> eager-loaded. The classifier's summary-merge step
+        /// needs all of them, not just <c>active</c>: per 薄弱点分类与生命周期管理_策划书.md §2 the
+        /// pattern summary starts accumulating at the first hit (tracking), so a tracking- or
+        /// resolved-status row hit again already has a summary to merge rather than overwrite.
+        /// </summary>
+        Task<List<WeakPoint>> ListCatalogMappedWithCatalogByUserAsync(Guid userId, CancellationToken cancellationToken = default);
 
         /// <summary>True if an occurrence already exists for this (weak point, submission) — re-grade / concurrent-event guard.</summary>
         Task<bool> OccurrenceExistsAsync(Guid weakPointId, Guid submissionId, CancellationToken cancellationToken = default);

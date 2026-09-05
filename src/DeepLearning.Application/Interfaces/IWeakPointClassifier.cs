@@ -13,19 +13,24 @@ namespace DeepLearning.Application.Interfaces
         ErrorSeverity Severity);
 
     /// <summary>
-    /// One of the learner's currently-active weak points, passed in so the classifier can merge
-    /// its <see cref="PatternSummary"/> with this submission's new evidence instead of writing a
-    /// summary from scratch. Catalog-mapped rows only (legacy buckets get a deterministic string,
-    /// no AI).
+    /// One of the learner's existing catalog-mapped weak points in ANY status
+    /// (tracking / active / resolved), passed in so the classifier can merge its
+    /// <see cref="PatternSummary"/> with this submission's new evidence instead of writing a summary
+    /// from scratch. Not filtered to <c>active</c>: per 薄弱点分类与生命周期管理_策划书.md §2 the
+    /// summary starts accumulating at the first hit (tracking, count=1), so a tracking- or
+    /// resolved-status row that is hit again still has a prior summary that must be merged, not
+    /// overwritten. Catalog-mapped rows only (legacy buckets get a deterministic string, no AI).
     /// </summary>
-    public record ActiveWeakPointSummary(string CatalogCode, string? PatternSummary);
+    public record ExistingWeakPointSummary(string CatalogCode, string? PatternSummary);
 
     /// <summary>
     /// A leaf the classifier judged doesn't fit any existing <see cref="WeakPointCatalog"/> code —
     /// created as a <see cref="WeakPointCatalogStatus.proposed"/> row under the named top-level
     /// category, pending admin review. The error(s) that triggered it stay uncatalogued
     /// (<see cref="WeakPointClassificationResult.ErrorToCatalogId"/> has no entry for them) this
-    /// round — a not-yet-approved proposal is never used to place an error.
+    /// round — a not-yet-approved proposal is never used to place an error, and proposed rows are
+    /// shown to the classifier as a reference-only list (so it doesn't re-propose the same pattern)
+    /// but are excluded from the selectable <c>catalogCode</c> set (策划书 §1.4).
     /// </summary>
     public record ProposedCatalogLeaf(string CategoryCode, string Code, string Name, string Description);
 
@@ -67,7 +72,7 @@ namespace DeepLearning.Application.Interfaces
             Guid examTypeId,
             IReadOnlyList<WeakPointClassifierError> errors,
             IReadOnlyList<WeakPointCatalog> catalog,
-            IReadOnlyList<ActiveWeakPointSummary> activeWeakPoints,
+            IReadOnlyList<ExistingWeakPointSummary> existingWeakPoints,
             CancellationToken cancellationToken = default);
     }
 }

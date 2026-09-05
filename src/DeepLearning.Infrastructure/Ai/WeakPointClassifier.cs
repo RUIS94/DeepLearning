@@ -36,7 +36,7 @@ namespace DeepLearning.Infrastructure.Ai
             Guid examTypeId,
             IReadOnlyList<WeakPointClassifierError> errors,
             IReadOnlyList<WeakPointCatalog> catalog,
-            IReadOnlyList<ActiveWeakPointSummary> activeWeakPoints,
+            IReadOnlyList<ExistingWeakPointSummary> existingWeakPoints,
             CancellationToken cancellationToken = default)
         {
             if (errors.Count == 0 || catalog.Count == 0)
@@ -59,11 +59,12 @@ namespace DeepLearning.Infrastructure.Ai
                         Explanation = e.Explanation,
                     }),
                     // Grouped by top-level category for the AI's benefit — 薄弱点分类与生命周期
-                    // 管理_策划书.md §1's two-level taxonomy. Leaves without a category yet (a
-                    // proposal awaiting admin triage) are listed separately so they still
-                    // participate in matching without implying a category they don't have.
+                    // 管理_策划书.md §1's two-level taxonomy. Only `active` leaves are selectable
+                    // classification targets; a `proposed` row (§1.4) is listed separately, for
+                    // reference only, so the AI doesn't re-propose the same not-yet-reviewed
+                    // pattern — it must never be used as a catalogCode.
                     Categories = catalog
-                        .Where(c => c.Category is not null)
+                        .Where(c => c.Status == WeakPointCatalogStatus.active && c.Category is not null)
                         .GroupBy(c => c.Category!.Code)
                         .Select(g => new
                         {
@@ -71,10 +72,22 @@ namespace DeepLearning.Infrastructure.Ai
                             CategoryName = g.First().Category!.Name,
                             Leaves = g.Select(c => new { Code = c.Code, Name = c.Name, Description = c.Description }),
                         }),
-                    UncategorizedLeaves = catalog
-                        .Where(c => c.Category is null)
+                    // Reviewed (`active`) leaves an admin left without a top-level category — still
+                    // valid targets, just can't be shown under a category heading.
+                    UncategorizedActiveLeaves = catalog
+                        .Where(c => c.Status == WeakPointCatalogStatus.active && c.Category is null)
                         .Select(c => new { Code = c.Code, Name = c.Name, Description = c.Description }),
-                    ActiveWeakPoints = activeWeakPoints.Select(w => new
+                    // Display-only: awaiting admin review, NOT selectable as catalogCode (§1.4).
+                    PendingProposedLeaves = catalog
+                        .Where(c => c.Status == WeakPointCatalogStatus.proposed)
+                        .Select(c => new
+                        {
+                            Code = c.Code,
+                            Name = c.Name,
+                            Description = c.Description,
+                            CategoryCode = c.Category?.Code ?? string.Empty,
+                        }),
+                    ExistingWeakPoints = existingWeakPoints.Select(w => new
                     {
                         Code = w.CatalogCode,
                         PatternSummary = w.PatternSummary ?? string.Empty,
@@ -137,10 +150,13 @@ namespace DeepLearning.Infrastructure.Ai
                     temperature: 0m,
                     cancellationToken: cancellationToken);
 
-                var idByCode = catalog
+                // Only `active` leaves are assignable / summarisable targets — a `proposed` code
+                // the model echoed back despite the prompt is dropped here (§1.4).
+                var activeCatalog = catalog.Where(c => c.Status == WeakPointCatalogStatus.active).ToList();
+                var idByCode = activeCatalog
                     .GroupBy(c => c.Code, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
-                var codeByCode = catalog
+                var codeByCode = activeCatalog
                     .GroupBy(c => c.Code, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(g => g.Key, g => g.First().Code, StringComparer.OrdinalIgnoreCase);
                 var validErrorIds = errors.Select(e => e.ErrorListId).ToHashSet();
@@ -149,7 +165,11 @@ namespace DeepLearning.Infrastructure.Ai
                     .Where(c => c.Category is not null)
                     .Select(c => c.Category!.Code)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                var existingCatalogCodes = idByCode.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                // Guard against re-proposing a code that already exists in ANY non-deprecated
+                // status — including a `proposed` row still awaiting review.
+                var existingCatalogCodes = catalog
+                    .Select(c => c.Code)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                 var errorToCatalog = new Dictionary<Guid, Guid>();
                 var proposedLeaves = new List<ProposedCatalogLeaf>();

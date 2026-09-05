@@ -88,7 +88,7 @@ namespace DeepLearning.UnitTests.Integration
                 Guid examTypeId,
                 IReadOnlyList<WeakPointClassifierError> errors,
                 IReadOnlyList<WeakPointCatalog> catalog,
-                IReadOnlyList<ActiveWeakPointSummary> activeWeakPoints,
+                IReadOnlyList<ExistingWeakPointSummary> existingWeakPoints,
                 CancellationToken cancellationToken = default)
                 => Task.FromResult(WeakPointClassificationResult.Empty);
         }

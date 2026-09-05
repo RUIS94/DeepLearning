@@ -117,13 +117,15 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
                 .GroupBy(r => r.DimensionId)
                 .ToDictionary(g => g.Key, g => g.First().Band);
 
-            // The user's full active set (not the grading-prompt top-K) — the classifier needs
-            // every catalog-mapped summary so it can merge rather than rewrite.
-            var activeWeakPoints = await _weakPointRepository.ListActiveWithCatalogByUserAsync(
-                gradedEvent.UserId, limit: null, cancellationToken);
-            var activeSummaries = activeWeakPoints
+            // Every catalog-mapped weak point in any status (tracking / active / resolved), not
+            // just the grading-prompt top-K — the classifier needs every existing summary so it can
+            // merge rather than rewrite. A tracking- or resolved-status row hit again this round
+            // already carries a summary (策划书 §2: accrual starts at the first hit).
+            var existingWeakPoints = await _weakPointRepository.ListCatalogMappedWithCatalogByUserAsync(
+                gradedEvent.UserId, cancellationToken);
+            var existingSummaries = existingWeakPoints
                 .Where(w => w.Catalog is not null)
-                .Select(w => new ActiveWeakPointSummary(w.Catalog!.Code, w.PatternSummary))
+                .Select(w => new ExistingWeakPointSummary(w.Catalog!.Code, w.PatternSummary))
                 .ToList();
 
             var classifierErrors = errors.Select(e => new WeakPointClassifierError(
@@ -134,7 +136,7 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
                 e.Explanation,
                 e.Severity)).ToList();
             var classification = await _weakPointClassifier.ClassifyAsync(
-                gradedEvent.ExamTypeId, classifierErrors, catalog, activeSummaries, cancellationToken);
+                gradedEvent.ExamTypeId, classifierErrors, catalog, existingSummaries, cancellationToken);
 
             await CreateProposedLeavesAsync(classification.ProposedLeaves, cancellationToken);
 

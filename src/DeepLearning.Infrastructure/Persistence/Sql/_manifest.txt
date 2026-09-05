@@ -92,3 +92,9 @@ upgrade_weak_point_classification_prompt_v3_two_level_taxonomy.sql
 add_weak_point_detection_criteria_prompt_template.sql
 add_weak_point_recheck_prompt_template.sql
 fix_weak_point_prompts_exam_specific.sql
+
+# --- 2026-09-06: 薄弱点三提示词整表重置为 v1 + exam_specific(proposed 叶子仅参考、
+#     摘要合并覆盖任意状态、criteria 自包含、复核更强隔离);删除各自的历史版本行 ---
+reset_weak_point_classification_prompt_v1_exam_specific.sql
+reset_weak_point_detection_criteria_prompt_v1_exam_specific.sql
+reset_weak_point_recheck_prompt_v1_exam_specific.sql
