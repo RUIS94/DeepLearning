@@ -115,7 +115,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CreateFollo
                     request.QuestionText, request.ContextRef, submission, question, context, history: []);
                 var prompt = await _examConfigLoader.BuildPromptAsync(request.ExamTypeId, AiOperationType.followup, model, cancellationToken);
 
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.followup, cancellationToken);
                 payload = await AdaptiveCompletionRunner.RunAsync(
                     _aiCallRetryExecutor,
                     llmClient,

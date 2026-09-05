@@ -136,7 +136,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                 // up to aiCallLog.MaxRetries times when the AI's response fails structured-output
                 // validation — distinct from Polly's transport-level retries inside CompleteAsync
                 // itself, which already ran and gave up before this ever throws.
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.question_gen, cancellationToken);
                 (payload, seededErrors) = await AdaptiveCompletionRunner.RunAsync(
                     _aiCallRetryExecutor,
                     llmClient,

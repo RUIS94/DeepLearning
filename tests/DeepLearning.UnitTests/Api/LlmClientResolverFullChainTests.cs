@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
+using DeepLearning.Domain.Enums;
 using DeepLearning.Infrastructure.Ai;
 using DeepLearning.Infrastructure.Ai.Options;
 using DeepLearning.Infrastructure.Persistence;
@@ -133,7 +134,7 @@ namespace DeepLearning.UnitTests.Api
 
             using var scope = customized.Services.CreateScope();
             var resolver = scope.ServiceProvider.GetRequiredService<ILlmClientResolver>();
-            var resolved = await resolver.GetActiveClientAsync();
+            var resolved = await resolver.GetActiveClientAsync(AiOperationType.grading);
 
             var result = await resolved.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "ping", MaxTokens: 16));
 
@@ -164,7 +165,7 @@ namespace DeepLearning.UnitTests.Api
 
             using var scope = customized.Services.CreateScope();
             var resolver = scope.ServiceProvider.GetRequiredService<ILlmClientResolver>();
-            var resolved = await resolver.GetActiveClientAsync();
+            var resolved = await resolver.GetActiveClientAsync(AiOperationType.grading);
 
             var result = await resolved.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "ping", MaxTokens: 16));
 

@@ -1,9 +1,12 @@
 import { createBrowserApiClient } from "./fetcher";
 import type {
   ActivateLlmProviderResult,
+  AiOperationOverrideResultItem,
+  AiOperationType,
   LlmProviderModel,
   LlmProviderSettings,
   SelectLlmProviderModelResult,
+  SetAiOperationOverrideResult,
   UpdateLlmProviderSettingsRequest,
   UpdateLlmProviderSettingsResult,
 } from "@/lib/types/dtos";
@@ -53,4 +56,35 @@ export async function selectLlmProviderModel(
     `/llm-provider-settings/${providerKey}/models/${encodeURIComponent(model)}/select`,
     { method: "POST" },
   );
+}
+
+export async function listAiOperationOverrides(): Promise<AiOperationOverrideResultItem[]> {
+  return api<AiOperationOverrideResultItem[]>("/llm-provider-settings/operation-overrides");
+}
+
+export async function setAiOperationOverride(
+  operationType: AiOperationType,
+  providerKey: string,
+  model?: string | null,
+  thinkingEnabled?: boolean | null,
+  effort?: string | null,
+): Promise<SetAiOperationOverrideResult> {
+  return api<SetAiOperationOverrideResult>(
+    `/llm-provider-settings/operation-overrides/${operationType}`,
+    {
+      method: "PUT",
+      body: {
+        providerKey,
+        model: model ?? null,
+        thinkingEnabled: thinkingEnabled ?? null,
+        effort: effort ?? null,
+      },
+    },
+  );
+}
+
+export async function clearAiOperationOverride(operationType: AiOperationType): Promise<void> {
+  await api<void>(`/llm-provider-settings/operation-overrides/${operationType}`, {
+    method: "DELETE",
+  });
 }

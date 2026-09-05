@@ -58,6 +58,7 @@ namespace DeepLearning.Infrastructure.Persistence
             "prompt_templates",
             "llm_provider_settings",
             "llm_provider_models",
+            "ai_operation_provider_overrides",
             // The two-level weak-point taxonomy (薄弱点分类与生命周期管理_策划书.md §1) — global,
             // not per-exam-type, but still hand-curated/reviewed reference data (proposed leaves
             // get approved/merged through the admin surface) rather than per-learner business data.

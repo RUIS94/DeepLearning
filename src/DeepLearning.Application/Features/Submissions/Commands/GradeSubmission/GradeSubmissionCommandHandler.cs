@@ -414,7 +414,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                         new AiCallLog { AttemptCount = 1, MaxRetries = aiCallLog.MaxRetries }));
                 }
 
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(workToken);
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.grading, workToken);
 
                 // The three collection stages are independent by construction — none of them is
                 // ever shown what the others found, which is the whole reason the union is taken

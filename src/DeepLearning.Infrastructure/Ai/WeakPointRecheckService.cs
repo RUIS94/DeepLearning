@@ -93,7 +93,7 @@ namespace DeepLearning.Infrastructure.Ai
                 // MaxTokens can double up to 8192 on a truncated attempt (AdaptiveCompletionRunner)
                 // rather than staying fixed — see WeakPointClassifier's note on the 2026-09-05
                 // truncation incident this guards against.
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.weak_point_recheck, cancellationToken);
                 var payload = await AdaptiveCompletionRunner.RunAsync(
                     _aiCallRetryExecutor,
                     llmClient,

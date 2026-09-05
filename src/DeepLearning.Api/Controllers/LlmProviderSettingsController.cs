@@ -1,10 +1,14 @@
 using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.LlmProviders.Commands.ActivateLlmProvider;
 using DeepLearning.Application.Features.LlmProviders.Commands.AddLlmProviderModel;
+using DeepLearning.Application.Features.LlmProviders.Commands.ClearAiOperationOverride;
 using DeepLearning.Application.Features.LlmProviders.Commands.SelectLlmProviderModel;
+using DeepLearning.Application.Features.LlmProviders.Commands.SetAiOperationOverride;
 using DeepLearning.Application.Features.LlmProviders.Commands.UpdateLlmProviderSettings;
+using DeepLearning.Application.Features.LlmProviders.Queries.ListAiOperationOverrides;
 using DeepLearning.Application.Features.LlmProviders.Queries.ListLlmProviderModels;
 using DeepLearning.Application.Features.LlmProviders.Queries.ListLlmProviders;
+using DeepLearning.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -72,5 +76,36 @@ namespace DeepLearning.Api.Controllers
         public async Task<ActionResult<SelectLlmProviderModelResult>> SelectModel(
             string providerKey, string model, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(new SelectLlmProviderModelCommand(providerKey, model), cancellationToken));
+
+        /// <summary>
+        /// Per-AiOperationType provider pins (e.g. run grading through Claude while everything
+        /// else follows the globally active provider) — see AiOperationProviderOverride's doc
+        /// comment. Always returns one row per AiOperationType; ProviderKey is null where no
+        /// pin exists.
+        /// </summary>
+        [HttpGet("operation-overrides")]
+        public async Task<ActionResult<List<AiOperationOverrideResultItem>>> ListOperationOverrides(CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new ListAiOperationOverridesQuery(), cancellationToken));
+
+        public record SetAiOperationOverrideRequest(string ProviderKey, string? Model, bool? ThinkingEnabled, string? Effort);
+
+        [HttpPut("operation-overrides/{operationType}")]
+        public async Task<ActionResult<SetAiOperationOverrideResult>> SetOperationOverride(
+            AiOperationType operationType, SetAiOperationOverrideRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _mediator.Send(
+                new SetAiOperationOverrideCommand(
+                    operationType, request.ProviderKey, request.Model, request.ThinkingEnabled, request.Effort),
+                cancellationToken);
+
+            return Ok(result);
+        }
+
+        [HttpDelete("operation-overrides/{operationType}")]
+        public async Task<IActionResult> ClearOperationOverride(AiOperationType operationType, CancellationToken cancellationToken)
+        {
+            await _mediator.Send(new ClearAiOperationOverrideCommand(operationType), cancellationToken);
+            return NoContent();
+        }
     }
 }

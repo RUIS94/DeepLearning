@@ -112,7 +112,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
                     questionText: string.Empty, thread.ContextRef, submission, question, context, history: thread.Messages);
                 var prompt = await _examConfigLoader.BuildPromptAsync(thread.ExamTypeId, AiOperationType.followup_summary, model, cancellationToken);
 
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.followup_summary, cancellationToken);
                 payload = await AdaptiveCompletionRunner.RunAsync(
                     _aiCallRetryExecutor,
                     llmClient,

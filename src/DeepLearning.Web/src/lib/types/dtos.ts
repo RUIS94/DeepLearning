@@ -596,6 +596,43 @@ export interface SelectLlmProviderModelResult {
   isCurrent: boolean;
 }
 
+/** 对应后端 Domain.Enums.AiOperationType——每种会调用 AI 的任务类型，用于按任务绑定 provider。 */
+export type AiOperationType =
+  | "question_gen"
+  | "grading"
+  | "followup"
+  | "standard_revision"
+  | "deep_learning"
+  | "progress_trend"
+  | "followup_summary"
+  | "weak_point_classification"
+  | "weak_point_detection_criteria"
+  | "weak_point_recheck";
+
+/** 对应后端 AiOperationOverrideResultItem——固定 10 行（每个 AiOperationType 一行）。
+ * providerKey 为 null：该任务跟随全局 active provider，未被单独绑定（此时 model/thinkingEnabled/
+ * effort 恒为 null）。providerKey 有值时，model 为 null 表示跟随该 provider 自己的当前模型，
+ * thinkingEnabled 为 null 表示跟随该 provider 自己的 thinking 开关，effort 为 null 表示跟随该
+ * provider 自己的 effort（目前仅 Claude 语义完整支持，其它 provider 的适配器不读这个字段）。 */
+export interface AiOperationOverrideResultItem {
+  operationType: AiOperationType;
+  providerKey: string | null;
+  model: string | null;
+  thinkingEnabled: boolean | null;
+  effort: string | null;
+  updatedAt: string | null;
+}
+
+/** 对应后端 SetAiOperationOverrideResult。 */
+export interface SetAiOperationOverrideResult {
+  operationType: AiOperationType;
+  providerKey: string;
+  model: string | null;
+  thinkingEnabled: boolean | null;
+  effort: string | null;
+  updatedAt: string;
+}
+
 export interface CreateQuestionBankCategoryRequest {
   categoryType: number;
   name: string;

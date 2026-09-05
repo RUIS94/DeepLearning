@@ -120,7 +120,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                 // truncated the JSON mid-vocab-array; 8192 fits the v4 template's capped list
                 // sizes normally, but can now double to 16384 on a truncated attempt
                 // (AdaptiveCompletionRunner) instead of just hoping 8192 is always enough.
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.deep_learning, cancellationToken);
                 payload = await AdaptiveCompletionRunner.RunAsync(
                     _aiCallRetryExecutor,
                     llmClient,

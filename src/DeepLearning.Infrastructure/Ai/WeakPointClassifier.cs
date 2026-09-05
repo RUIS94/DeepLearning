@@ -125,7 +125,7 @@ namespace DeepLearning.Infrastructure.Ai
                 // distinct catalog codes (task two needs a pattern_summary per code touched)
                 // can genuinely need more than 2048 tokens; confirmed truncating for real on
                 // 2026-09-05 (23 errors / 11 codes, cut off mid-JSON at exactly 2048 tokens).
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.weak_point_classification, cancellationToken);
                 var payload = await AdaptiveCompletionRunner.RunAsync(
                     _aiCallRetryExecutor,
                     llmClient,

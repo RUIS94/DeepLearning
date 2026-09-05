@@ -1,4 +1,5 @@
 using DeepLearning.Application.Interfaces;
+using DeepLearning.Domain.Enums;
 using NSubstitute;
 
 namespace DeepLearning.UnitTests.TestInfrastructure
@@ -30,7 +31,7 @@ namespace DeepLearning.UnitTests.TestInfrastructure
         public static ILlmClientResolver Returning(ILlmClient client)
         {
             var resolver = Substitute.For<ILlmClientResolver>();
-            resolver.GetActiveClientAsync(Arg.Any<CancellationToken>()).Returns(client);
+            resolver.GetActiveClientAsync(Arg.Any<AiOperationType>(), Arg.Any<CancellationToken>()).Returns(client);
             return resolver;
         }
     }

@@ -171,7 +171,7 @@ namespace DeepLearning.Application.Features.Progress.Commands.GenerateProgressTr
             TrendPayload payload;
             try
             {
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.progress_trend, cancellationToken);
                 payload = await AdaptiveCompletionRunner.RunAsync(
                     _aiCallRetryExecutor,
                     llmClient,
