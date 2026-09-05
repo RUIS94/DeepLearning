@@ -80,3 +80,6 @@ add_grading_prompt_v2_candidate.sql
 
 # --- 2026-09-05: the v2 candidate promoted to production v1 (must stay last of the grading scripts) ---
 promote_grading_prompt_v2_to_production_v1.sql
+
+# --- 2026-09-05: llm_provider_* 最终状态种子，补齐 EF 迁移建成的全新库（线上是 no-op） ---
+seed_llm_provider_defaults_for_fresh_db.sql

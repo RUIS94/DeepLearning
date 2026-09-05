@@ -363,8 +363,11 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-# Local secrets - contains real Supabase connection string, never commit
-src/DeepLearning.Api/appsettings.Development.json
+# appsettings.Development.json IS committed. It holds only non-secret dev config: the Supabase
+# host/port/database, the public project URL, LLM base URLs and model ids. Every actual secret -
+# the Supabase database Username/Password and all LLM API keys - lives in .NET User Secrets
+# (secrets.json, outside the repo; see 本地开发数据库操作手册.md). A test fails the build if a
+# credential ever reappears in that file, so this is enforced rather than remembered.
 
 # CodeGraph local index (machine-local, has its own nested .gitignore too)
 .codegraph/

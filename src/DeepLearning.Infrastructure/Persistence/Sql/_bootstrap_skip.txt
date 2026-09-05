@@ -1,0 +1,33 @@
+# Scripts that `sql bootstrap` must NOT execute on a brand-new, EF-migrated database.
+#
+# `sql bootstrap` = `dotnet ef database update` (EF owns the schema) followed by every script in
+# _manifest.txt, in manifest order, EXCEPT the ones listed here. Skipped scripts are still recorded
+# in _sql_scripts (note = 'bootstrap-skipped') so a later `sql apply` sees an unbroken history.
+#
+# Deriving the run set as "manifest minus this file" — rather than keeping a second hand-written
+# include list — means a newly appended script is part of a fresh install by default. You only touch
+# this file when a script genuinely cannot run against an EF-migrated schema.
+#
+# Every line must name a script that exists in _manifest.txt (a test enforces this).
+# One filename per line; blank lines and lines starting with '#' are ignored.
+
+# The schema itself. EF Core migrations are the source of truth for structure (see the header of
+# schema.sql); replaying this on top of them fails on the first CREATE TYPE.
+schema.sql
+
+# The llm_provider_models table-creation chain. EF migration 20260829110847_AddLlmProviderModels
+# already creates the table in its final shape, so:
+#   - add_llm_provider_models.sql fails with "relation already exists"
+#   - upgrade_llm_provider_models_schema.sql drops columns that never existed on an EF-built table
+#   - migrate_llm_provider_settings_model_to_catalog.sql reads llm_provider_settings.model, a column
+#     the same EF migration already removed
+# The rows those scripts were moving around are seeded outright by seed_llm_provider_models.sql,
+# which bootstrap does run.
+add_llm_provider_models.sql
+upgrade_llm_provider_models_schema.sql
+migrate_llm_provider_settings_model_to_catalog.sql
+
+# Inserts into llm_provider_settings.model — the column EF migration
+# 20260829110847_AddLlmProviderModels already removed. seed_llm_provider_defaults_for_fresh_db.sql
+# (appended at the manifest tail) seeds the same four providers in their final shape instead.
+seed_llm_provider_settings.sql

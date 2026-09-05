@@ -75,12 +75,25 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 var app = builder.Build();
 
-// One-off CLI: `dotnet run --project src/DeepLearning.Api -- sql <status|baseline|apply>`.
+// Which database this process is actually attached to, first thing in the log. AddInfrastructure has
+// already hard-failed if DB_PROFILE and the connection string disagree (DatabaseTargetResolver); this
+// line is for the case where they agree and you still want to know before you start writing rows.
+var databaseTarget = app.Services.GetRequiredService<DeepLearning.Infrastructure.Persistence.DatabaseTarget>();
+app.Logger.LogInformation("Database: {DatabaseTarget}", databaseTarget.Describe());
+
+// One-off CLI: `dotnet run --project src/DeepLearning.Api -- sql <status|baseline|apply|bootstrap>`.
 // Runs the hand-authored Persistence/Sql/*.sql scripts (see SqlCli / SqlScriptRunner) and exits
 // without starting the web host.
 if (args is ["sql", var sqlVerb, ..])
 {
     return await DeepLearning.Api.SqlCli.RunAsync(sqlVerb, app.Services);
+}
+
+// `dotnet run --project src/DeepLearning.Api -- db pull-reference [...]` — copies the reference
+// tables out of the shared Supabase database into the local throwaway one. See DbCli.
+if (args is ["db", var dbVerb, ..])
+{
+    return await DeepLearning.Api.DbCli.RunAsync(dbVerb, args[2..], app.Services);
 }
 
 // Configure the HTTP request pipeline.
@@ -111,6 +124,21 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHealthChecks("/health");
+
+// "Which database am I talking to?" as a question the running process can answer, so switching
+// between Supabase and the throwaway docker Postgres is verifiable from the outside (the frontend,
+// a curl, a smoke test) instead of only from a startup log line you may have scrolled past.
+// Host/port/database name only — never credentials. Anonymous on purpose: it is the same class of
+// information as /health, and the whole point is being able to check it before you can log in.
+app.MapGet("/health/db", (DeepLearning.Infrastructure.Persistence.DatabaseTarget target) => Results.Ok(new
+{
+    profile = target.Profile.ToString(),
+    declared = target.Declared,
+    isLocal = target.IsLocal,
+    host = target.Host,
+    port = target.Port,
+    database = target.Database,
+}));
 
 // Design doc §11.2 Step 9's "Hangfire定时任务生成快照" — user's earlier decision on cadence was
 // weekly (matches §10.6's own "建议每周" precedent for the calibration report Step 10 will add

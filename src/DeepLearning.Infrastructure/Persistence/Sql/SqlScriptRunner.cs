@@ -21,6 +21,13 @@ namespace DeepLearning.Infrastructure.Persistence.Sql
     public interface ISqlScriptSource
     {
         IReadOnlyList<SqlScript> GetScripts();
+
+        /// <summary>
+        /// Names from <see cref="GetScripts"/> that <c>bootstrap</c> must record WITHOUT executing, because they
+        /// cannot run against an EF-migrated schema (see <c>_bootstrap_skip.txt</c>). Defaults to none, so a test
+        /// double only opts in when skip behavior is the thing being tested.
+        /// </summary>
+        IReadOnlyCollection<string> GetBootstrapSkips() => [];
     }
 
     /// <summary>
@@ -35,12 +42,7 @@ namespace DeepLearning.Infrastructure.Persistence.Sql
 
         public IReadOnlyList<SqlScript> GetScripts()
         {
-            var manifest = ReadResource("_manifest.txt")
-                .Replace("\r\n", "\n")
-                .Split('\n')
-                .Select(line => line.Trim())
-                .Where(line => line.Length > 0 && !line.StartsWith('#'))
-                .ToList();
+            var manifest = ReadListResource("_manifest.txt");
 
             var embedded = Assembly.GetManifestResourceNames()
                 .Where(n => n.StartsWith(ResourcePrefix, StringComparison.Ordinal) && n.EndsWith(".sql", StringComparison.Ordinal))
@@ -69,6 +71,34 @@ namespace DeepLearning.Infrastructure.Persistence.Sql
 
             return manifest.Select(name => new SqlScript(name, ReadResource(name))).ToList();
         }
+
+        /// <summary>
+        /// The <c>_bootstrap_skip.txt</c> entries — scripts a fresh EF-migrated database must record but not run.
+        /// Validated against the manifest here for the same reason <see cref="GetScripts"/> validates itself: a
+        /// skip entry naming a script that no longer exists would silently stop skipping.
+        /// </summary>
+        public IReadOnlyCollection<string> GetBootstrapSkips()
+        {
+            var manifest = ReadListResource("_manifest.txt").ToHashSet(StringComparer.Ordinal);
+            var skips = ReadListResource("_bootstrap_skip.txt");
+
+            var unknown = skips.Where(s => !manifest.Contains(s)).ToList();
+            if (unknown.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    "_bootstrap_skip.txt names scripts that are not in _manifest.txt: " + string.Join(", ", unknown));
+            }
+
+            return skips.ToHashSet(StringComparer.Ordinal);
+        }
+
+        private static List<string> ReadListResource(string name)
+            => ReadResource(name)
+                .ReplaceLineEndings("\n")
+                .Split('\n')
+                .Select(line => line.Trim())
+                .Where(line => line.Length > 0 && !line.StartsWith('#'))
+                .ToList();
 
         private static string ReadResource(string name)
         {
@@ -130,6 +160,72 @@ namespace DeepLearning.Infrastructure.Persistence.Sql
             return new SqlScriptStatus(
                 all.Where(applied.Contains).ToList(),
                 all.Where(n => !applied.Contains(n)).ToList());
+        }
+
+        /// <summary>
+        /// Fresh-database install: run every manifest script that is not in <c>_bootstrap_skip.txt</c>, in
+        /// manifest order, against a database whose SCHEMA already exists (the caller runs EF migrations
+        /// first — see <c>SqlCli</c>). Skipped scripts are still recorded, so the run leaves a complete
+        /// history and a subsequent <c>apply</c> sees no gap.
+        ///
+        /// <para>Refuses unless <c>_sql_scripts</c> is empty. That is the whole safety story: a database
+        /// that has ever been baselined or applied is by definition not fresh, and replaying seed scripts
+        /// over it would duplicate or clobber real rows. Combined with <c>SqlCli</c>'s "local host only"
+        /// check, this can never touch Supabase — the isolation is structural, not a convention
+        /// (AGENTS.md #4).</para>
+        /// </summary>
+        public async Task<SqlRunReport> BootstrapAsync(CancellationToken cancellationToken = default)
+        {
+            await using var connection = await OpenAsync(cancellationToken);
+            await EnsureTrackingTableAsync(connection, cancellationToken);
+            var applied = await LoadAppliedAsync(connection, cancellationToken);
+
+            var ran = new List<string>();
+            var recorded = new List<string>();
+
+            if (applied.Count > 0)
+            {
+                return new SqlRunReport(ran, recorded, null,
+                    $"refusing to bootstrap: {TrackingTable} already has {applied.Count} row(s), so this database is " +
+                    "not fresh. `bootstrap` is a first-install-only command — use `sql apply` to move an existing " +
+                    "database forward, or drop the database (LocalDocker: `docker compose down -v`) and re-create it.");
+            }
+
+            var skips = _source.GetBootstrapSkips();
+            foreach (var script in _source.GetScripts())
+            {
+                if (skips.Contains(script.Name))
+                {
+                    var skipError = await TryRecordAsync(connection, script.Name, "bootstrap-skipped", recorded, cancellationToken);
+                    if (skipError is not null)
+                    {
+                        return new SqlRunReport(ran, recorded, script.Name, skipError);
+                    }
+
+                    continue;
+                }
+
+                try
+                {
+                    await using var command = new NpgsqlCommand(script.Content, connection);
+                    await command.ExecuteNonQueryAsync(cancellationToken);
+                    ran.Add(script.Name);
+                    _logger.LogInformation("SQL script bootstrapped: {Script}", script.Name);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "SQL script failed during bootstrap: {Script}", script.Name);
+                    return new SqlRunReport(ran, recorded, script.Name, ex.Message);
+                }
+
+                var error = await TryRecordAsync(connection, script.Name, "bootstrap", recorded, cancellationToken);
+                if (error is not null)
+                {
+                    return new SqlRunReport(ran, recorded, script.Name, error);
+                }
+            }
+
+            return new SqlRunReport(ran, recorded, null, null);
         }
 
         /// <param name="baselineOnly">

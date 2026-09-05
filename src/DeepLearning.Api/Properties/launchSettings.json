@@ -1,22 +1,46 @@
-﻿{
+{
   "$schema": "https://json.schemastore.org/launchsettings.json",
   "profiles": {
-    "http": {
+    "http (Supabase)": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": false,
       "applicationUrl": "http://localhost:5255",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DB_PROFILE": "Supabase"
       }
     },
-    "https": {
+    "https (Supabase)": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": false,
       "applicationUrl": "https://localhost:7046;http://localhost:5255",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DB_PROFILE": "Supabase"
+      }
+    },
+    "http (LocalDocker)": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5255",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DB_PROFILE": "LocalDocker",
+        "ConnectionStrings__DefaultConnection": "Host=localhost;Port=5433;Database=deeplearning;Username=postgres;Password=postgres"
+      }
+    },
+    "https (LocalDocker)": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "https://localhost:7046;http://localhost:5255",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DB_PROFILE": "LocalDocker",
+        "ConnectionStrings__DefaultConnection": "Host=localhost;Port=5433;Database=deeplearning;Username=postgres;Password=postgres"
       }
     }
   }

@@ -1,0 +1,20 @@
+# 纯临时（tmpfs / 内存）模式覆盖层。
+# 数据全部写入宿主机内存，不仅 `docker compose down` 销毁，
+# 连 `docker compose stop` / 容器重启也会丢失，占用磁盘为 0。
+# 适合完全一次性的测试数据场景。
+#
+# 注意：tmpfs 与 volumes 不能同时挂载同一目标，因此不要把本文件
+# 和 docker-compose.persistent.yml 组合使用，二选一。
+#
+# 用法：
+#   docker compose -f docker-compose.yml -f docker-compose.ephemeral.yml up -d
+#   docker compose down   # 任何 down 都会清空
+
+services:
+  postgres:
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  redis:
+    tmpfs:
+      - /data

@@ -1,0 +1,21 @@
+# 持久化模式覆盖层 —— 与默认 docker-compose.yml 组合使用。
+# 容器被 `docker compose down` 后数据仍然保留（命名卷独立于容器生命周期）。
+#
+# 用法：
+#   docker compose -f docker-compose.yml -f docker-compose.persistent.yml up -d
+#   docker compose -f docker-compose.yml -f docker-compose.persistent.yml down
+#   连数据卷一起清空：
+#     docker compose -f docker-compose.yml -f docker-compose.persistent.yml down -v
+
+services:
+  postgres:
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:

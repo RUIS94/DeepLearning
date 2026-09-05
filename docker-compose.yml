@@ -1,17 +1,44 @@
-# Optional local dev stack. The project's default dev flow points
-# ConnectionStrings:DefaultConnection at a hosted Supabase Postgres instance
-# (see appsettings.Development.json, gitignored) — this compose file is an
-# alternative for offline work or CI, not a replacement for that.
+# 本地开发数据库堆栈 —— 默认「临时模式」（容器删除即销毁，不保留测试数据）。
 #
-# Host port is 5433, not 5432: several dev machines already run a native
-# Postgres service on 5432 (confirmed on this one — Docker's port-proxy
-# silently loses that collision, so `psql`/`dotnet ef` end up talking to the
-# native install instead of this container, with baffling auth failures).
+# 三种数据生命周期模式：
+#  ① 默认：容器销毁即丢数据（适合大多数一次性测试）
+#       docker compose up -d
+#       docker compose down -v       ← -v 不能省！
+#     本文件不声明命名卷，但 postgres/redis 镜像自己在 Dockerfile 里声明了 VOLUME，
+#     所以数据落在一个「匿名卷」上。`docker compose down` 只删容器，匿名卷会变成悬空卷
+#     留在磁盘上（下次 up 会新建一个，所以数据确实是干净的，但磁盘一直涨）。
+#     加 -v 才会连匿名卷一起删。忘了加就用 `docker volume prune` 收尾。
 #
-# Usage:
-#   docker compose up -d
-#   ConnectionStrings__DefaultConnection="Host=localhost;Port=5433;Database=deeplearning;Username=postgres;Password=postgres"
-#   dotnet ef database update --project src/DeepLearning.Infrastructure --startup-project src/DeepLearning.Api
+#  ② 纯内存 tmpfs（性能最好；连容器 stop/restart 也丢数据，且不产生任何卷）
+#       docker compose -f docker-compose.yml -f docker-compose.ephemeral.yml up -d
+#
+#  ③ 持久化命名卷（跨重启保留 seed 数据）
+#       docker compose -f docker-compose.yml -f docker-compose.persistent.yml up -d
+#       docker compose ... down -v   ← 加 -v 才会一起删数据卷
+#
+# 项目默认 dev 流程（appsettings.Development.json + launchSettings 的 Supabase profile）
+# 直接连线上 Supabase Postgres；需要离线或隔离测试数据时切换到本地 Docker 模式即可。
+#
+# Host 端口用 5433 而非 5432：本机器 5432 已跑原生 Postgres（Docker 的 port-proxy 对
+# 已占用端口会静默失败，导致 psql / dotnet ef 连到了原生安装，出现诡异的认证错误）。
+#
+# 连接串（launchSettings 的 LocalDocker profile 已内置）：
+#   Host=localhost;Port=5433;Database=deeplearning;Username=postgres;Password=postgres
+# 全新容器起来之后要准备数据，两条路（都只对本机库生效，命令自身会拒绝连远端）：
+#
+#   ① 从线上整表复制参考表 —— 和线上完全一致，推荐：
+#        dotnet run --project src/DeepLearning.Api --launch-profile "http (LocalDocker)" -- db pull-reference
+#      = EF 迁移建表 + 用二进制 COPY 把 exam_types / assessment_dimensions / error_taxonomies /
+#        question_bank_categories / generation_policy / prompt_templates / llm_provider_* 整表搬过来。
+#      线上这些表有大量手工改动，任何 .sql 文件里都没有 —— 只有复制才能拿到真实状态。
+#      需要 appsettings.Development.json 里的 ConnectionStrings:ReferenceSource。
+#
+#   ② 离线重建 —— 不联网时用：
+#        dotnet run --project src/DeepLearning.Api --launch-profile "http (LocalDocker)" -- sql bootstrap
+#      = EF 迁移建表 + 按 _manifest.txt 顺序跑除 _bootstrap_skip.txt 以外的全部 SQL 脚本。
+#      得到的是【种子脚本描述的状态】，不含线上后来的手工改动。
+#
+# 注意 `sql apply` 不能用来建新库：它要求库里已经有 baseline，对空库会直接拒绝。
 
 services:
   postgres:
@@ -22,8 +49,6 @@ services:
       POSTGRES_PASSWORD: postgres
     ports:
       - "5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -34,9 +59,3 @@ services:
     image: redis:7
     ports:
       - "6379:6379"
-    volumes:
-      - redis_data:/data
-
-volumes:
-  postgres_data:
-  redis_data:

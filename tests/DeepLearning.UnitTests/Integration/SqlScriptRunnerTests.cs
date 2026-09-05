@@ -182,11 +182,15 @@ namespace DeepLearning.UnitTests.Integration
             // Throws if _manifest.txt and the embedded *.sql set disagree either way.
             var scripts = new EmbeddedSqlScriptSource().GetScripts();
 
-            Assert.Equal(48, scripts.Count);
+            Assert.Equal(49, scripts.Count);
             Assert.Equal("schema.sql", scripts[0].Name);
-            // The grading prompt's current source of truth must stay last: it deletes every
-            // grading row the earlier scripts inserted and leaves exactly one.
-            Assert.Equal("promote_grading_prompt_v2_to_production_v1.sql", scripts[^1].Name);
+            // The grading prompt's current source of truth must stay last OF THE GRADING SCRIPTS:
+            // it deletes every grading row the earlier scripts inserted and leaves exactly one.
+            // (Not last overall — unrelated scripts are appended after it; the invariant is about
+            // grading ordering, so assert exactly that rather than a position that shifts.)
+            Assert.Equal(
+                "promote_grading_prompt_v2_to_production_v1.sql",
+                scripts.Last(s => s.Name.Contains("grading", StringComparison.Ordinal)).Name);
             Assert.All(scripts, s => Assert.False(string.IsNullOrWhiteSpace(s.Content)));
         }
     }

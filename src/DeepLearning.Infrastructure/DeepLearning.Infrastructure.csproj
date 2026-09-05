@@ -15,8 +15,10 @@
   <ItemGroup>
     <None Remove="Persistence\Sql\*.sql" />
     <None Remove="Persistence\Sql\_manifest.txt" />
+    <None Remove="Persistence\Sql\_bootstrap_skip.txt" />
     <EmbeddedResource Include="Persistence\Sql\*.sql" />
     <EmbeddedResource Include="Persistence\Sql\_manifest.txt" />
+    <EmbeddedResource Include="Persistence\Sql\_bootstrap_skip.txt" />
   </ItemGroup>
 
   <ItemGroup>

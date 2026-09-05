@@ -1,4 +1,4 @@
-using DeepLearning.Application.Interfaces;
+﻿using DeepLearning.Application.Interfaces;
 using DeepLearning.Infrastructure.Ai;
 using DeepLearning.Infrastructure.Ai.GradingResultInterpreters;
 using DeepLearning.Infrastructure.Ai.Options;
@@ -19,6 +19,26 @@ namespace DeepLearning.Infrastructure
         {
             var connectionString = configuration.GetConnectionString("DefaultConnection")
                 ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
+
+            // appsettings.Development.json carries the non-secret half (host/port/database); the Supabase
+            // username/password live in User Secrets next to the LLM API keys. A string that already names
+            // them — the LocalDocker profile's postgres/postgres — passes through unchanged.
+            connectionString = ConnectionStringCredentials.Apply(connectionString, configuration);
+
+            // Cross-check the declared DB_PROFILE against the host this connection string actually
+            // resolves to, and hard-fail on a mismatch — see DatabaseTargetResolver for why silence
+            // here is the expensive outcome. Registered as a singleton so Program.cs can log it and
+            // GET /health/db can report it.
+            var databaseTarget = DatabaseTargetResolver.Resolve(
+                configuration[DatabaseTargetResolver.ProfileConfigKey], connectionString);
+            services.AddSingleton(databaseTarget);
+
+            // Pulls the reference tables out of Supabase into a local throwaway DB — only ever invoked
+            // by the `db pull-reference` CLI verb, never during request handling.
+            services.AddScoped(sp => new ReferenceDataSync(
+                databaseTarget,
+                connectionString,
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ReferenceDataSync>>()));
 
             services.AddDbContext<AppDbContext>(options => options
                 .UseNpgsql(connectionString, NpgsqlEnumConfiguration.MapEnums)
