@@ -79,6 +79,7 @@ export const AiOperationType = {
   deep_learning: 4,
   progress_trend: 5,
   followup_summary: 6,
+  weak_point_classification: 7,
 } as const;
 
 // 追问线程（design decision, 2026-09-02）：一个 submission 最多一条线程，存续期间
@@ -188,6 +189,7 @@ export const AiOperationTypeLabel: Record<number, string> = {
   [AiOperationType.deep_learning]: "深入学习",
   [AiOperationType.progress_trend]: "进度趋势",
   [AiOperationType.followup_summary]: "追问总结",
+  [AiOperationType.weak_point_classification]: "薄弱点分类",
 };
 
 export const FollowUpThreadStatusLabel: Record<number, string> = {

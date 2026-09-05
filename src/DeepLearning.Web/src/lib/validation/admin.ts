@@ -66,10 +66,10 @@ export const promptTemplateFormSchema = z
   .object({
     examTypeId: z.string().nullable().optional(),
     subjectCategory: z.number().int().min(-1).max(4).nullable().optional(),
-    // 0-6：AiOperationType 的 7 个值（question_gen/grading/followup/standard_revision/
-    // deep_learning/progress_trend/followup_summary）。新增枚举值时这里要同步放宽上界，
-    // 否则编辑该类模板时 zodResolver 会静默拦下提交（见 enums.ts AiOperationType）。
-    templateType: z.number().int().min(0).max(6),
+    // 0-7：AiOperationType 的 8 个值（question_gen/grading/followup/standard_revision/
+    // deep_learning/progress_trend/followup_summary/weak_point_classification）。新增枚举值时
+    // 这里要同步放宽上界，否则编辑该类模板时 zodResolver 会静默拦下提交（见 enums.ts AiOperationType）。
+    templateType: z.number().int().min(0).max(7),
     layer: z.number().int().min(0).max(1),
     templateContent: z.string().trim().min(1, "模板正文不能为空"),
     // 后端 CreatePromptTemplateCommand 要求显式传版本号，没有自动递增逻辑。
