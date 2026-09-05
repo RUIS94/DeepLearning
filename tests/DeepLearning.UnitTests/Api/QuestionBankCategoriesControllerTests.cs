@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.ExamConfig.Commands.CreateExamType;
@@ -97,7 +97,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -138,7 +138,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new

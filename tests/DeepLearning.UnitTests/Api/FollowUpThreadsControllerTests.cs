@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.ExamConfig.Commands.CreateExamType;
@@ -166,7 +166,8 @@ namespace DeepLearning.UnitTests.Api
         private HttpClient CreateClient(string dimensionKey, string? summaryResponseJson = null) => _factory
             .WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
                 services.AddSingleton<ILlmClientResolver>(
-                    new FakeFollowUpFlowLlmClientResolver(dimensionKey, PerRoundResponseJson, summaryResponseJson))))
+                    LlmClientResolverSubstitute.Returning(
+                        new FakeFollowUpFlowLlmClient(dimensionKey, PerRoundResponseJson, summaryResponseJson)))))
             .CreateClient();
 
         private static Task<HttpResponseMessage> CreateThreadAsync(HttpClient client, Guid submissionId, Guid userId, Guid examTypeId, string questionText)

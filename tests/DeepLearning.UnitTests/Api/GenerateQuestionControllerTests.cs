@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.ExamConfig.Commands.CreateErrorTaxonomy;
@@ -37,7 +37,7 @@ namespace DeepLearning.UnitTests.Api
             // the real, keyed Claude-backed registration from DependencyInjection.cs.
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -72,7 +72,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
 
             var response = await client.PostAsJsonAsync(
@@ -87,7 +87,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeTaskBGenerationLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeTaskBGenerationLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -123,7 +123,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeTaskBGenerationLlmClientResolverWithOutOfBoundsPosition>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeTaskBGenerationLlmClientWithOutOfBoundsPosition()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -151,7 +151,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -176,7 +176,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -218,7 +218,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -264,7 +264,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -346,7 +346,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -404,7 +404,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -434,7 +434,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -492,7 +492,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -551,7 +551,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -607,7 +607,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolverFailingTwiceThenSucceeding>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClientFailingTwiceThenSucceeding()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
@@ -667,7 +667,7 @@ namespace DeepLearning.UnitTests.Api
             var capturingClient = new CapturingQuestionGenLlmClient();
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver>(_ => new FixedQuestionGenLlmClientResolver(capturingClient))))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(capturingClient))))
                 .CreateClient();
 
             await SeedWeakPointHintPromptTemplateAsync(_factory);
@@ -719,7 +719,7 @@ namespace DeepLearning.UnitTests.Api
             var capturingClient = new CapturingQuestionGenLlmClient();
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver>(_ => new FixedQuestionGenLlmClientResolver(capturingClient))))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(capturingClient))))
                 .CreateClient();
 
             await SeedWeakPointHintPromptTemplateAsync(_factory);
@@ -811,7 +811,7 @@ namespace DeepLearning.UnitTests.Api
             var capturingClient = new CapturingQuestionGenLlmClient();
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver>(_ => new FixedQuestionGenLlmClientResolver(capturingClient))))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(capturingClient))))
                 .CreateClient();
 
             await SeedDomainListPromptTemplateAsync(_factory);
@@ -854,7 +854,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new

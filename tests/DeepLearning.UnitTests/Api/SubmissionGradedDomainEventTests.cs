@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.ExamConfig.Commands.CreateAssessmentDimension;
@@ -41,7 +41,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeGradingLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))
                 .CreateClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new

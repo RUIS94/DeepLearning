@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.ExamConfig.Commands.CreateAssessmentDimension;
@@ -157,7 +157,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeGradingLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))
                 .CreateClient();
 
             var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
@@ -201,7 +201,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeGradingLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))
                 .CreateClient();
 
             var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
@@ -227,7 +227,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeGradingLlmClientResolverWithInvalidCategory>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClientWithInvalidCategory()))))
                 .CreateClient();
 
             var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
@@ -255,7 +255,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeGradingLlmClientResolverWithOutOfRangeBand>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClientWithOutOfRangeBand()))))
                 .CreateClient();
 
             var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
@@ -286,7 +286,7 @@ namespace DeepLearning.UnitTests.Api
             var capturingClient = new CapturingGradingLlmClient();
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddSingleton<ILlmClientResolver>(new FixedLlmClientResolver(capturingClient))))
+                    services => services.AddSingleton<ILlmClientResolver>(LlmClientResolverSubstitute.Returning(capturingClient))))
                 .CreateClient();
 
             var (examTypeId, questionId, userId) = await SeedTaskBExamTypeQuestionAndUserAsync(client);
@@ -333,7 +333,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver, FakeGradingLlmClientResolver>()))
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))
                 .CreateClient();
 
             var (_, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);

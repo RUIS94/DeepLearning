@@ -1,4 +1,4 @@
-using DeepLearning.Application.Common;
+﻿using DeepLearning.Application.Common;
 using DeepLearning.Application.Features.Progress.Commands.GenerateProgressTrendSnapshot;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
@@ -165,7 +165,7 @@ namespace DeepLearning.UnitTests.Integration
             var (examType, user, _, _) = await SeedBaseDataAsync(context);
 
             var fakeClient = new FakeProgressTrendLlmClient();
-            var handler = BuildHandler(context, new FixedProgressTrendLlmClientResolver(fakeClient));
+            var handler = BuildHandler(context, LlmClientResolverSubstitute.Returning(fakeClient));
 
             var result = await handler.Handle(
                 new GenerateProgressTrendSnapshotCommand(
@@ -194,7 +194,7 @@ namespace DeepLearning.UnitTests.Integration
                 gradedAt: new DateTimeOffset(2026, 8, 19, 10, 0, 0, TimeSpan.Zero), band: 4, passBool: false);
 
             var fakeClient = new FakeProgressTrendLlmClient();
-            var handler = BuildHandler(context, new FixedProgressTrendLlmClientResolver(fakeClient));
+            var handler = BuildHandler(context, LlmClientResolverSubstitute.Returning(fakeClient));
 
             var week1Result = await handler.Handle(
                 new GenerateProgressTrendSnapshotCommand(user.Id, examType.Id, "medium", week1.Start, week1.End),
@@ -252,7 +252,7 @@ namespace DeepLearning.UnitTests.Integration
                 gradedAt: new DateTimeOffset(2026, 8, 19, 10, 0, 0, TimeSpan.Zero), band: 3, passBool: true);
 
             var fakeClient = new FakeProgressTrendLlmClient();
-            var handler = BuildHandler(context, new FixedProgressTrendLlmClientResolver(fakeClient));
+            var handler = BuildHandler(context, LlmClientResolverSubstitute.Returning(fakeClient));
             var command = new GenerateProgressTrendSnapshotCommand(
                 user.Id, examType.Id, "medium", new DateOnly(2026, 8, 17), new DateOnly(2026, 8, 23));
 
@@ -288,7 +288,7 @@ namespace DeepLearning.UnitTests.Integration
                 gradedAt: new DateTimeOffset(2026, 8, 19, 10, 0, 0, TimeSpan.Zero), band: 4, passBool: false);
 
             var fakeClient = new FakeProgressTrendLlmClient();
-            var handler = BuildHandler(context, new FixedProgressTrendLlmClientResolver(fakeClient));
+            var handler = BuildHandler(context, LlmClientResolverSubstitute.Returning(fakeClient));
             var command = new GenerateProgressTrendSnapshotCommand(
                 user.Id, examType.Id, "medium", new DateOnly(2026, 8, 17), new DateOnly(2026, 8, 23));
 
@@ -321,7 +321,7 @@ namespace DeepLearning.UnitTests.Integration
                 gradedAt: new DateTimeOffset(2026, 8, 19, 10, 0, 0, TimeSpan.Zero), band: 3, passBool: true);
 
             var fakeClient = new FakeAlwaysInvalidProgressTrendLlmClient();
-            var handler = BuildHandler(context, new FixedProgressTrendLlmClientResolver(fakeClient));
+            var handler = BuildHandler(context, LlmClientResolverSubstitute.Returning(fakeClient));
 
             var result = await handler.Handle(
                 new GenerateProgressTrendSnapshotCommand(

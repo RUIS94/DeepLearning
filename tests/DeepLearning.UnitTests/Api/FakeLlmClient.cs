@@ -1,4 +1,4 @@
-using DeepLearning.Application.Interfaces;
+﻿using DeepLearning.Application.Interfaces;
 
 namespace DeepLearning.UnitTests.Api
 {
@@ -28,16 +28,6 @@ namespace DeepLearning.UnitTests.Api
 
             return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
         }
-    }
-
-    /// <summary>
-    /// Hands back FakeLlmClient directly, bypassing the real llm_provider_settings DB lookup —
-    /// swapped in for ILlmClientResolver the same way FakeLlmClient is swapped in for ILlmClient.
-    /// </summary>
-    public class FakeLlmClientResolver : ILlmClientResolver
-    {
-        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<ILlmClient>(new FakeLlmClient());
     }
 
     /// <summary>
@@ -71,12 +61,6 @@ namespace DeepLearning.UnitTests.Api
         }
     }
 
-    public class FakeTaskBGenerationLlmClientResolver : ILlmClientResolver
-    {
-        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<ILlmClient>(new FakeTaskBGenerationLlmClient());
-    }
-
     /// <summary>
     /// Same shape as FakeTaskBGenerationLlmClient but its one seededError's position range
     /// falls outside flawedTranslationText — proves GenerateQuestionCommandHandler rejects a
@@ -103,12 +87,6 @@ namespace DeepLearning.UnitTests.Api
 
             return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
         }
-    }
-
-    public class FakeTaskBGenerationLlmClientResolverWithOutOfBoundsPosition : ILlmClientResolver
-    {
-        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<ILlmClient>(new FakeTaskBGenerationLlmClientWithOutOfBoundsPosition());
     }
 
     /// <summary>
@@ -178,12 +156,6 @@ namespace DeepLearning.UnitTests.Api
                 FakeGradingPayloads.Build(DimensionKey, ErrorCategoryKey, rationale: Rationale), 10, 20, "fake-model", 5));
     }
 
-    public class FakeGradingLlmClientResolver : ILlmClientResolver
-    {
-        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<ILlmClient>(new FakeGradingLlmClient());
-    }
-
     /// <summary>
     /// Reports an error_category no seeded ErrorTaxonomy will ever match — proves
     /// GradeSubmissionCommandHandler really rejects an AI response referencing an unknown
@@ -196,12 +168,6 @@ namespace DeepLearning.UnitTests.Api
         public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
             => Task.FromResult(new LlmCompletionResult(
                 FakeGradingPayloads.Build(FakeGradingLlmClient.DimensionKey, "not-a-real-category"), 10, 20, "fake-model", 5));
-    }
-
-    public class FakeGradingLlmClientResolverWithInvalidCategory : ILlmClientResolver
-    {
-        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<ILlmClient>(new FakeGradingLlmClientWithInvalidCategory());
     }
 
     /// <summary>
@@ -217,12 +183,6 @@ namespace DeepLearning.UnitTests.Api
             => Task.FromResult(new LlmCompletionResult(
                 FakeGradingPayloads.Build(FakeGradingLlmClient.DimensionKey, FakeGradingLlmClient.ErrorCategoryKey, band: 9),
                 10, 20, "fake-model", 5));
-    }
-
-    public class FakeGradingLlmClientResolverWithOutOfRangeBand : ILlmClientResolver
-    {
-        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<ILlmClient>(new FakeGradingLlmClientWithOutOfRangeBand());
     }
 
     /// <summary>
@@ -244,24 +204,6 @@ namespace DeepLearning.UnitTests.Api
                 FakeGradingPayloads.Build(FakeGradingLlmClient.DimensionKey, FakeGradingLlmClient.ErrorCategoryKey),
                 10, 20, "fake-model", 5));
         }
-    }
-
-    /// <summary>
-    /// Resolves to a caller-supplied ILlmClient instance rather than constructing its own —
-    /// needed instead of the other Fake*Resolver classes above whenever the test needs to keep
-    /// its own reference to the client afterward (e.g. CapturingGradingLlmClient's CapturedPrompt).
-    /// </summary>
-    public class FixedLlmClientResolver : ILlmClientResolver
-    {
-        private readonly ILlmClient _client;
-
-        public FixedLlmClientResolver(ILlmClient client)
-        {
-            _client = client;
-        }
-
-        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(_client);
     }
 
     /// <summary>
@@ -328,19 +270,6 @@ namespace DeepLearning.UnitTests.Api
         }
     }
 
-    public class FakeFollowUpFlowLlmClientResolver : ILlmClientResolver
-    {
-        private readonly ILlmClient _client;
-
-        public FakeFollowUpFlowLlmClientResolver(string dimensionKey, string followUpResponseJson, string? summaryResponseJson = null)
-        {
-            _client = new FakeFollowUpFlowLlmClient(dimensionKey, followUpResponseJson, summaryResponseJson);
-        }
-
-        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(_client);
-    }
-
     /// <summary>
     /// Fixed-JSON stand-in for a deep-learning generation call (design doc §10.2/Step 7) — also
     /// records every prompt it was called with and how many times, so a test can assert both
@@ -404,12 +333,6 @@ namespace DeepLearning.UnitTests.Api
         }
     }
 
-    public class FakeDeepLearningLlmClientResolverWithInvalidPattern : ILlmClientResolver
-    {
-        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<ILlmClient>(new FakeDeepLearningLlmClientWithInvalidPattern());
-    }
-
     /// <summary>
     /// Self-audit fix (2026-08-30, design doc §4.2's retry sub-state-machine): returns malformed
     /// (unparseable) JSON on its first two calls, then a valid GenerateQuestion response on the
@@ -442,14 +365,6 @@ namespace DeepLearning.UnitTests.Api
         }
     }
 
-    public class FakeLlmClientResolverFailingTwiceThenSucceeding : ILlmClientResolver
-    {
-        private readonly FakeLlmClientFailingTwiceThenSucceeding _client = new();
-
-        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<ILlmClient>(_client);
-    }
-
     /// <summary>
     /// Same fixed-valid-JSON response as FakeLlmClient, but records the prompt it was called
     /// with — lets a test assert on what GenerateQuestionCommandHandler actually sent the LLM
@@ -474,19 +389,6 @@ namespace DeepLearning.UnitTests.Api
                 """;
             return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
         }
-    }
-
-    public class FixedQuestionGenLlmClientResolver : ILlmClientResolver
-    {
-        private readonly ILlmClient _client;
-
-        public FixedQuestionGenLlmClientResolver(ILlmClient client)
-        {
-            _client = client;
-        }
-
-        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(_client);
     }
 
     /// <summary>
@@ -538,16 +440,4 @@ namespace DeepLearning.UnitTests.Api
         }
     }
 
-    public class FixedProgressTrendLlmClientResolver : ILlmClientResolver
-    {
-        private readonly ILlmClient _client;
-
-        public FixedProgressTrendLlmClientResolver(ILlmClient client)
-        {
-            _client = client;
-        }
-
-        public Task<ILlmClient> GetActiveClientAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(_client);
-    }
 }
