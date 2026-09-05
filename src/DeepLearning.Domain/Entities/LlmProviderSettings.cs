@@ -18,10 +18,10 @@ namespace DeepLearning.Domain.Entities
         public string ProviderKey { get; set; } = string.Empty;
         public bool IsActive { get; set; }
 
-        /// <summary>Claude: whether to send thinking:{type:"disabled"} vs. letting it run adaptive. Not yet wired for other providers — their "thinking" mechanism differs per provider (e.g. a distinct model name) and isn't verified.</summary>
+        /// <summary>Claude: whether to send thinking:{type:"disabled"} vs. letting it run adaptive. Also wired for DeepSeek and Mimo (both send {"thinking":{"type":"enabled|disabled"}} on the OpenAI-Chat-Completions-shaped wire — see OpenAiCompatibleOptions.ThinkingParameterName), and a no-op for any provider that hasn't declared a thinking field name.</summary>
         public bool ThinkingEnabled { get; set; } = true;
 
-        /// <summary>Claude's output_config.effort ("low"|"medium"|"high"|"xhigh"|"max"). Null = let Claude default. Not applicable to other providers.</summary>
+        /// <summary>Claude's output_config.effort ("low"|"medium"|"high"|"xhigh"|"max"). Null = let Claude default. Also forwarded to DeepSeek's "reasoning_effort" field on the same scale (see OpenAiCompatibleOptions.ReasoningEffortFieldName) — DeepSeek maps medium/high/xhigh onto its own internal "high" bucket. A no-op for any provider that hasn't declared that field name.</summary>
         public string? Effort { get; set; }
 
         /// <summary>

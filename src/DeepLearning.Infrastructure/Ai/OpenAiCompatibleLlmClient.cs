@@ -48,15 +48,27 @@ namespace DeepLearning.Infrastructure.Ai
             };
 
             // "Thinking" isn't a universal toggle across OpenAI-shaped providers — OpenAI's
-            // reasoning models use separate model ids or a Responses-API-only reasoning_effort
-            // field, and DeepSeek's reasoning is a distinct model name ("deepseek-reasoner") —
-            // so it is only sent for a provider that has declared the field name it wants (see
-            // OpenAiCompatibleOptions.ThinkingParameterName). Mimo's is "thinking", an object
-            // rather than a bool. Anything else still goes through ExtraSettings below.
+            // older reasoning models use separate model ids entirely — so it is only sent for a
+            // provider that has declared the field name it wants (see
+            // OpenAiCompatibleOptions.ThinkingParameterName). Both Mimo and DeepSeek's current
+            // v4 models call it "thinking", an object rather than a bool. Anything else still
+            // goes through ExtraSettings below.
             if (_options.ThinkingParameterName is { Length: > 0 } thinkingField
                 && request.ThinkingEnabled is { } thinkingEnabled)
             {
                 body[thinkingField] = new { type = thinkingEnabled ? "enabled" : "disabled" };
+            }
+
+            // Reasoning strength once thinking is on — a separate knob from the on/off switch
+            // above, and again only sent where the provider has declared a field name for it
+            // (see OpenAiCompatibleOptions.ReasoningEffortFieldName). DeepSeek calls it
+            // "reasoning_effort" and accepts the same low/medium/high/xhigh/max scale
+            // LlmProviderSettings.Effort already uses for Claude, so this is a straight
+            // passthrough — no remapping needed on our side.
+            if (_options.ReasoningEffortFieldName is { Length: > 0 } effortField
+                && !string.IsNullOrEmpty(request.Effort))
+            {
+                body[effortField] = request.Effort;
             }
 
             if (request.ExtraSettings is not null)

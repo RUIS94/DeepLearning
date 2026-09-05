@@ -207,8 +207,8 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
         [Fact]
         public async Task Sends_no_thinking_switch_for_a_provider_that_declares_none()
         {
-            // OpenAI selects reasoning by model id and DeepSeek by model name; sending them a
-            // "thinking" object would be inventing a field their API never documented.
+            // OpenAI's older reasoning models select it by model id; sending an unconfigured
+            // provider a "thinking" object would be inventing a field their API never documented.
             var handler = new CapturingHandler { ResponseToReturn = BuildSuccessResponse("hello") };
             var httpClient = new HttpClient(handler);
             var options = new OpenAiCompatibleOptions { ApiKey = "k", BaseUrl = "https://example.test/x", Model = "m" };
@@ -218,6 +218,59 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
                 SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10, ThinkingEnabled: false));
 
             Assert.DoesNotContain("thinking", handler.CapturedBody);
+        }
+
+        [Fact]
+        public async Task Sends_the_providers_reasoning_effort_field_when_one_is_configured()
+        {
+            var handler = new CapturingHandler { ResponseToReturn = BuildSuccessResponse("hello") };
+            var httpClient = new HttpClient(handler);
+            var options = new OpenAiCompatibleOptions
+            {
+                ApiKey = "k",
+                BaseUrl = "https://example.test/x",
+                Model = "m",
+                ReasoningEffortFieldName = "reasoning_effort",
+            };
+            var client = new OpenAiCompatibleLlmClient(httpClient, options, "DeepSeek");
+
+            await client.CompleteAsync(new LlmCompletionRequest(
+                SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10, Effort: "xhigh"));
+
+            Assert.Contains("\"reasoning_effort\":\"xhigh\"", handler.CapturedBody);
+        }
+
+        [Fact]
+        public async Task Sends_no_reasoning_effort_field_for_a_provider_that_declares_none_even_if_effort_is_set()
+        {
+            var handler = new CapturingHandler { ResponseToReturn = BuildSuccessResponse("hello") };
+            var httpClient = new HttpClient(handler);
+            var options = new OpenAiCompatibleOptions { ApiKey = "k", BaseUrl = "https://example.test/x", Model = "m" };
+            var client = new OpenAiCompatibleLlmClient(httpClient, options, "TestProvider");
+
+            await client.CompleteAsync(new LlmCompletionRequest(
+                SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10, Effort: "high"));
+
+            Assert.DoesNotContain("reasoning_effort", handler.CapturedBody);
+        }
+
+        [Fact]
+        public async Task Sends_no_reasoning_effort_field_when_configured_but_effort_is_not_set_on_the_request()
+        {
+            var handler = new CapturingHandler { ResponseToReturn = BuildSuccessResponse("hello") };
+            var httpClient = new HttpClient(handler);
+            var options = new OpenAiCompatibleOptions
+            {
+                ApiKey = "k",
+                BaseUrl = "https://example.test/x",
+                Model = "m",
+                ReasoningEffortFieldName = "reasoning_effort",
+            };
+            var client = new OpenAiCompatibleLlmClient(httpClient, options, "DeepSeek");
+
+            await client.CompleteAsync(new LlmCompletionRequest(SystemPrompt: null, UserPrompt: "hi", MaxTokens: 10));
+
+            Assert.DoesNotContain("reasoning_effort", handler.CapturedBody);
         }
     }
 }
