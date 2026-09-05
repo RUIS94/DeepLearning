@@ -1,4 +1,4 @@
-# 一键启动前后端开发环境（各自独立终端窗口）
+﻿# 一键启动前后端开发环境（各自独立终端窗口）
 #
 # 数据库模式切换：
 #   .\dev.ps1                                 # 默认：连接线上 Supabase DB
@@ -162,5 +162,5 @@ Start-Process powershell -ArgumentList @(
 
 Write-Host "[dev] Frontend: http://localhost:3000/" -ForegroundColor Green
 Write-Host "[dev] Backend:  http://localhost:5255/  (连的哪个库: http://localhost:5255/health/db)" -ForegroundColor Green
-Write-Host "[dev] 销毁 LocalDocker 数据：docker compose down -v（不加 -v 只会留下悬空匿名卷）" -ForegroundColor DarkGray
-Write-Host "[dev] 销毁 Persistent 卷：docker compose -f docker-compose.yml -f docker-compose.persistent.yml down -v" -ForegroundColor DarkGray
+Write-Host "[dev] 销毁 LocalDocker 数据:docker compose down -v(不加 -v 只会留下悬空匿名卷)" -ForegroundColor DarkGray
+Write-Host "[dev] 销毁 Persistent 卷:docker compose -f docker-compose.yml -f docker-compose.persistent.yml down -v" -ForegroundColor DarkGray
