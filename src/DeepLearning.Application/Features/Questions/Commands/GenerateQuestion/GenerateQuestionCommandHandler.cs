@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
@@ -135,20 +136,23 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                 // up to aiCallLog.MaxRetries times when the AI's response fails structured-output
                 // validation — distinct from Polly's transport-level retries inside CompleteAsync
                 // itself, which already ran and gave up before this ever throws.
-                (payload, seededErrors) = await _aiCallRetryExecutor.ExecuteAsync(aiCallLog, async () =>
-                {
-                    var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
-                    var completion = await llmClient.CompleteAsync(
-                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 4096),
-                        cancellationToken);
-                    aiCallLog.LatencyMs = completion.LatencyMs;
-
-                    var parsedPayload = ParsePayload(completion.Text);
-                    var errors = request.TaskType == TaskType.B
-                        ? ValidateAndBuildTaskBSeededErrors(parsedPayload, errorTaxonomies)
-                        : [];
-                    return (parsedPayload, errors);
-                }, cancellationToken);
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                (payload, seededErrors) = await AdaptiveCompletionRunner.RunAsync(
+                    _aiCallRetryExecutor,
+                    llmClient,
+                    aiCallLog,
+                    prompt,
+                    initialBudget: AiOutputBudget.MediumInitial,
+                    maxBudget: AiOutputBudget.MediumMax,
+                    parse: (string text) =>
+                    {
+                        var parsedPayload = ParsePayload(text);
+                        var errors = request.TaskType == TaskType.B
+                            ? ValidateAndBuildTaskBSeededErrors(parsedPayload, errorTaxonomies)
+                            : [];
+                        return (parsedPayload, errors);
+                    },
+                    cancellationToken: cancellationToken);
             }
             catch (Exception ex)
             {

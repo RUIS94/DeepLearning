@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
@@ -114,18 +115,17 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CreateFollo
                     request.QuestionText, request.ContextRef, submission, question, context, history: []);
                 var prompt = await _examConfigLoader.BuildPromptAsync(request.ExamTypeId, AiOperationType.followup, model, cancellationToken);
 
-                payload = await _aiCallRetryExecutor.ExecuteAsync(aiCallLog, async () =>
-                {
-                    var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
-                    var completion = await llmClient.CompleteAsync(
-                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 4096),
-                        cancellationToken);
-                    aiCallLog.LatencyMs = completion.LatencyMs;
-
-                    var parsed = FollowUpThreadSupport.ParsePayload<FollowUpTurnPayload>(completion.Text);
-                    FollowUpThreadSupport.NormaliseTurnPayload(parsed);
-                    return parsed;
-                }, cancellationToken);
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                payload = await AdaptiveCompletionRunner.RunAsync(
+                    _aiCallRetryExecutor,
+                    llmClient,
+                    aiCallLog,
+                    prompt,
+                    initialBudget: AiOutputBudget.MediumInitial,
+                    maxBudget: AiOutputBudget.MediumMax,
+                    parse: FollowUpThreadSupport.ParsePayload<FollowUpTurnPayload>,
+                    validate: FollowUpThreadSupport.NormaliseTurnPayload,
+                    cancellationToken: cancellationToken);
             }
             catch (Exception ex)
             {

@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Features.StandardOverrides;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
@@ -111,18 +112,17 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
                     questionText: string.Empty, thread.ContextRef, submission, question, context, history: thread.Messages);
                 var prompt = await _examConfigLoader.BuildPromptAsync(thread.ExamTypeId, AiOperationType.followup_summary, model, cancellationToken);
 
-                payload = await _aiCallRetryExecutor.ExecuteAsync(aiCallLog, async () =>
-                {
-                    var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
-                    var completion = await llmClient.CompleteAsync(
-                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 4096),
-                        cancellationToken);
-                    aiCallLog.LatencyMs = completion.LatencyMs;
-
-                    var parsed = FollowUpThreadSupport.ParsePayload<FollowUpSummaryPayload>(completion.Text);
-                    FollowUpThreadSupport.ValidateSummaryPayload(parsed, dimensionKeys);
-                    return parsed;
-                }, cancellationToken);
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                payload = await AdaptiveCompletionRunner.RunAsync(
+                    _aiCallRetryExecutor,
+                    llmClient,
+                    aiCallLog,
+                    prompt,
+                    initialBudget: AiOutputBudget.MediumInitial,
+                    maxBudget: AiOutputBudget.MediumMax,
+                    parse: FollowUpThreadSupport.ParsePayload<FollowUpSummaryPayload>,
+                    validate: p => FollowUpThreadSupport.ValidateSummaryPayload(p, dimensionKeys),
+                    cancellationToken: cancellationToken);
             }
             catch (Exception ex)
             {

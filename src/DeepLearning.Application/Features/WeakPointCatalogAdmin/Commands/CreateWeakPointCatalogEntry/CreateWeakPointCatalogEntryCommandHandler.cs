@@ -10,33 +10,33 @@ namespace DeepLearning.Application.Features.WeakPointCatalogAdmin.Commands.Creat
         : IRequestHandler<CreateWeakPointCatalogEntryCommand, CreateWeakPointCatalogEntryResult>
     {
         private readonly IWeakPointCatalogRepository _catalogRepository;
-        private readonly IExamTypeRepository _examTypeRepository;
+        private readonly IWeakPointCategoryRepository _categoryRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public CreateWeakPointCatalogEntryCommandHandler(
             IWeakPointCatalogRepository catalogRepository,
-            IExamTypeRepository examTypeRepository,
+            IWeakPointCategoryRepository categoryRepository,
             IUnitOfWork unitOfWork)
         {
             _catalogRepository = catalogRepository;
-            _examTypeRepository = examTypeRepository;
+            _categoryRepository = categoryRepository;
             _unitOfWork = unitOfWork;
         }
 
         public async Task<CreateWeakPointCatalogEntryResult> Handle(CreateWeakPointCatalogEntryCommand request, CancellationToken cancellationToken)
         {
-            _ = await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
-                ?? throw new NotFoundException(nameof(ExamType), request.ExamTypeId);
+            _ = await _categoryRepository.GetByIdAsync(request.CategoryId, cancellationToken)
+                ?? throw new NotFoundException(nameof(WeakPointCategory), request.CategoryId);
 
-            if (await _catalogRepository.ExistsAsync(request.ExamTypeId, request.Code, cancellationToken))
+            if (await _catalogRepository.ExistsAsync(request.Code, cancellationToken))
             {
-                throw new ConflictException($"Weak-point catalog code '{request.Code}' already exists for this exam type.");
+                throw new ConflictException($"Weak-point catalog code '{request.Code}' already exists.");
             }
 
             var entry = new WeakPointCatalog
             {
                 Id = Guid.NewGuid(),
-                ExamTypeId = request.ExamTypeId,
+                CategoryId = request.CategoryId,
                 Code = request.Code,
                 Name = request.Name,
                 Description = request.Description,
@@ -50,7 +50,7 @@ namespace DeepLearning.Application.Features.WeakPointCatalogAdmin.Commands.Creat
             await _catalogRepository.AddAsync(entry, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            return new CreateWeakPointCatalogEntryResult(entry.Id, entry.ExamTypeId, entry.Code, entry.Name);
+            return new CreateWeakPointCatalogEntryResult(entry.Id, entry.CategoryId!.Value, entry.Code, entry.Name);
         }
     }
 }

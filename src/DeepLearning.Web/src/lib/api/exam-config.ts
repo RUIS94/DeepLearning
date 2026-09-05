@@ -13,6 +13,7 @@ import type {
   PromptTemplate,
   QuestionBankCategory,
   WeakPointCatalogEntry,
+  WeakPointCategory,
 } from "@/lib/types/dtos";
 
 const api = createBrowserApiClient();
@@ -59,30 +60,28 @@ export async function createErrorTaxonomy(
   });
 }
 
-// ---- weak-point catalog (per exam type) ----
+// ---- weak-point catalog (全局共享，不再按 exam type 划分，见方案 §1.2) ----
 
-export async function listWeakPointCatalog(examTypeId: string): Promise<WeakPointCatalogEntry[]> {
-  return api<WeakPointCatalogEntry[]>(`/exam-types/${examTypeId}/weak-point-catalog`);
+export async function listWeakPointCategories(): Promise<WeakPointCategory[]> {
+  return api<WeakPointCategory[]>("/weak-point-catalog/categories");
 }
 
-export async function createWeakPointCatalogEntry(
-  examTypeId: string,
-  req: {
-    code: string;
-    name: string;
-    description: string;
-    defaultDimensionKey: string | null;
-    defaultErrorCategory: string | null;
-  },
-): Promise<WeakPointCatalogEntry> {
-  return api<WeakPointCatalogEntry>(`/exam-types/${examTypeId}/weak-point-catalog`, {
-    method: "POST",
-    body: req,
-  });
+export async function listWeakPointCatalog(status?: number): Promise<WeakPointCatalogEntry[]> {
+  return api<WeakPointCatalogEntry[]>("/weak-point-catalog", { query: { status } });
+}
+
+export async function createWeakPointCatalogEntry(req: {
+  categoryId: string;
+  code: string;
+  name: string;
+  description: string;
+  defaultDimensionKey: string | null;
+  defaultErrorCategory: string | null;
+}): Promise<WeakPointCatalogEntry> {
+  return api<WeakPointCatalogEntry>("/weak-point-catalog", { method: "POST", body: req });
 }
 
 export async function updateWeakPointCatalogEntry(
-  examTypeId: string,
   id: string,
   req: {
     name?: string | null;
@@ -92,16 +91,15 @@ export async function updateWeakPointCatalogEntry(
     status?: number | null;
   },
 ): Promise<unknown> {
-  return api(`/exam-types/${examTypeId}/weak-point-catalog/${id}`, { method: "PUT", body: req });
+  return api(`/weak-point-catalog/${id}`, { method: "PUT", body: req });
 }
 
 export async function mergeWeakPointCatalog(
-  examTypeId: string,
   fromId: string,
   toId: string,
 ): Promise<{ fromId: string; toId: string; repointedCount: number; mergedCount: number }> {
   return api<{ fromId: string; toId: string; repointedCount: number; mergedCount: number }>(
-    `/exam-types/${examTypeId}/weak-point-catalog/merge`,
+    "/weak-point-catalog/merge",
     { method: "POST", body: { fromId, toId } },
   );
 }

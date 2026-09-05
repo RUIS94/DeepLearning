@@ -3,6 +3,7 @@ using DeepLearning.Application.Features.WeakPointCatalogAdmin.Commands.CreateWea
 using DeepLearning.Application.Features.WeakPointCatalogAdmin.Commands.MergeWeakPointCatalog;
 using DeepLearning.Application.Features.WeakPointCatalogAdmin.Commands.UpdateWeakPointCatalogEntry;
 using DeepLearning.Application.Features.WeakPointCatalogAdmin.Queries.ListWeakPointCatalog;
+using DeepLearning.Application.Features.WeakPointCatalogAdmin.Queries.ListWeakPointCategories;
 using DeepLearning.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -21,7 +22,7 @@ namespace DeepLearning.Api.Controllers
         }
 
         public record CreateWeakPointCatalogRequest(
-            string Code, string Name, string Description, string? DefaultDimensionKey, string? DefaultErrorCategory);
+            Guid CategoryId, string Code, string Name, string Description, string? DefaultDimensionKey, string? DefaultErrorCategory);
 
         public record UpdateWeakPointCatalogRequest(
             string? Name, string? Description, string? DefaultDimensionKey, string? DefaultErrorCategory, WeakPointCatalogStatus? Status);
@@ -30,25 +31,29 @@ namespace DeepLearning.Api.Controllers
 
         [HttpGet]
         public async Task<ActionResult<List<WeakPointCatalogResultItem>>> List(
-            Guid examTypeId, WeakPointCatalogStatus? status, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new ListWeakPointCatalogQuery(examTypeId, status), cancellationToken));
+            WeakPointCatalogStatus? status, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new ListWeakPointCatalogQuery(status), cancellationToken));
+
+        [HttpGet("categories")]
+        public async Task<ActionResult<List<WeakPointCategoryResultItem>>> ListCategories(CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new ListWeakPointCategoriesQuery(), cancellationToken));
 
         [HttpPost]
         public async Task<ActionResult<CreateWeakPointCatalogEntryResult>> Create(
-            Guid examTypeId, CreateWeakPointCatalogRequest request, CancellationToken cancellationToken)
+            CreateWeakPointCatalogRequest request, CancellationToken cancellationToken)
         {
             var result = await _mediator.Send(
                 new CreateWeakPointCatalogEntryCommand(
-                    examTypeId, request.Code, request.Name, request.Description,
+                    request.CategoryId, request.Code, request.Name, request.Description,
                     request.DefaultDimensionKey, request.DefaultErrorCategory),
                 cancellationToken);
 
-            return CreatedAtAction(nameof(List), new { examTypeId }, result);
+            return CreatedAtAction(nameof(List), result);
         }
 
         [HttpPut("{id:guid}")]
         public async Task<ActionResult<UpdateWeakPointCatalogEntryResult>> Update(
-            Guid examTypeId, Guid id, UpdateWeakPointCatalogRequest request, CancellationToken cancellationToken)
+            Guid id, UpdateWeakPointCatalogRequest request, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(
                 new UpdateWeakPointCatalogEntryCommand(
                     id, request.Name, request.Description, request.DefaultDimensionKey, request.DefaultErrorCategory, request.Status),
@@ -56,7 +61,7 @@ namespace DeepLearning.Api.Controllers
 
         [HttpPost("merge")]
         public async Task<ActionResult<MergeWeakPointCatalogResult>> Merge(
-            Guid examTypeId, MergeWeakPointCatalogRequest request, CancellationToken cancellationToken)
+            MergeWeakPointCatalogRequest request, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(new MergeWeakPointCatalogCommand(request.FromId, request.ToId), cancellationToken));
     }
 }

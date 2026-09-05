@@ -15,13 +15,14 @@ namespace DeepLearning.Application.Features.WeakPointCatalogAdmin.Queries.ListWe
 
         public async Task<List<WeakPointCatalogResultItem>> Handle(ListWeakPointCatalogQuery request, CancellationToken cancellationToken)
         {
-            var rows = await _catalogRepository.ListAllByExamTypeAsync(request.ExamTypeId, cancellationToken);
+            var rows = await _catalogRepository.ListAllAsync(cancellationToken);
 
             return rows
                 .Where(x => request.Status is null || x.Status == request.Status)
                 .Select(x => new WeakPointCatalogResultItem(
                     x.Id,
-                    x.ExamTypeId,
+                    x.CategoryId,
+                    x.Category?.Code,
                     x.Code,
                     x.Name,
                     x.Description,

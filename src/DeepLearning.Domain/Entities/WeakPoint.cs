@@ -43,6 +43,31 @@ namespace DeepLearning.Domain.Entities
         /// <summary>Set when a resolve sweep marks the weak point cleared; a later occurrence flips <see cref="Status"/> back to active and counts as a recurrence.</summary>
         public DateTimeOffset? ResolvedAt { get; set; }
 
+        /// <summary>
+        /// Lifetime count of distinct submissions that hit this weak point — never reset, incremented
+        /// on every hit regardless of <see cref="Status"/>. Only read while <see cref="Status"/> is
+        /// <see cref="WeakPointStatus.tracking"/>, to decide the 3-submission confirmation threshold;
+        /// once past that it is kept purely as history (策划书 §2).
+        /// </summary>
+        public int OccurrenceSubmissionCount { get; set; }
+
+        /// <summary>
+        /// AI-generated, executable rule for spotting this weak point's trap in a fresh source text
+        /// and judging whether the translation handled it — the weak_point_recheck call's input, not
+        /// shown to the grading prompt (that only sees <see cref="PatternSummary"/>). Generated once
+        /// when this weak point first crosses the tracking threshold, and regenerated with fresh
+        /// evidence whenever it resurfaces after being resolved.
+        /// </summary>
+        public string? DetectionCriteria { get; set; }
+
+        /// <summary>
+        /// Consecutive weak_point_recheck calls that returned "not_present" (the source text simply
+        /// didn't contain this trap, so the check was inconclusive either way). Reset to 0 on any hit
+        /// in a new submission's classification or a "still_weak" recheck result; reaching 5 resolves
+        /// the weak point for lack of any recent opportunity to confirm it either way (策划书 §2/§3).
+        /// </summary>
+        public int NoEvidenceStreak { get; set; }
+
         public User? User { get; set; }
         public WeakPointCatalog? Catalog { get; set; }
     }

@@ -24,14 +24,14 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
             builder.Property(x => x.Origin).HasMaxLength(20).HasDefaultValue("seed").ValueGeneratedNever();
             builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
 
-            builder.HasIndex(x => new { x.ExamTypeId, x.Code })
+            builder.HasIndex(x => x.Code)
                 .IsUnique()
-                .HasDatabaseName("ux_weak_point_catalog_exam_code");
+                .HasDatabaseName("ux_weak_point_catalog_code");
 
-            builder.HasOne(x => x.ExamType)
+            builder.HasOne(x => x.Category)
                 .WithMany()
-                .HasForeignKey(x => x.ExamTypeId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .HasForeignKey(x => x.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

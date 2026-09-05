@@ -83,3 +83,12 @@ promote_grading_prompt_v2_to_production_v1.sql
 
 # --- 2026-09-05: llm_provider_* 最终状态种子，补齐 EF 迁移建成的全新库（线上是 no-op） ---
 seed_llm_provider_defaults_for_fresh_db.sql
+
+# --- 2026-09-05: 薄弱点两级分类体系（8 一级 + 38 二级叶子，全局共享，取代旧 exam_type 专属 catalog） ---
+seed_weak_point_categories.sql
+seed_weak_point_catalog_v2_taxonomy.sql
+remove_legacy_naati_weak_point_catalog.sql
+upgrade_weak_point_classification_prompt_v3_two_level_taxonomy.sql
+add_weak_point_detection_criteria_prompt_template.sql
+add_weak_point_recheck_prompt_template.sql
+fix_weak_point_prompts_exam_specific.sql

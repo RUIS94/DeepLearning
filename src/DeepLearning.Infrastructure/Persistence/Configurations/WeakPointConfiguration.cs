@@ -26,6 +26,8 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
             // bug FollowUpQuestionConfiguration.Verdict hit for real (see its comment).
             builder.Property(x => x.Priority).HasDefaultValue(Domain.Enums.Priority.medium).ValueGeneratedNever();
             builder.Property(x => x.DetectionSource).HasMaxLength(20).HasDefaultValue("rule").ValueGeneratedNever();
+            builder.Property(x => x.OccurrenceSubmissionCount).HasDefaultValue(0);
+            builder.Property(x => x.NoEvidenceStreak).HasDefaultValue(0);
 
             builder.HasIndex(x => new { x.UserId, x.Status }).HasDatabaseName("idx_weak_points_user_status");
 

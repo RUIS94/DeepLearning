@@ -47,6 +47,7 @@ export const errorTaxonomyFormSchema = z.object({
 export type ErrorTaxonomyFormInput = z.infer<typeof errorTaxonomyFormSchema>;
 
 export const weakPointCatalogFormSchema = z.object({
+  categoryId: z.string().trim().min(1, "请选择一级分类"),
   code: z
     .string()
     .trim()
@@ -66,10 +67,11 @@ export const promptTemplateFormSchema = z
   .object({
     examTypeId: z.string().nullable().optional(),
     subjectCategory: z.number().int().min(-1).max(4).nullable().optional(),
-    // 0-7：AiOperationType 的 8 个值（question_gen/grading/followup/standard_revision/
-    // deep_learning/progress_trend/followup_summary/weak_point_classification）。新增枚举值时
-    // 这里要同步放宽上界，否则编辑该类模板时 zodResolver 会静默拦下提交（见 enums.ts AiOperationType）。
-    templateType: z.number().int().min(0).max(7),
+    // 0-9：AiOperationType 的 10 个值（question_gen/grading/followup/standard_revision/
+    // deep_learning/progress_trend/followup_summary/weak_point_classification/
+    // weak_point_detection_criteria/weak_point_recheck）。新增枚举值时这里要同步放宽上界，
+    // 否则编辑该类模板时 zodResolver 会静默拦下提交（见 enums.ts AiOperationType）。
+    templateType: z.number().int().min(0).max(9),
     layer: z.number().int().min(0).max(1),
     templateContent: z.string().trim().min(1, "模板正文不能为空"),
     // 后端 CreatePromptTemplateCommand 要求显式传版本号，没有自动递增逻辑。

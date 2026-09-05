@@ -11,6 +11,7 @@ import {
 import {
   createWeakPointCatalogEntry,
   listWeakPointCatalog,
+  listWeakPointCategories,
   mergeWeakPointCatalog,
   updateWeakPointCatalogEntry,
 } from "@/lib/api/exam-config";
@@ -38,139 +39,150 @@ const STATUS_OPTIONS = [
   { value: String(WeakPointCatalogStatus.deprecated), label: "已退役" },
 ];
 
-const columns: CrudColumn<WeakPointCatalogEntry>[] = [
-  {
-    key: "code",
-    header: "code",
-    render: (c) => <span className="font-mono text-xs">{c.code}</span>,
-  },
-  { key: "name", header: "名称", render: (c) => c.name },
-  {
-    key: "match",
-    header: "规则匹配键",
-    render: (c) =>
-      c.defaultDimensionKey
-        ? `${c.defaultDimensionKey}${c.defaultErrorCategory ? ` / ${c.defaultErrorCategory}` : ""}`
-        : "—",
-  },
-  {
-    key: "status",
-    header: "状态",
-    render: (c) => (
-      <Badge
-        variant="outline"
-        className={
-          c.status === WeakPointCatalogStatus.proposed
-            ? "border-warning/40 text-warning-foreground"
-            : c.status === WeakPointCatalogStatus.deprecated
-              ? "border-border text-muted-foreground"
-              : "border-accent/40 text-accent"
-        }
-      >
-        {WeakPointCatalogStatusLabel[c.status]}
-        {c.origin !== "seed" ? ` · ${c.origin === "auto" ? "自动" : "手动"}` : ""}
-      </Badge>
-    ),
-  },
-  { key: "description", header: "说明", render: (c) => c.description },
-];
-
-const fields: CrudField<WeakPointCatalogFormInput>[] = [
-  { name: "code", label: "code", kind: "text", placeholder: "omission_hedging" },
-  { name: "name", label: "名称", kind: "text", placeholder: "省略保留性/让步语气词" },
-  { name: "description", label: "说明", kind: "textarea" },
-  {
-    name: "defaultDimensionKey",
-    label: "默认评分维度 key（可选）",
-    kind: "text",
-    placeholder: "meaning_transfer",
-    description: "规则分桶按此匹配;留空表示不参与规则匹配,仅靠 AI 分类或手动归类。",
-  },
-  {
-    name: "defaultErrorCategory",
-    label: "默认错误类别 key（可选）",
-    kind: "text",
-    placeholder: "unjustified_omission",
-  },
-  { name: "status", label: "状态", kind: "select", options: STATUS_OPTIONS },
-];
-
-const defaultValues: WeakPointCatalogFormInput = {
-  code: "",
-  name: "",
-  description: "",
-  defaultDimensionKey: "",
-  defaultErrorCategory: "",
-  status: String(WeakPointCatalogStatus.active),
-};
-
-export function WeakPointCatalogPanel({
-  examTypeId,
-  createRef,
-}: {
-  examTypeId: string;
-  createRef?: Ref<CrudCreateHandle>;
-}) {
+/** 薄弱点种类现在是全局共享的（不再按考试类型划分，见 策划书 §1.2），这个面板只是仍挂在考试配置页下展示。 */
+export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreateHandle> }) {
   const queryClient = useQueryClient();
-  const key = ["admin", "weak-point-catalog", examTypeId];
+  const key = ["admin", "weak-point-catalog"];
   const catalog = useQuery({
     queryKey: key,
-    queryFn: () => listWeakPointCatalog(examTypeId),
+    queryFn: () => listWeakPointCatalog(),
   });
+  const categories = useQuery({
+    queryKey: ["admin", "weak-point-categories"],
+    queryFn: () => listWeakPointCategories(),
+  });
+  const categoryNameById = new Map((categories.data ?? []).map((c) => [c.id, c.name]));
+  const categoryOptions = (categories.data ?? []).map((c) => ({ value: c.id, label: c.name }));
+
+  const columns: CrudColumn<WeakPointCatalogEntry>[] = [
+    {
+      key: "category",
+      header: "一级分类",
+      render: (c) => (c.categoryId ? (categoryNameById.get(c.categoryId) ?? "—") : "待审核·未分类"),
+    },
+    {
+      key: "code",
+      header: "code",
+      render: (c) => <span className="font-mono text-xs">{c.code}</span>,
+    },
+    { key: "name", header: "名称", render: (c) => c.name },
+    {
+      key: "match",
+      header: "规则匹配键",
+      render: (c) =>
+        c.defaultDimensionKey
+          ? `${c.defaultDimensionKey}${c.defaultErrorCategory ? ` / ${c.defaultErrorCategory}` : ""}`
+          : "—",
+    },
+    {
+      key: "status",
+      header: "状态",
+      render: (c) => (
+        <Badge
+          variant="outline"
+          className={
+            c.status === WeakPointCatalogStatus.proposed
+              ? "border-warning/40 text-warning-foreground"
+              : c.status === WeakPointCatalogStatus.deprecated
+                ? "border-border text-muted-foreground"
+                : "border-accent/40 text-accent"
+          }
+        >
+          {WeakPointCatalogStatusLabel[c.status]}
+          {c.origin !== "seed" ? ` · ${c.origin === "auto" ? "自动" : "手动"}` : ""}
+        </Badge>
+      ),
+    },
+    { key: "description", header: "说明", render: (c) => c.description },
+  ];
+
+  const fields: CrudField<WeakPointCatalogFormInput>[] = [
+    { name: "categoryId", label: "一级分类", kind: "select", options: categoryOptions },
+    { name: "code", label: "code", kind: "text", placeholder: "semantic_causality" },
+    { name: "name", label: "名称", kind: "text", placeholder: "Causality / 因果" },
+    { name: "description", label: "说明", kind: "textarea" },
+    {
+      name: "defaultDimensionKey",
+      label: "默认评分维度 key（可选）",
+      kind: "text",
+      placeholder: "meaning_transfer",
+      description: "规则分桶按此匹配;留空表示不参与规则匹配,仅靠 AI 分类或手动归类。",
+    },
+    {
+      name: "defaultErrorCategory",
+      label: "默认错误类别 key（可选）",
+      kind: "text",
+      placeholder: "unjustified_omission",
+    },
+    { name: "status", label: "状态", kind: "select", options: STATUS_OPTIONS },
+  ];
+
+  const defaultValues: WeakPointCatalogFormInput = {
+    categoryId: "",
+    code: "",
+    name: "",
+    description: "",
+    defaultDimensionKey: "",
+    defaultErrorCategory: "",
+    status: String(WeakPointCatalogStatus.active),
+  };
 
   return (
     <div className="space-y-4">
-      <MergeControl examTypeId={examTypeId} entries={catalog.data ?? []} onMerged={() => queryClient.invalidateQueries({ queryKey: key })} />
+      <MergeControl
+        entries={catalog.data ?? []}
+        onMerged={() => queryClient.invalidateQueries({ queryKey: key })}
+      />
       <CrudTable
-      openCreateRef={createRef}
-      hideCreate
-      columns={columns}
-      items={catalog.data}
-      isLoading={catalog.isPending}
-      loadError={catalog.error}
-      getRowId={(c) => c.id}
-      schema={weakPointCatalogFormSchema}
-      fields={fields}
-      defaultValues={defaultValues}
-      dialogTitle="新建薄弱点种类"
-      onCreate={(values) =>
-        createWeakPointCatalogEntry(examTypeId, {
-          code: values.code,
-          name: values.name,
-          description: values.description,
-          defaultDimensionKey: values.defaultDimensionKey || null,
-          defaultErrorCategory: values.defaultErrorCategory || null,
-        })
-      }
-      toFormValues={(c) => ({
-        code: c.code,
-        name: c.name,
-        description: c.description,
-        defaultDimensionKey: c.defaultDimensionKey ?? "",
-        defaultErrorCategory: c.defaultErrorCategory ?? "",
-        status: String(c.status),
-      })}
-      onUpdate={(id, values) =>
-        updateWeakPointCatalogEntry(examTypeId, id, {
-          name: values.name,
-          description: values.description,
-          defaultDimensionKey: values.defaultDimensionKey || "",
-          defaultErrorCategory: values.defaultErrorCategory || "",
-          status: Number(values.status),
-        })
-      }
-      onChanged={() => queryClient.invalidateQueries({ queryKey: key })}
+        openCreateRef={createRef}
+        hideCreate
+        columns={columns}
+        items={catalog.data}
+        isLoading={catalog.isPending || categories.isPending}
+        loadError={catalog.error ?? categories.error}
+        getRowId={(c) => c.id}
+        schema={weakPointCatalogFormSchema}
+        fields={fields}
+        defaultValues={defaultValues}
+        dialogTitle="新建薄弱点种类"
+        onCreate={(values) =>
+          createWeakPointCatalogEntry({
+            categoryId: values.categoryId,
+            code: values.code,
+            name: values.name,
+            description: values.description,
+            defaultDimensionKey: values.defaultDimensionKey || null,
+            defaultErrorCategory: values.defaultErrorCategory || null,
+          })
+        }
+        toFormValues={(c) => ({
+          categoryId: c.categoryId ?? "",
+          code: c.code,
+          name: c.name,
+          description: c.description,
+          defaultDimensionKey: c.defaultDimensionKey ?? "",
+          defaultErrorCategory: c.defaultErrorCategory ?? "",
+          status: String(c.status),
+        })}
+        onUpdate={(id, values) =>
+          updateWeakPointCatalogEntry(id, {
+            name: values.name,
+            description: values.description,
+            defaultDimensionKey: values.defaultDimensionKey || "",
+            defaultErrorCategory: values.defaultErrorCategory || "",
+            status: Number(values.status),
+          })
+        }
+        onChanged={() => queryClient.invalidateQueries({ queryKey: key })}
       />
     </div>
   );
 }
 
 function MergeControl({
-  examTypeId,
   entries,
   onMerged,
 }: {
-  examTypeId: string;
   entries: WeakPointCatalogEntry[];
   onMerged: () => void;
 }) {
@@ -179,7 +191,7 @@ function MergeControl({
   const options = entries.filter((e) => e.status !== WeakPointCatalogStatus.deprecated);
 
   const merge = useMutation({
-    mutationFn: () => mergeWeakPointCatalog(examTypeId, fromId, toId),
+    mutationFn: () => mergeWeakPointCatalog(fromId, toId),
     onSuccess: (res) => {
       showToast({
         variant: "success",

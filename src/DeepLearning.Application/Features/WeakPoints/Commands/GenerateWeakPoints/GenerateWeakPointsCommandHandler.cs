@@ -11,9 +11,9 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
     /// <summary>
     /// Design doc §10.4/§10.5's weak-point tracking, run as a background job after grading
     /// (see GenerateWeakPointsCommand for why it is no longer a SubmissionGradedEvent
-    /// subscriber). Each graded error is matched to a
-    /// <see cref="WeakPointCatalog"/> kind and the resulting <see cref="WeakPointOccurrence"/> is
-    /// tied back to the specific ErrorListItem, its snippet and its dimension's band.
+    /// subscriber). Each graded error is matched to a <see cref="WeakPointCatalog"/> kind and the
+    /// resulting <see cref="WeakPointOccurrence"/> is tied back to the specific ErrorListItem, its
+    /// snippet and its dimension's band.
     ///
     /// Bucketing order per error: (1) an <see cref="IWeakPointClassifier"/> AI call, when a
     /// <c>weak_point_classification</c> template is configured — the only way to tell apart
@@ -30,46 +30,88 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
     /// before this grading and gets another hit) is promoted: a <c>proposed</c> catalog kind is
     /// minted for it and the weak point re-pointed, so it stops being a coarse free-text row and
     /// becomes reviewable/mergeable in admin.
+    ///
+    /// 薄弱点分类与生命周期管理_策划书.md's three-stage lifecycle (catalog-mapped weak points only —
+    /// legacy free-text buckets keep the pre-existing "detected once -&gt; immediately active"
+    /// behaviour, since the tracking/threshold model only applies to the curated two-level
+    /// taxonomy):
+    ///   1. First hit -&gt; <see cref="WeakPointStatus.tracking"/>. Each subsequent hit (deduped to
+    ///      one per submission, counted regardless of status) increments
+    ///      <see cref="WeakPoint.OccurrenceSubmissionCount"/>; crossing 3 while tracking -&gt;
+    ///      <see cref="WeakPointStatus.active"/> and queues an <see cref="IWeakPointDetectionCriteriaGenerator"/>
+    ///      call. A hit on an already-<c>resolved</c> weak point reactivates it immediately
+    ///      (bypassing the threshold — the existing recurrence path) and also queues a fresh
+    ///      detection-criteria generation, since the recurrence itself is new evidence.
+    ///   2. Once active, every submission that does NOT hit it is a candidate for
+    ///      <see cref="IWeakPointRecheckService"/>: batched across all such candidates for this
+    ///      submission, checked against this submission's source text + translation. `resolved`
+    ///      deactivates it; `still_weak` keeps it active; `not_present` is inconclusive and only
+    ///      deactivates after <see cref="WeakPoint.NoEvidenceStreak"/> reaches 5 (no evidence
+    ///      either way for that long). None of this touches error_list, RecurrenceCount or
+    ///      OccurrenceSubmissionCount — a recheck is a status judgment, not a new occurrence.
     /// </summary>
     public class GenerateWeakPointsCommandHandler : IRequestHandler<GenerateWeakPointsCommand>
     {
-        /// <summary>
-        /// An active weak point not seen again within the user's most recent this-many graded
-        /// submissions is marked resolved; a later occurrence then counts as a recurrence
-        /// (design doc §10.4 — "学会了又忘了" is a distinct signal from "从未真正学会").
-        /// </summary>
-        private const int ResolveAfterUnseenSubmissions = 5;
+        /// <summary>Catalog-mapped weak points need this many distinct-submission hits while <see cref="WeakPointStatus.tracking"/> before they are confirmed <see cref="WeakPointStatus.active"/>.</summary>
+        private const int TrackingConfirmationThreshold = 3;
+
+        /// <summary>Consecutive inconclusive ("not_present") recheck results before an active weak point is deactivated for lack of any recent opportunity to confirm it either way.</summary>
+        private const int NoEvidenceResolveThreshold = 5;
 
         private readonly ISubmissionRepository _submissionRepository;
         private readonly IWeakPointRepository _weakPointRepository;
         private readonly IWeakPointCatalogRepository _weakPointCatalogRepository;
+        private readonly IWeakPointCategoryRepository _weakPointCategoryRepository;
         private readonly IWeakPointClassifier _weakPointClassifier;
+        private readonly IWeakPointDetectionCriteriaGenerator _detectionCriteriaGenerator;
+        private readonly IWeakPointRecheckService _recheckService;
         private readonly IUnitOfWork _unitOfWork;
 
         public GenerateWeakPointsCommandHandler(
             ISubmissionRepository submissionRepository,
             IWeakPointRepository weakPointRepository,
             IWeakPointCatalogRepository weakPointCatalogRepository,
+            IWeakPointCategoryRepository weakPointCategoryRepository,
             IWeakPointClassifier weakPointClassifier,
+            IWeakPointDetectionCriteriaGenerator detectionCriteriaGenerator,
+            IWeakPointRecheckService recheckService,
             IUnitOfWork unitOfWork)
         {
             _submissionRepository = submissionRepository;
             _weakPointRepository = weakPointRepository;
             _weakPointCatalogRepository = weakPointCatalogRepository;
+            _weakPointCategoryRepository = weakPointCategoryRepository;
             _weakPointClassifier = weakPointClassifier;
+            _detectionCriteriaGenerator = detectionCriteriaGenerator;
+            _recheckService = recheckService;
             _unitOfWork = unitOfWork;
         }
 
         public async Task Handle(GenerateWeakPointsCommand request, CancellationToken cancellationToken)
         {
             var gradedEvent = request;
+            var now = DateTimeOffset.UtcNow;
+            var touchedWeakPointIds = new HashSet<Guid>();
+
             var errors = await _submissionRepository.GetErrorListAsync(gradedEvent.SubmissionId, cancellationToken);
-            if (errors.Count == 0)
+            if (errors.Count > 0)
             {
-                return;
+                await ClassifyAndTrackAsync(gradedEvent, errors, now, touchedWeakPointIds, cancellationToken);
             }
 
-            var catalog = await _weakPointCatalogRepository.ListByExamTypeAsync(gradedEvent.ExamTypeId, cancellationToken);
+            await RecheckUntouchedActiveWeakPointsAsync(gradedEvent, now, touchedWeakPointIds, cancellationToken);
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        private async Task ClassifyAndTrackAsync(
+            GenerateWeakPointsCommand gradedEvent,
+            List<ErrorListItem> errors,
+            DateTimeOffset now,
+            HashSet<Guid> touchedWeakPointIds,
+            CancellationToken cancellationToken)
+        {
+            var catalog = await _weakPointCatalogRepository.ListActiveAsync(cancellationToken);
             var gradingResults = await _submissionRepository.GetGradingResultsAsync(gradedEvent.SubmissionId, cancellationToken);
             var bandByDimensionId = gradingResults
                 .GroupBy(r => r.DimensionId)
@@ -84,9 +126,6 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
                 .Select(w => new ActiveWeakPointSummary(w.Catalog!.Code, w.PatternSummary))
                 .ToList();
 
-            // One AI pass: place errors the (dimension, category) rule can't tell apart, and
-            // refresh pattern summaries. Returns Empty (-> rule handles everything, no summary
-            // updates) when no template is configured or the call fails; never throws.
             var classifierErrors = errors.Select(e => new WeakPointClassifierError(
                 e.Id,
                 e.Dimension?.DimensionKey ?? string.Empty,
@@ -97,13 +136,14 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
             var classification = await _weakPointClassifier.ClassifyAsync(
                 gradedEvent.ExamTypeId, classifierErrors, catalog, activeSummaries, cancellationToken);
 
+            await CreateProposedLeavesAsync(classification.ProposedLeaves, cancellationToken);
+
             var catalogById = catalog.ToDictionary(c => c.Id);
             var summaryByCode = classification.CatalogCodeToPatternSummary;
 
             // Dedup to one bucket per submission — the same category flagged 3 times in one
-            // submission is one occurrence of that weak point, not three. Recurrence (§10.4) is
-            // about a weak point resurfacing ACROSS submissions after being resolved, not density
-            // within one. First error seen for a bucket becomes its representative.
+            // submission is one occurrence of that weak point, not three. Recurrence is about a
+            // weak point resurfacing ACROSS submissions after being resolved, not density within one.
             var buckets = new Dictionary<string, Bucket>();
             foreach (var error in errors)
             {
@@ -115,11 +155,12 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
                 }
             }
 
-            var now = DateTimeOffset.UtcNow;
-            var touchedWeakPointIds = new HashSet<Guid>();
+            var needsDetectionCriteria = new List<WeakPoint>();
+
             foreach (var bucket in buckets.Values)
             {
                 var representative = bucket.RepresentativeError!;
+                var isCatalogMapped = bucket.CatalogId is not null;
 
                 var weakPoint = bucket.CatalogId is { } catalogId
                     ? await _weakPointRepository.GetByUserAndCatalogAsync(gradedEvent.UserId, catalogId, cancellationToken)
@@ -148,24 +189,31 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
                         FirstDetectedAt = now,
                         LastSeenAt = now,
                         RecurrenceCount = 0,
-                        Status = WeakPointStatus.active,
+                        OccurrenceSubmissionCount = 1,
+                        // Legacy (catalog-less) buckets keep the pre-existing immediate-active
+                        // behaviour — the tracking/threshold model only applies to catalog-mapped
+                        // weak points (策划书 §2).
+                        Status = isCatalogMapped ? WeakPointStatus.tracking : WeakPointStatus.active,
                         Priority = Priority.medium,
                     };
                     await _weakPointRepository.AddAsync(weakPoint, cancellationToken);
                 }
                 else
                 {
-                    isRecurrence = weakPoint.Status == WeakPointStatus.resolved;
+                    var previousStatus = weakPoint.Status;
+                    isRecurrence = previousStatus == WeakPointStatus.resolved;
 
                     weakPoint.LastSeenAt = now;
-                    weakPoint.Status = WeakPointStatus.active;
                     weakPoint.ResolvedAt = null;
                     weakPoint.ExamTypeId ??= gradedEvent.ExamTypeId;
+                    weakPoint.OccurrenceSubmissionCount += 1;
 
                     if (isRecurrence)
                     {
+                        weakPoint.Status = WeakPointStatus.active;
                         weakPoint.RecurrenceCount += 1;
                         weakPoint.Priority = Priority.high;
+                        weakPoint.NoEvidenceStreak = 0;
                         weakPoint.AddDomainEvent(new WeakPointRecurredEvent
                         {
                             WeakPointId = weakPoint.Id,
@@ -174,6 +222,28 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
                             RecurrenceCount = weakPoint.RecurrenceCount,
                             RecurredAt = now,
                         });
+
+                        // The recurrence itself is new evidence — regenerate rather than reuse
+                        // whatever criteria was generated before this weak point was resolved.
+                        if (isCatalogMapped)
+                        {
+                            needsDetectionCriteria.Add(weakPoint);
+                        }
+                    }
+                    else if (previousStatus == WeakPointStatus.tracking)
+                    {
+                        if (weakPoint.OccurrenceSubmissionCount >= TrackingConfirmationThreshold)
+                        {
+                            weakPoint.Status = WeakPointStatus.active;
+                            needsDetectionCriteria.Add(weakPoint);
+                        }
+                        // else: stays tracking, not yet confirmed.
+                    }
+                    else
+                    {
+                        // Already active and hit again — strong evidence, resets the "no recent
+                        // opportunity to confirm" counter the recheck maintains.
+                        weakPoint.NoEvidenceStreak = 0;
                     }
 
                     if (aiSummary is not null)
@@ -189,7 +259,7 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
                     // catalog kind for it and re-point, so it becomes reviewable/mergeable.
                     if (weakPoint.CatalogId is null)
                     {
-                        var promoted = await PromoteLegacyBucketAsync(gradedEvent.ExamTypeId, weakPoint, representative, cancellationToken);
+                        var promoted = await PromoteLegacyBucketAsync(weakPoint, representative, cancellationToken);
                         if (promoted is not null)
                         {
                             weakPoint.CatalogId = promoted.Id;
@@ -222,9 +292,154 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
                 }, cancellationToken);
             }
 
-            await ResolveStaleWeakPointsAsync(gradedEvent.UserId, touchedWeakPointIds, now, cancellationToken);
+            if (needsDetectionCriteria.Count > 0)
+            {
+                await GenerateDetectionCriteriaAsync(gradedEvent.ExamTypeId, needsDetectionCriteria, catalogById, cancellationToken);
+            }
+        }
 
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        /// <summary>
+        /// Creates a <see cref="WeakPointCatalogStatus.proposed"/> row for each new-leaf suggestion
+        /// the classifier judged necessary, skipping any whose code already exists (a concurrent
+        /// grading run, or a duplicate suggestion across errors in the same response — the
+        /// classifier already dedups the latter, this is the cross-request race guard).
+        /// </summary>
+        private async Task CreateProposedLeavesAsync(
+            IReadOnlyList<ProposedCatalogLeaf> proposedLeaves, CancellationToken cancellationToken)
+        {
+            foreach (var proposal in proposedLeaves)
+            {
+                if (await _weakPointCatalogRepository.ExistsAsync(proposal.Code, cancellationToken))
+                {
+                    continue;
+                }
+
+                var category = await _weakPointCategoryRepository.GetByCodeAsync(proposal.CategoryCode, cancellationToken);
+                await _weakPointCatalogRepository.AddAsync(new WeakPointCatalog
+                {
+                    Id = Guid.NewGuid(),
+                    CategoryId = category?.Id,
+                    Code = proposal.Code,
+                    Name = proposal.Name,
+                    Description = proposal.Description,
+                    Status = WeakPointCatalogStatus.proposed,
+                    Origin = "auto",
+                    CreatedAt = DateTimeOffset.UtcNow,
+                }, cancellationToken);
+            }
+        }
+
+        /// <summary>
+        /// One batched weak_point_detection_criteria call for every weak point that crossed the
+        /// tracking threshold or reactivated this round (usually 0 or 1). A weak point the
+        /// generator could not confidently produce criteria for keeps its current value (null for
+        /// a first-time activation) rather than blocking the status transition already applied.
+        /// </summary>
+        private async Task GenerateDetectionCriteriaAsync(
+            Guid examTypeId,
+            List<WeakPoint> needsDetectionCriteria,
+            Dictionary<Guid, WeakPointCatalog> catalogById,
+            CancellationToken cancellationToken)
+        {
+            var distinct = needsDetectionCriteria.DistinctBy(w => w.Id).ToList();
+            var requests = new List<WeakPointDetectionCriteriaRequest>();
+            foreach (var weakPoint in distinct)
+            {
+                if (weakPoint.CatalogId is not { } catalogId || !catalogById.TryGetValue(catalogId, out var catalogRow))
+                {
+                    continue;
+                }
+
+                var occurrences = await _weakPointRepository.ListOccurrencesWithErrorByWeakPointAsync(weakPoint.Id, cancellationToken);
+                var historical = occurrences
+                    .Select(o => new WeakPointHistoricalError(o.Snippet, o.ErrorList?.Explanation))
+                    .ToList();
+                requests.Add(new WeakPointDetectionCriteriaRequest(
+                    weakPoint.Id, catalogRow.Code, catalogRow.Name, catalogRow.Description, historical));
+            }
+
+            if (requests.Count == 0)
+            {
+                return;
+            }
+
+            var generated = await _detectionCriteriaGenerator.GenerateAsync(examTypeId, requests, cancellationToken);
+            foreach (var weakPoint in distinct)
+            {
+                if (generated.TryGetValue(weakPoint.Id, out var criteria))
+                {
+                    weakPoint.DetectionCriteria = criteria;
+                }
+            }
+        }
+
+        /// <summary>
+        /// AI③ — the active weak points this submission did NOT touch are candidates for recheck
+        /// against this submission's source text + translation, batched into one call. Skipped
+        /// entirely when there is nothing to check (no untouched active weak points, or the
+        /// submission/question text can't be loaded). Never writes error_list, RecurrenceCount or
+        /// OccurrenceSubmissionCount — see this class's doc comment.
+        /// </summary>
+        private async Task RecheckUntouchedActiveWeakPointsAsync(
+            GenerateWeakPointsCommand gradedEvent,
+            DateTimeOffset now,
+            HashSet<Guid> touchedWeakPointIds,
+            CancellationToken cancellationToken)
+        {
+            var activeWeakPoints = await _weakPointRepository.ListByUserAsync(gradedEvent.UserId, WeakPointStatus.active, cancellationToken);
+            var candidates = activeWeakPoints
+                .Where(w => !touchedWeakPointIds.Contains(w.Id)
+                    && w.CatalogId is not null
+                    && !string.IsNullOrWhiteSpace(w.DetectionCriteria)
+                    && w.Catalog is not null)
+                .ToList();
+            if (candidates.Count == 0)
+            {
+                return;
+            }
+
+            var sourceAndTranslation = await _submissionRepository.GetSourceAndTranslationAsync(gradedEvent.SubmissionId, cancellationToken);
+            if (sourceAndTranslation is null)
+            {
+                return;
+            }
+
+            var recheckCandidates = candidates
+                .Select(w => new WeakPointRecheckCandidate(w.Id, w.Catalog!.Code, w.DetectionCriteria!))
+                .ToList();
+            var outcomes = await _recheckService.RecheckAsync(
+                gradedEvent.ExamTypeId, recheckCandidates, sourceAndTranslation.SourceText, sourceAndTranslation.TranslationText, cancellationToken);
+
+            foreach (var weakPoint in candidates)
+            {
+                if (!outcomes.TryGetValue(weakPoint.Id, out var outcome))
+                {
+                    // Omitted from the result — leave status/streak untouched (contract: never throws, never guesses).
+                    continue;
+                }
+
+                switch (outcome)
+                {
+                    case WeakPointRecheckOutcome.Resolved:
+                        weakPoint.Status = WeakPointStatus.resolved;
+                        weakPoint.ResolvedAt = now;
+                        weakPoint.NoEvidenceStreak = 0;
+                        break;
+                    case WeakPointRecheckOutcome.StillWeak:
+                        weakPoint.NoEvidenceStreak = 0;
+                        break;
+                    case WeakPointRecheckOutcome.NotPresent:
+                        weakPoint.NoEvidenceStreak += 1;
+                        if (weakPoint.NoEvidenceStreak >= NoEvidenceResolveThreshold)
+                        {
+                            weakPoint.Status = WeakPointStatus.resolved;
+                            weakPoint.ResolvedAt = now;
+                            weakPoint.NoEvidenceStreak = 0;
+                        }
+
+                        break;
+                }
+            }
         }
 
         /// <summary>
@@ -232,10 +447,12 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
         /// legacy bucket (deterministic code from the representative error's dimension + category,
         /// so two learners hitting the same pattern converge on one row). Returns the existing
         /// row if one already carries that code. Null only when the representative lacks a
-        /// dimension/category to key on.
+        /// dimension/category to key on. <see cref="WeakPointCatalog.CategoryId"/> is left null —
+        /// a rule-promoted bucket doesn't know which of the 8 top-level categories it belongs
+        /// under; admin triage assigns one when approving the proposal to active.
         /// </summary>
         private async Task<WeakPointCatalog?> PromoteLegacyBucketAsync(
-            Guid examTypeId, WeakPoint weakPoint, ErrorListItem representative, CancellationToken cancellationToken)
+            WeakPoint weakPoint, ErrorListItem representative, CancellationToken cancellationToken)
         {
             var dimensionKey = representative.Dimension?.DimensionKey;
             var categoryKey = representative.ErrorTaxonomy?.CategoryKey;
@@ -250,7 +467,7 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
                 code = code[..60];
             }
 
-            var existing = await _weakPointRepository.GetCatalogByExamAndCodeAsync(examTypeId, code, cancellationToken);
+            var existing = await _weakPointRepository.GetCatalogByCodeAsync(code, cancellationToken);
             if (existing is not null)
             {
                 return existing;
@@ -260,7 +477,7 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
             var proposed = new WeakPointCatalog
             {
                 Id = Guid.NewGuid(),
-                ExamTypeId = examTypeId,
+                CategoryId = null,
                 Code = code,
                 Name = name.Length > 100 ? name[..100] : name,
                 Description = weakPoint.PatternSummary ?? $"待审:{name} 反复出现,尚未归入规范薄弱点。",
@@ -272,37 +489,6 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.GenerateWeakPoin
             };
             await _weakPointRepository.AddCatalogAsync(proposed, cancellationToken);
             return proposed;
-        }
-
-        /// <summary>
-        /// Marks the user's active weak points that did NOT resurface in this submission and
-        /// haven't been seen within their most recent <see cref="ResolveAfterUnseenSubmissions"/>
-        /// graded submissions as resolved. Nothing to do until the user has that many graded
-        /// submissions on record.
-        /// </summary>
-        private async Task ResolveStaleWeakPointsAsync(
-            Guid userId, HashSet<Guid> touchedWeakPointIds, DateTimeOffset now, CancellationToken cancellationToken)
-        {
-            var activeWeakPoints = await _weakPointRepository.ListByUserAsync(userId, WeakPointStatus.active, cancellationToken);
-            var stillActiveUntouched = activeWeakPoints.Where(w => !touchedWeakPointIds.Contains(w.Id)).ToList();
-            if (stillActiveUntouched.Count == 0)
-            {
-                return;
-            }
-
-            var gradedCreatedAt = await _submissionRepository.ListRecentGradedCreatedAtAsync(
-                userId, ResolveAfterUnseenSubmissions, cancellationToken);
-            if (gradedCreatedAt.Count < ResolveAfterUnseenSubmissions)
-            {
-                return;
-            }
-
-            var cutoff = gradedCreatedAt[ResolveAfterUnseenSubmissions - 1];
-            foreach (var weakPoint in stillActiveUntouched.Where(w => w.LastSeenAt < cutoff))
-            {
-                weakPoint.Status = WeakPointStatus.resolved;
-                weakPoint.ResolvedAt = now;
-            }
         }
 
         /// <summary>

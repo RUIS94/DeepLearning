@@ -86,7 +86,7 @@ export function ExamTypeConfigPage() {
           <PromptTemplatesPanel createRef={promptCreate} />
         </TabsContent>
         <TabsContent value="weak-point-catalog" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
-          <WeakPointCatalogPanel examTypeId={examTypeId} createRef={weakPointCatalogCreate} />
+          <WeakPointCatalogPanel createRef={weakPointCatalogCreate} />
         </TabsContent>
         <TabsContent value="standard-overrides" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
           <StandardOverridesPanel />

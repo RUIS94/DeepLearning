@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
@@ -170,18 +171,17 @@ namespace DeepLearning.Application.Features.Progress.Commands.GenerateProgressTr
             TrendPayload payload;
             try
             {
-                payload = await _aiCallRetryExecutor.ExecuteAsync(aiCallLog, async () =>
-                {
-                    var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
-                    var completion = await llmClient.CompleteAsync(
-                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 1024),
-                        cancellationToken);
-                    aiCallLog.LatencyMs = completion.LatencyMs;
-
-                    var parsed = ParsePayload(completion.Text);
-                    ValidatePayload(parsed);
-                    return parsed;
-                }, cancellationToken);
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                payload = await AdaptiveCompletionRunner.RunAsync(
+                    _aiCallRetryExecutor,
+                    llmClient,
+                    aiCallLog,
+                    prompt,
+                    initialBudget: AiOutputBudget.UltraShortInitial,
+                    maxBudget: AiOutputBudget.UltraShortMax,
+                    parse: ParsePayload,
+                    validate: ValidatePayload,
+                    cancellationToken: cancellationToken);
             }
             catch (Exception ex)
             {

@@ -59,9 +59,20 @@ export interface ErrorTaxonomy {
   exampleCases: string | null;
 }
 
+/** 固定的 8 条一级分类（全局共享，见后端 WeakPointCategory）。 */
+export interface WeakPointCategory {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  displayOrder: number;
+}
+
 export interface WeakPointCatalogEntry {
   id: string;
-  examTypeId: string;
+  /** 所属一级分类；新建时人工审核尚未指派的 proposed 行可能为 null。 */
+  categoryId: string | null;
+  categoryCode: string | null;
   code: string;
   name: string;
   description: string;

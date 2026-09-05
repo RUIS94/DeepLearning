@@ -66,7 +66,6 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.ReclassifyWeakPo
                 weakPoint.CatalogId = request.CatalogId;
                 weakPoint.Category = null;
                 weakPoint.DetectionSource = "manual";
-                weakPoint.ExamTypeId ??= catalog.ExamTypeId;
                 merged = false;
             }
 

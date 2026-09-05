@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
@@ -113,23 +114,23 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                 // up to aiCallLog.MaxRetries times when the AI's response fails structured-output
                 // validation — distinct from Polly's transport-level retries inside CompleteAsync
                 // itself, which already ran and gave up before this ever throws.
-                payload = await _aiCallRetryExecutor.ExecuteAsync(aiCallLog, async () =>
-                {
-                    var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
-                    var completion = await llmClient.CompleteAsync(
-                        // Deep learning is the largest single response in the system — reference
-                        // translation + notes + sentence patterns + a full vocab list — and a
-                        // thinking-enabled model also spends budget on reasoning. 4096 truncated
-                        // the JSON mid-vocab-array (parse failure -> pointless retries); 8192
-                        // matches grading, and the v4 template caps list sizes so it fits.
-                        new LlmCompletionRequest(SystemPrompt: null, UserPrompt: prompt, MaxTokens: 8192),
-                        cancellationToken);
-                    aiCallLog.LatencyMs = completion.LatencyMs;
-
-                    var parsed = ParsePayload(completion.Text);
-                    ValidatePayload(parsed);
-                    return parsed;
-                }, cancellationToken);
+                // Deep learning is the largest single response in the system — reference
+                // translation + notes + sentence patterns + a full vocab list — and a
+                // thinking-enabled model also spends budget on reasoning. 4096 previously
+                // truncated the JSON mid-vocab-array; 8192 fits the v4 template's capped list
+                // sizes normally, but can now double to 16384 on a truncated attempt
+                // (AdaptiveCompletionRunner) instead of just hoping 8192 is always enough.
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                payload = await AdaptiveCompletionRunner.RunAsync(
+                    _aiCallRetryExecutor,
+                    llmClient,
+                    aiCallLog,
+                    prompt,
+                    initialBudget: AiOutputBudget.LongInitial,
+                    maxBudget: AiOutputBudget.LongMax,
+                    parse: ParsePayload,
+                    validate: ValidatePayload,
+                    cancellationToken: cancellationToken);
             }
             catch (Exception ex)
             {

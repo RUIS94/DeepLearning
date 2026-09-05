@@ -36,11 +36,6 @@ namespace DeepLearning.Application.Features.WeakPointCatalogAdmin.Commands.Merge
             var to = await _catalogRepository.GetByIdAsync(request.ToId, cancellationToken)
                 ?? throw new NotFoundException(nameof(WeakPointCatalog), request.ToId);
 
-            if (from.ExamTypeId != to.ExamTypeId)
-            {
-                throw new ConflictException("The two catalog kinds belong to different exam types.");
-            }
-
             if (to.Status == WeakPointCatalogStatus.deprecated)
             {
                 throw new ConflictException($"Merge target '{to.Code}' is deprecated.");

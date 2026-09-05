@@ -41,6 +41,9 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             public Task<Submission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
                 => throw new NotSupportedException();
 
+            public Task<SubmissionSourceAndTranslation?> GetSourceAndTranslationAsync(Guid submissionId, CancellationToken cancellationToken = default)
+                => throw new NotSupportedException();
+
             public Task<List<Submission>> ListByUserAsync(Guid userId, Guid? questionId, CancellationToken cancellationToken = default)
                 => throw new NotSupportedException();
 

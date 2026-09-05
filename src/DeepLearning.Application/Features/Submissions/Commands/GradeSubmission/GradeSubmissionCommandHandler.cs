@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
@@ -78,13 +79,13 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         /// RunStageAsync), but a provider that ignores the request, or one added later with a
         /// different switch, must not be able to truncate a stage on its first attempt.</para>
         /// </summary>
-        private const int StageOutputTokens = 16384;
+        private const int StageOutputTokens = AiOutputBudget.UltraLongInitial;
 
         /// <summary>
         /// Hard ceiling for the doubling in <see cref="RunStageAsync"/>, so a response that
         /// keeps growing cannot make each retry cost more than the last.
         /// </summary>
-        private const int MaxStageOutputTokens = 32768;
+        private const int MaxStageOutputTokens = AiOutputBudget.UltraLongMax;
 
         /// <summary>
         /// Two findings are the same defect only if they are on the same dimension, in the same
@@ -670,18 +671,21 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         /// would almost certainly have fixed if anyone had told it. Determinism is what we want
         /// from the FIRST attempt and precisely what we must break on a retry.</para>
         ///
-        /// <para><b>Thinking is off for grading.</b> Not a cost decision — on Mimo, the active
-        /// provider, reasoning is on by default and carries two consequences that are invisible
-        /// from here. It is billed inside max_completion_tokens together with the answer, and
-        /// on 2026-09-04 the evidence stage spent 31,000 characters deliberating and had ~200
-        /// characters of budget left for its JSON; the sweep stage did the same and was cut off
-        /// at findings[9]. Both retries then "succeeded" only because the model happened to
-        /// think less the second time. And while thinking is on, Mimo "does not support custom
-        /// temperature and top_p" — they are forced to 1.0 / 0.95, so the Temperature: 0 below,
-        /// and the reproducibility this whole pipeline is built around, were never in effect.
-        /// Providers that declare no thinking parameter are unaffected: nothing is sent.</para>
+        /// <para><b>Thinking is no longer force-disabled here.</b> ThinkingEnabled is left unset
+        /// on the request below, so it follows the admin-configured
+        /// LlmProviderSettings.ThinkingEnabled default (on unless an admin turns it off for the
+        /// active provider) instead of this code overriding it. Whoever flips that switch on for
+        /// Mimo should know the incident this used to guard against: on 2026-09-04, with thinking
+        /// on, Mimo billed reasoning inside the same max_completion_tokens as the answer — the
+        /// evidence stage spent 31,000 characters deliberating and had ~200 left for its JSON;
+        /// the sweep stage did the same and was cut off at findings[9]. Both retries then
+        /// "succeeded" only because the model happened to think less the second time. Also, while
+        /// thinking is on, Mimo "does not support custom temperature and top_p" — they are forced
+        /// to 1.0 / 0.95, so the Temperature: 0 below (and the reproducibility this pipeline is
+        /// built around) has no effect for as long as that stays true. Providers that declare no
+        /// thinking parameter are unaffected either way.</para>
         /// </summary>
-        private async Task<T> RunStageAsync<T>(
+        private Task<T> RunStageAsync<T>(
             ILlmClient llmClient,
             string stageName,
             ConcurrentQueue<string> recoveredRejections,
@@ -691,60 +695,24 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             Action<T> validate,
             CancellationToken cancellationToken)
         {
-            string? rejectionReason = null;
-            var lastAttemptWasTruncated = false;
-            var budget = maxTokens;
-
-            return await _aiCallRetryExecutor.ExecuteAsync(stageLog, async () =>
-            {
-                var completion = await llmClient.CompleteAsync(
-                    // Temperature 0: grading must be reproducible — the same submission against
-                    // the same rubric should not swing bands run to run. (It is necessary, not
-                    // sufficient: a provider that supports `seed` can set one via
-                    // llm_provider_settings.extra_settings without a code change.)
-                    new LlmCompletionRequest(
-                        SystemPrompt: null,
-                        UserPrompt: prompt + BuildRejectionNotice(rejectionReason, lastAttemptWasTruncated),
-                        MaxTokens: budget,
-                        ThinkingEnabled: false,
-                        Temperature: 0m),
-                    cancellationToken);
-                stageLog.LatencyMs = (stageLog.LatencyMs ?? 0) + completion.LatencyMs;
-
-                try
-                {
-                    // Checked before parsing, because parsing a truncated payload produces a
-                    // message that names whichever field the cut landed in and reads exactly
-                    // like a bad value in it.
-                    if (completion.Truncated)
-                    {
-                        throw new InvalidOperationException(
-                            $"output was cut off at the {budget}-token cap (provider reported truncation), not malformed.");
-                    }
-
-                    var parsed = ParsePayload<T>(completion.Text);
-                    validate(parsed);
-                    lastAttemptWasTruncated = false;
-                    return parsed;
-                }
-                catch (Exception ex)
-                {
-                    rejectionReason = ex.Message;
-                    lastAttemptWasTruncated = completion.Truncated;
-                    recoveredRejections.Enqueue($"[{stageName} attempt {stageLog.AttemptCount}] {ex.Message}");
-
-                    // Asking for the same answer in the same space is how the last one failed.
-                    // Doubling once is enough for every payload measured here (the JSON itself
-                    // runs 2.7k-4.2k tokens) and is capped so a runaway response cannot make
-                    // each retry more expensive than the last.
-                    if (completion.Truncated)
-                    {
-                        budget = Math.Min(budget * 2, MaxStageOutputTokens);
-                    }
-
-                    throw;
-                }
-            }, cancellationToken);
+            return AdaptiveCompletionRunner.RunAsync(
+                _aiCallRetryExecutor,
+                llmClient,
+                stageLog,
+                prompt,
+                initialBudget: maxTokens,
+                maxBudget: MaxStageOutputTokens,
+                parse: ParsePayload<T>,
+                validate: validate,
+                // Temperature 0: grading must be reproducible — the same submission against
+                // the same rubric should not swing bands run to run. (It is necessary, not
+                // sufficient: a provider that supports `seed` can set one via
+                // llm_provider_settings.extra_settings without a code change.)
+                temperature: 0m,
+                buildRejectionNotice: BuildRejectionNotice,
+                onAttemptFailed: (ex, _) =>
+                    recoveredRejections.Enqueue($"[{stageName} attempt {stageLog.AttemptCount}] {ex.Message}"),
+                cancellationToken: cancellationToken);
         }
 
         /// <summary>

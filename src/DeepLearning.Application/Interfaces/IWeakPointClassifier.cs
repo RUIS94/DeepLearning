@@ -21,18 +21,30 @@ namespace DeepLearning.Application.Interfaces
     public record ActiveWeakPointSummary(string CatalogCode, string? PatternSummary);
 
     /// <summary>
+    /// A leaf the classifier judged doesn't fit any existing <see cref="WeakPointCatalog"/> code —
+    /// created as a <see cref="WeakPointCatalogStatus.proposed"/> row under the named top-level
+    /// category, pending admin review. The error(s) that triggered it stay uncatalogued
+    /// (<see cref="WeakPointClassificationResult.ErrorToCatalogId"/> has no entry for them) this
+    /// round — a not-yet-approved proposal is never used to place an error.
+    /// </summary>
+    public record ProposedCatalogLeaf(string CategoryCode, string Code, string Name, string Description);
+
+    /// <summary>
     /// Result of one classification pass:
     /// <see cref="ErrorToCatalogId"/> — errorListId -&gt; catalogId for errors the AI could place;
     /// <see cref="CatalogCodeToPatternSummary"/> — catalogCode -&gt; an updated per-learner pattern
-    /// summary, for the kinds this submission touched (merged from the prior summary + new evidence).
+    /// summary, for the kinds this submission touched (merged from the prior summary + new evidence);
+    /// <see cref="ProposedLeaves"/> — new leaves the AI judged none of the existing ~38 fit.
     /// </summary>
     public record WeakPointClassificationResult(
         IReadOnlyDictionary<Guid, Guid> ErrorToCatalogId,
-        IReadOnlyDictionary<string, string> CatalogCodeToPatternSummary)
+        IReadOnlyDictionary<string, string> CatalogCodeToPatternSummary,
+        IReadOnlyList<ProposedCatalogLeaf> ProposedLeaves)
     {
         public static readonly WeakPointClassificationResult Empty = new(
             new Dictionary<Guid, Guid>(),
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            []);
     }
 
     /// <summary>

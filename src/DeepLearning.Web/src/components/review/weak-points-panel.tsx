@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { showToast } from "@/components/ui/toast";
 import { ApiError } from "@/lib/api/fetcher";
 import { listWeakPoints, reclassifyWeakPoint } from "@/lib/api/weak-points";
-import { listExamTypes, listWeakPointCatalog } from "@/lib/api/exam-config";
+import { listWeakPointCatalog } from "@/lib/api/exam-config";
 import { WeakPointCatalogStatus } from "@/lib/types/enums";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
@@ -22,13 +22,10 @@ export function WeakPointsPanel({ status }: { status: number | "all" }) {
     enabled: !!currentUser.data,
   });
 
-  // This project has a single exam type; its catalog is the set of kinds a weak point can be moved to.
-  const examTypes = useQuery({ queryKey: ["exam-types"], queryFn: () => listExamTypes() });
-  const examTypeId = examTypes.data?.[0]?.id;
+  // 薄弱点种类是全局共享的（不再按考试类型划分），这里直接拿全量清单作为可归类的目标集合。
   const catalog = useQuery({
-    queryKey: ["admin", "weak-point-catalog", examTypeId],
-    queryFn: () => listWeakPointCatalog(examTypeId!),
-    enabled: !!examTypeId,
+    queryKey: ["admin", "weak-point-catalog"],
+    queryFn: () => listWeakPointCatalog(),
   });
   const catalogOptions = (catalog.data ?? [])
     .filter((c) => c.status !== WeakPointCatalogStatus.deprecated)

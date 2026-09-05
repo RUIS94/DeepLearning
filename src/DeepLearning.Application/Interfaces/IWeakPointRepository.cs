@@ -18,6 +18,9 @@ namespace DeepLearning.Application.Interfaces
 
         Task<List<WeakPointOccurrence>> ListOccurrencesByWeakPointAsync(Guid weakPointId, CancellationToken cancellationToken = default);
 
+        /// <summary>Same as <see cref="ListOccurrencesByWeakPointAsync"/> but with each occurrence's <see cref="WeakPointOccurrence.ErrorList"/> eager-loaded — the weak_point_detection_criteria call's historical-evidence input needs the error's full explanation, not just the occurrence's snippet copy.</summary>
+        Task<List<WeakPointOccurrence>> ListOccurrencesWithErrorByWeakPointAsync(Guid weakPointId, CancellationToken cancellationToken = default);
+
         void RemoveWeakPoint(WeakPoint weakPoint);
 
         void RemoveOccurrence(WeakPointOccurrence occurrence);
@@ -38,8 +41,8 @@ namespace DeepLearning.Application.Interfaces
         /// <summary>True if an occurrence already exists for this (weak point, submission) — re-grade / concurrent-event guard.</summary>
         Task<bool> OccurrenceExistsAsync(Guid weakPointId, Guid submissionId, CancellationToken cancellationToken = default);
 
-        /// <summary>An existing catalog entry for this exam type + code, or null. Used before minting a proposed one.</summary>
-        Task<WeakPointCatalog?> GetCatalogByExamAndCodeAsync(Guid examTypeId, string code, CancellationToken cancellationToken = default);
+        /// <summary>An existing catalog entry for this code, or null. Used before minting a proposed one.</summary>
+        Task<WeakPointCatalog?> GetCatalogByCodeAsync(string code, CancellationToken cancellationToken = default);
 
         Task AddAsync(WeakPoint weakPoint, CancellationToken cancellationToken = default);
 

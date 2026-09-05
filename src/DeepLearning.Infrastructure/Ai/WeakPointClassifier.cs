@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
@@ -57,7 +58,22 @@ namespace DeepLearning.Infrastructure.Ai
                         Snippet = e.Snippet,
                         Explanation = e.Explanation,
                     }),
-                    Catalog = catalog.Select(c => new { Code = c.Code, Name = c.Name, Description = c.Description }),
+                    // Grouped by top-level category for the AI's benefit — 薄弱点分类与生命周期
+                    // 管理_策划书.md §1's two-level taxonomy. Leaves without a category yet (a
+                    // proposal awaiting admin triage) are listed separately so they still
+                    // participate in matching without implying a category they don't have.
+                    Categories = catalog
+                        .Where(c => c.Category is not null)
+                        .GroupBy(c => c.Category!.Code)
+                        .Select(g => new
+                        {
+                            CategoryCode = g.Key,
+                            CategoryName = g.First().Category!.Name,
+                            Leaves = g.Select(c => new { Code = c.Code, Name = c.Name, Description = c.Description }),
+                        }),
+                    UncategorizedLeaves = catalog
+                        .Where(c => c.Category is null)
+                        .Select(c => new { Code = c.Code, Name = c.Name, Description = c.Description }),
                     ActiveWeakPoints = activeWeakPoints.Select(w => new
                     {
                         Code = w.CatalogCode,
@@ -94,26 +110,32 @@ namespace DeepLearning.Infrastructure.Ai
                 await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-                var payload = await _aiCallRetryExecutor.ExecuteAsync(aiCallLog, async () =>
-                {
-                    var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
-                    var completion = await llmClient.CompleteAsync(
-                        // Temperature 0: classification into a fixed catalog should be stable.
-                        // ThinkingEnabled false for the same reason, not to save tokens: Mimo,
-                        // the active provider, ignores temperature and top_p entirely while
-                        // deep thinking is on (forced to 1.0 / 0.95), so asking for 0 with
-                        // thinking left at its default was asking for something that never
-                        // arrived. Providers that declare no thinking parameter are unaffected.
-                        new LlmCompletionRequest(
-                            SystemPrompt: null,
-                            UserPrompt: prompt,
-                            MaxTokens: 2048,
-                            ThinkingEnabled: false,
-                            Temperature: 0m),
-                        cancellationToken);
-                    aiCallLog.LatencyMs = completion.LatencyMs;
-                    return ParsePayload(completion.Text);
-                }, cancellationToken);
+                // Temperature 0: classification into a fixed catalog should be stable.
+                // ThinkingEnabled deliberately NOT set here — whether thinking runs is an
+                // admin-controlled default (LlmProviderSettings.ThinkingEnabled, on by
+                // default), not something this call forces off. Note the interaction if
+                // the admin leaves it on: Mimo, a common active provider, ignores
+                // temperature and top_p entirely while deep thinking is on (forced to
+                // 1.0 / 0.95), so Temperature: 0 has no effect in that case — a known
+                // tradeoff the admin is accepting by leaving thinking enabled, not a bug.
+                // Providers that declare no thinking parameter are unaffected either way.
+                //
+                // MaxTokens starts at 2048 but can double up to 8192 on a truncated attempt
+                // (AdaptiveCompletionRunner) — a submission with many errors spanning many
+                // distinct catalog codes (task two needs a pattern_summary per code touched)
+                // can genuinely need more than 2048 tokens; confirmed truncating for real on
+                // 2026-09-05 (23 errors / 11 codes, cut off mid-JSON at exactly 2048 tokens).
+                var llmClient = await _llmClientResolver.GetActiveClientAsync(cancellationToken);
+                var payload = await AdaptiveCompletionRunner.RunAsync(
+                    _aiCallRetryExecutor,
+                    llmClient,
+                    aiCallLog,
+                    prompt,
+                    initialBudget: AiOutputBudget.ShortInitial,
+                    maxBudget: AiOutputBudget.ShortMax,
+                    parse: ParsePayload,
+                    temperature: 0m,
+                    cancellationToken: cancellationToken);
 
                 var idByCode = catalog
                     .GroupBy(c => c.Code, StringComparer.OrdinalIgnoreCase)
@@ -123,7 +145,15 @@ namespace DeepLearning.Infrastructure.Ai
                     .ToDictionary(g => g.Key, g => g.First().Code, StringComparer.OrdinalIgnoreCase);
                 var validErrorIds = errors.Select(e => e.ErrorListId).ToHashSet();
 
+                var categoryCodes = catalog
+                    .Where(c => c.Category is not null)
+                    .Select(c => c.Category!.Code)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var existingCatalogCodes = idByCode.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
                 var errorToCatalog = new Dictionary<Guid, Guid>();
+                var proposedLeaves = new List<ProposedCatalogLeaf>();
+                var proposedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var assignment in payload.Assignments ?? [])
                 {
                     if (Guid.TryParse(assignment.ErrorId, out var errorId)
@@ -132,7 +162,34 @@ namespace DeepLearning.Infrastructure.Ai
                         && idByCode.TryGetValue(assignment.CatalogCode.Trim(), out var catalogId))
                     {
                         errorToCatalog[errorId] = catalogId;
+                        continue;
                     }
+
+                    // Only meaningful when the AI left catalogCode null (an error placed into an
+                    // existing leaf never also proposes a new one) and the suggestion looks usable:
+                    // a valid lower_snake_case code, naming an existing category, not already a
+                    // catalog code or a duplicate of another proposal in this same response.
+                    var proposal = assignment.ProposedNewLeaf;
+                    if (proposal is null
+                        || string.IsNullOrWhiteSpace(proposal.Code)
+                        || string.IsNullOrWhiteSpace(proposal.CategoryCode)
+                        || string.IsNullOrWhiteSpace(proposal.Name)
+                        || string.IsNullOrWhiteSpace(proposal.Description))
+                    {
+                        continue;
+                    }
+
+                    var code = proposal.Code.Trim();
+                    if (!System.Text.RegularExpressions.Regex.IsMatch(code, "^[a-z0-9_]+$")
+                        || existingCatalogCodes.Contains(code)
+                        || !proposedCodes.Add(code)
+                        || !categoryCodes.Contains(proposal.CategoryCode.Trim()))
+                    {
+                        continue;
+                    }
+
+                    proposedLeaves.Add(new ProposedCatalogLeaf(
+                        proposal.CategoryCode.Trim(), code, proposal.Name.Trim(), proposal.Description.Trim()));
                 }
 
                 var summaries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -149,7 +206,7 @@ namespace DeepLearning.Infrastructure.Ai
                 aiCallLog.Status = CallStatus.success;
                 aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
                 await _unitOfWork.SaveChangesAsync(CancellationToken.None);
-                return new WeakPointClassificationResult(errorToCatalog, summaries);
+                return new WeakPointClassificationResult(errorToCatalog, summaries, proposedLeaves);
             }
             catch (Exception ex)
             {
@@ -173,22 +230,9 @@ namespace DeepLearning.Infrastructure.Ai
 
         private static ClassificationPayload ParsePayload(string rawText)
         {
-            var json = StripMarkdownFence(rawText.Trim());
+            var json = PromptJsonHelper.StripMarkdownFence(rawText.Trim());
             return JsonSerializer.Deserialize<ClassificationPayload>(json, PayloadJsonOptions)
                 ?? throw new InvalidOperationException("Weak-point classification response deserialized to null.");
-        }
-
-        private static string StripMarkdownFence(string text)
-        {
-            if (!text.StartsWith("```", StringComparison.Ordinal))
-            {
-                return text;
-            }
-
-            var firstNewLine = text.IndexOf('\n');
-            var withoutOpeningFence = firstNewLine >= 0 ? text[(firstNewLine + 1)..] : text;
-            var closingFenceIndex = withoutOpeningFence.LastIndexOf("```", StringComparison.Ordinal);
-            return closingFenceIndex >= 0 ? withoutOpeningFence[..closingFenceIndex] : withoutOpeningFence;
         }
 
         private class ClassificationPayload
@@ -204,6 +248,24 @@ namespace DeepLearning.Infrastructure.Ai
 
             [JsonPropertyName("catalogCode")]
             public string? CatalogCode { get; set; }
+
+            [JsonPropertyName("proposedNewLeaf")]
+            public ProposedNewLeafPayload? ProposedNewLeaf { get; set; }
+        }
+
+        private class ProposedNewLeafPayload
+        {
+            [JsonPropertyName("categoryCode")]
+            public string? CategoryCode { get; set; }
+
+            [JsonPropertyName("code")]
+            public string? Code { get; set; }
+
+            [JsonPropertyName("name")]
+            public string? Name { get; set; }
+
+            [JsonPropertyName("description")]
+            public string? Description { get; set; }
         }
 
         private class SummaryPayload

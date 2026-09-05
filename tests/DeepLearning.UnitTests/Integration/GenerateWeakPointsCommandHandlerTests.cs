@@ -37,18 +37,24 @@ namespace DeepLearning.UnitTests.Integration
             private readonly List<ErrorListItem> _errors;
             private readonly List<GradingResult> _gradingResults;
             private readonly List<Submission> _userSubmissions;
+            private readonly SubmissionSourceAndTranslation _sourceAndTranslation;
 
             public FixedSubmissionRepository(
                 List<ErrorListItem> errors,
                 List<GradingResult> gradingResults,
-                List<Submission>? userSubmissions = null)
+                List<Submission>? userSubmissions = null,
+                SubmissionSourceAndTranslation? sourceAndTranslation = null)
             {
                 _errors = errors;
                 _gradingResults = gradingResults;
                 _userSubmissions = userSubmissions ?? [];
+                _sourceAndTranslation = sourceAndTranslation ?? new SubmissionSourceAndTranslation("Original source text.", "my translation");
             }
 
             public Task<Submission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+
+            public Task<SubmissionSourceAndTranslation?> GetSourceAndTranslationAsync(Guid submissionId, CancellationToken cancellationToken = default)
+                => Task.FromResult<SubmissionSourceAndTranslation?>(_sourceAndTranslation);
 
             public Task<SubmissionStatus?> GetStatusAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
@@ -85,6 +91,47 @@ namespace DeepLearning.UnitTests.Integration
                 IReadOnlyList<ActiveWeakPointSummary> activeWeakPoints,
                 CancellationToken cancellationToken = default)
                 => Task.FromResult(WeakPointClassificationResult.Empty);
+        }
+
+        // No weak_point_detection_criteria template configured -> the real generator returns
+        // empty and a newly-activated/reactivated weak point just keeps DetectionCriteria null.
+        private class NoOpDetectionCriteriaGenerator : IWeakPointDetectionCriteriaGenerator
+        {
+            public Task<IReadOnlyDictionary<Guid, string>> GenerateAsync(
+                Guid examTypeId,
+                IReadOnlyList<WeakPointDetectionCriteriaRequest> requests,
+                CancellationToken cancellationToken = default)
+                => Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+        }
+
+        /// <summary>Hands back a scripted outcome per catalog code, so a test can drive the recheck step without a real AI call.</summary>
+        private class ScriptedRecheckService : IWeakPointRecheckService
+        {
+            private readonly Dictionary<string, WeakPointRecheckOutcome> _outcomeByCatalogCode;
+
+            public ScriptedRecheckService(Dictionary<string, WeakPointRecheckOutcome> outcomeByCatalogCode)
+            {
+                _outcomeByCatalogCode = outcomeByCatalogCode;
+            }
+
+            public Task<IReadOnlyDictionary<Guid, WeakPointRecheckOutcome>> RecheckAsync(
+                Guid examTypeId,
+                IReadOnlyList<WeakPointRecheckCandidate> candidates,
+                string sourceText,
+                string translationText,
+                CancellationToken cancellationToken = default)
+            {
+                var result = new Dictionary<Guid, WeakPointRecheckOutcome>();
+                foreach (var candidate in candidates)
+                {
+                    if (_outcomeByCatalogCode.TryGetValue(candidate.CatalogCode, out var outcome))
+                    {
+                        result[candidate.WeakPointId] = outcome;
+                    }
+                }
+
+                return Task.FromResult<IReadOnlyDictionary<Guid, WeakPointRecheckOutcome>>(result);
+            }
         }
 
         private class NoOpPublisher : IPublisher
@@ -176,7 +223,8 @@ namespace DeepLearning.UnitTests.Integration
         private async Task<Guid> RunHandlerAsync(
             Guid userId, Guid questionId, Guid submissionId, Guid examTypeId,
             Guid dimensionId, Guid taxonomyId, int band,
-            List<Submission>? userSubmissions = null)
+            List<Submission>? userSubmissions = null,
+            IWeakPointRecheckService? recheckService = null)
         {
             await using var context = _fixture.CreateContext();
 
@@ -224,7 +272,10 @@ namespace DeepLearning.UnitTests.Integration
                 new FixedSubmissionRepository(errors, gradingResults, userSubmissions),
                 new WeakPointRepository(context),
                 new WeakPointCatalogRepository(context),   // real repo, no catalog rows seeded -> empty
+                new WeakPointCategoryRepository(context),
                 new NoOpWeakPointClassifier(),
+                new NoOpDetectionCriteriaGenerator(),
+                recheckService ?? new ScriptedRecheckService(new Dictionary<string, WeakPointRecheckOutcome>()),
                 new UnitOfWork(context, new NoOpPublisher()));
 
             var domainEvent = new SubmissionGradedEvent
@@ -366,13 +417,13 @@ namespace DeepLearning.UnitTests.Integration
         }
 
         [Fact]
-        public async Task An_active_weak_point_not_seen_in_the_last_five_graded_submissions_is_resolved()
+        public async Task An_active_catalog_mapped_weak_point_not_hit_this_round_is_deactivated_when_the_recheck_confirms_it_resolved()
         {
             const string dimensionName = "Language proficiency";
             var categoryName = $"Grammar {Guid.NewGuid().ToString("N")[..8]}";
-            var staleCategory = $"Meaning transfer - Stale {Guid.NewGuid().ToString("N")[..8]}";
+            var catalogCode = $"test_leaf_{Guid.NewGuid():N}"[..30];
 
-            Guid userId, submissionId, examTypeId, dimensionId, taxonomyId, questionId;
+            Guid userId, submissionId, examTypeId, dimensionId, taxonomyId, questionId, catalogId;
             await using (var context = _fixture.CreateContext())
             {
                 var user = NewUser();
@@ -390,17 +441,34 @@ namespace DeepLearning.UnitTests.Integration
                 var submission = NewSubmission(question.Id, user.Id);
                 await context.Submissions.AddAsync(submission);
 
-                // A weak point last seen a month ago that this submission does NOT touch.
+                var catalog = new WeakPointCatalog
+                {
+                    Id = Guid.NewGuid(),
+                    CategoryId = null,
+                    Code = catalogCode,
+                    Name = "Test leaf",
+                    Description = "test",
+                    Status = WeakPointCatalogStatus.active,
+                    Origin = "manual",
+                    CreatedAt = DateTimeOffset.UtcNow,
+                };
+                await context.WeakPointCatalog.AddAsync(catalog);
+
+                // Already active and carrying a detection criteria — this submission's own error
+                // (a different, legacy-bucket dimension/category) does NOT hit this catalog code,
+                // so it becomes a recheck candidate.
                 await context.WeakPoints.AddAsync(new WeakPoint
                 {
                     Id = Guid.NewGuid(),
                     UserId = user.Id,
                     ExamTypeId = examType.Id,
-                    Category = staleCategory,
-                    PatternSummary = "stale",
-                    DetectionSource = "rule",
-                    FirstDetectedAt = DateTimeOffset.UtcNow.AddDays(-40),
-                    LastSeenAt = DateTimeOffset.UtcNow.AddDays(-30),
+                    CatalogId = catalog.Id,
+                    PatternSummary = "existing pattern",
+                    DetectionCriteria = "checks for the test trap",
+                    DetectionSource = "manual",
+                    FirstDetectedAt = DateTimeOffset.UtcNow.AddDays(-10),
+                    LastSeenAt = DateTimeOffset.UtcNow.AddDays(-5),
+                    OccurrenceSubmissionCount = 3,
                     Status = WeakPointStatus.active,
                     Priority = Priority.medium,
                 });
@@ -412,34 +480,103 @@ namespace DeepLearning.UnitTests.Integration
                 dimensionId = dimension.Id;
                 taxonomyId = taxonomy.Id;
                 questionId = question.Id;
+                catalogId = catalog.Id;
             }
 
-            // Fake "user's graded submissions" — five recent ones, so the cutoff (5th most
-            // recent) is a day ago and the stale weak point (last seen 30 days ago) is behind it.
-            var recentGraded = Enumerable.Range(0, 6)
-                .Select(i => new Submission
-                {
-                    Id = Guid.NewGuid(),
-                    QuestionId = Guid.NewGuid(),
-                    UserId = userId,
-                    TaskType = TaskType.A,
-                    Content = "\"x\"",
-                    Status = SubmissionStatus.graded,
-                    CreatedAt = DateTimeOffset.UtcNow.AddDays(-i),
-                    UpdatedAt = DateTimeOffset.UtcNow.AddDays(-i),
-                })
-                .ToList();
+            var recheckService = new ScriptedRecheckService(new Dictionary<string, WeakPointRecheckOutcome>
+            {
+                [catalogCode] = WeakPointRecheckOutcome.Resolved,
+            });
 
-            await RunHandlerAsync(userId, questionId, submissionId, examTypeId, dimensionId, taxonomyId, band: 2, userSubmissions: recentGraded);
+            await RunHandlerAsync(userId, questionId, submissionId, examTypeId, dimensionId, taxonomyId, band: 2, recheckService: recheckService);
 
             await using var readContext = _fixture.CreateContext();
-            var stale = await readContext.WeakPoints.SingleAsync(x => x.UserId == userId && x.Category == staleCategory);
-            Assert.Equal(WeakPointStatus.resolved, stale.Status);
-            Assert.NotNull(stale.ResolvedAt);
+            var rechecked = await readContext.WeakPoints.SingleAsync(x => x.CatalogId == catalogId);
+            Assert.Equal(WeakPointStatus.resolved, rechecked.Status);
+            Assert.NotNull(rechecked.ResolvedAt);
 
-            // The weak point this submission's own error created is still active.
+            // The weak point this submission's own error created is still active (untouched by the recheck).
             var fresh = await readContext.WeakPoints.SingleAsync(x => x.UserId == userId && x.Category == $"{dimensionName} - {categoryName}");
             Assert.Equal(WeakPointStatus.active, fresh.Status);
+        }
+
+        [Fact]
+        public async Task A_recheck_result_of_not_present_five_times_in_a_row_resolves_the_weak_point_without_new_evidence()
+        {
+            const string dimensionName = "Language proficiency";
+            var categoryName = $"Grammar {Guid.NewGuid().ToString("N")[..8]}";
+            var catalogCode = $"test_leaf_{Guid.NewGuid():N}"[..30];
+
+            Guid userId, submissionId, examTypeId, dimensionId, taxonomyId, questionId, weakPointId;
+            await using (var context = _fixture.CreateContext())
+            {
+                var user = NewUser();
+                var examType = NewExamType();
+                var dimension = NewDimension(examType.Id, dimensionName);
+                var taxonomy = NewTaxonomy(examType.Id, categoryName);
+                var question = NewQuestion();
+                await context.Users.AddAsync(user);
+                await context.ExamTypes.AddAsync(examType);
+                await context.AssessmentDimensions.AddAsync(dimension);
+                await context.ErrorTaxonomies.AddAsync(taxonomy);
+                await context.Questions.AddAsync(question);
+                await context.SaveChangesAsync();
+
+                var submission = NewSubmission(question.Id, user.Id);
+                await context.Submissions.AddAsync(submission);
+
+                var catalog = new WeakPointCatalog
+                {
+                    Id = Guid.NewGuid(),
+                    CategoryId = null,
+                    Code = catalogCode,
+                    Name = "Test leaf",
+                    Description = "test",
+                    Status = WeakPointCatalogStatus.active,
+                    Origin = "manual",
+                    CreatedAt = DateTimeOffset.UtcNow,
+                };
+                await context.WeakPointCatalog.AddAsync(catalog);
+
+                var weakPoint = new WeakPoint
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = user.Id,
+                    ExamTypeId = examType.Id,
+                    CatalogId = catalog.Id,
+                    PatternSummary = "existing pattern",
+                    DetectionCriteria = "checks for the test trap",
+                    DetectionSource = "manual",
+                    FirstDetectedAt = DateTimeOffset.UtcNow.AddDays(-10),
+                    LastSeenAt = DateTimeOffset.UtcNow.AddDays(-5),
+                    OccurrenceSubmissionCount = 3,
+                    NoEvidenceStreak = 4, // one more inconclusive result reaches the threshold
+                    Status = WeakPointStatus.active,
+                    Priority = Priority.medium,
+                };
+                await context.WeakPoints.AddAsync(weakPoint);
+                await context.SaveChangesAsync();
+
+                userId = user.Id;
+                submissionId = submission.Id;
+                examTypeId = examType.Id;
+                dimensionId = dimension.Id;
+                taxonomyId = taxonomy.Id;
+                questionId = question.Id;
+                weakPointId = weakPoint.Id;
+            }
+
+            var recheckService = new ScriptedRecheckService(new Dictionary<string, WeakPointRecheckOutcome>
+            {
+                [catalogCode] = WeakPointRecheckOutcome.NotPresent,
+            });
+
+            await RunHandlerAsync(userId, questionId, submissionId, examTypeId, dimensionId, taxonomyId, band: 2, recheckService: recheckService);
+
+            await using var readContext = _fixture.CreateContext();
+            var rechecked = await readContext.WeakPoints.SingleAsync(x => x.Id == weakPointId);
+            Assert.Equal(WeakPointStatus.resolved, rechecked.Status);
+            Assert.Equal(0, rechecked.NoEvidenceStreak);
         }
     }
 }

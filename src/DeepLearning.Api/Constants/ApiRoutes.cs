@@ -21,7 +21,8 @@ namespace DeepLearning.Api.Constants
 
         public static class WeakPointCatalog
         {
-            public const string Base = $"{Prefix}/exam-types/{{examTypeId:guid}}/weak-point-catalog";
+            // Global catalog, not scoped by exam type (薄弱点分类与生命周期管理_策划书.md §1.2).
+            public const string Base = $"{Prefix}/weak-point-catalog";
         }
 
         public static class PromptTemplates

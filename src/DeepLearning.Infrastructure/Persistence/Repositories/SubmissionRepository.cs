@@ -17,6 +17,15 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
         public Task<Submission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
             => _context.Submissions.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
+        public async Task<SubmissionSourceAndTranslation?> GetSourceAndTranslationAsync(Guid submissionId, CancellationToken cancellationToken = default)
+        {
+            var row = await _context.Submissions
+                .Where(x => x.Id == submissionId)
+                .Select(x => new { x.Content, x.Question!.SourceText })
+                .FirstOrDefaultAsync(cancellationToken);
+            return row is null ? null : new SubmissionSourceAndTranslation(row.SourceText, row.Content);
+        }
+
         /// <inheritdoc />
         public async Task<SubmissionStatus?> GetStatusAsync(Guid id, CancellationToken cancellationToken = default)
         {

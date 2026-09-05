@@ -34,6 +34,7 @@ namespace DeepLearning.Infrastructure.Persistence
         public DbSet<WeakPoint> WeakPoints => Set<WeakPoint>();
         public DbSet<WeakPointOccurrence> WeakPointOccurrences => Set<WeakPointOccurrence>();
         public DbSet<WeakPointCatalog> WeakPointCatalog => Set<WeakPointCatalog>();
+        public DbSet<WeakPointCategory> WeakPointCategories => Set<WeakPointCategory>();
         public DbSet<ProgressSnapshot> ProgressSnapshots => Set<ProgressSnapshot>();
         public DbSet<AiCallLog> AiCallLogs => Set<AiCallLog>();
         public DbSet<QuestionBankCategory> QuestionBankCategories => Set<QuestionBankCategory>();

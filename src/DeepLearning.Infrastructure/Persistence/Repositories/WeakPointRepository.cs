@@ -26,6 +26,12 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
         public Task<List<WeakPointOccurrence>> ListOccurrencesByWeakPointAsync(Guid weakPointId, CancellationToken cancellationToken = default)
             => _context.WeakPointOccurrences.Where(x => x.WeakPointId == weakPointId).ToListAsync(cancellationToken);
 
+        public Task<List<WeakPointOccurrence>> ListOccurrencesWithErrorByWeakPointAsync(Guid weakPointId, CancellationToken cancellationToken = default)
+            => _context.WeakPointOccurrences
+                .Include(x => x.ErrorList)
+                .Where(x => x.WeakPointId == weakPointId)
+                .ToListAsync(cancellationToken);
+
         public void RemoveWeakPoint(WeakPoint weakPoint) => _context.WeakPoints.Remove(weakPoint);
 
         public void RemoveOccurrence(WeakPointOccurrence occurrence) => _context.WeakPointOccurrences.Remove(occurrence);
@@ -67,9 +73,9 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
             => _context.WeakPointOccurrences
                 .AnyAsync(x => x.WeakPointId == weakPointId && x.SubmissionId == submissionId, cancellationToken);
 
-        public Task<WeakPointCatalog?> GetCatalogByExamAndCodeAsync(Guid examTypeId, string code, CancellationToken cancellationToken = default)
+        public Task<WeakPointCatalog?> GetCatalogByCodeAsync(string code, CancellationToken cancellationToken = default)
             => _context.WeakPointCatalog
-                .FirstOrDefaultAsync(x => x.ExamTypeId == examTypeId && x.Code == code, cancellationToken);
+                .FirstOrDefaultAsync(x => x.Code == code, cancellationToken);
 
         public async Task AddAsync(WeakPoint weakPoint, CancellationToken cancellationToken = default)
             => await _context.WeakPoints.AddAsync(weakPoint, cancellationToken);

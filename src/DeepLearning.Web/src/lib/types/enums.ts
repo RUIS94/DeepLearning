@@ -44,7 +44,10 @@ export const OverrideScope = { grading_rubric: 0, translation_reference: 1 } as 
 export const OverrideStatus = { observing: 0, active: 1, deprecated: 2 } as const;
 // 薄弱点种类生命周期。proposed = 运行期/后台新建待审;active = 已策展;deprecated = 合并后退役。
 export const WeakPointCatalogStatus = { proposed: 0, active: 1, deprecated: 2 } as const;
-export const WeakPointStatus = { active: 0, resolved: 1 } as const;
+// tracking 追加在最后（=2），不是插在中间——后端枚举没有 JsonStringEnumConverter，
+// 序列化成裸序数，插在中间会把已有的 active=0/resolved=1 错位（见后端 WeakPointStatus.cs 的注释）。
+// tracking = 首次命中、还没攒够 3 次提交确认，不会出现在评分提示词里，也不参与复核。
+export const WeakPointStatus = { active: 0, resolved: 1, tracking: 2 } as const;
 // 注意：high = 0，排序时不要写反
 export const Priority = { high: 0, medium: 1, low: 2 } as const;
 export const ScaleType = { band_1_5: 0, score_0_100: 1, rubric_level: 2 } as const;
@@ -80,6 +83,8 @@ export const AiOperationType = {
   progress_trend: 5,
   followup_summary: 6,
   weak_point_classification: 7,
+  weak_point_detection_criteria: 8,
+  weak_point_recheck: 9,
 } as const;
 
 // 追问线程（design decision, 2026-09-02）：一个 submission 最多一条线程，存续期间
@@ -132,6 +137,7 @@ export const WeakPointCatalogStatusLabel: Record<number, string> = {
 export const WeakPointStatusLabel: Record<number, string> = {
   [WeakPointStatus.active]: "活跃",
   [WeakPointStatus.resolved]: "已改善",
+  [WeakPointStatus.tracking]: "观察中",
 };
 
 export const PriorityLabel: Record<number, string> = {
@@ -190,6 +196,8 @@ export const AiOperationTypeLabel: Record<number, string> = {
   [AiOperationType.progress_trend]: "进度趋势",
   [AiOperationType.followup_summary]: "追问总结",
   [AiOperationType.weak_point_classification]: "薄弱点分类",
+  [AiOperationType.weak_point_detection_criteria]: "薄弱点筛查标准生成",
+  [AiOperationType.weak_point_recheck]: "薄弱点复核",
 };
 
 export const FollowUpThreadStatusLabel: Record<number, string> = {

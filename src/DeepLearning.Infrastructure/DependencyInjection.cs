@@ -71,6 +71,7 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<IStandardOverrideRepository, StandardOverrideRepository>();
             services.AddScoped<IWeakPointRepository, WeakPointRepository>();
             services.AddScoped<IWeakPointCatalogRepository, WeakPointCatalogRepository>();
+            services.AddScoped<IWeakPointCategoryRepository, WeakPointCategoryRepository>();
             services.AddScoped<IProgressRepository, ProgressRepository>();
             services.AddScoped<IReviewLibraryRepository, ReviewLibraryRepository>();
             services.AddScoped<IReferenceTranslationRepository, ReferenceTranslationRepository>();
@@ -149,6 +150,8 @@ namespace DeepLearning.Infrastructure
             services.AddSingleton<PromptRenderer>();
             services.AddScoped<IExamConfigLoader, ExamConfigLoader>();
             services.AddScoped<IWeakPointClassifier, WeakPointClassifier>();
+            services.AddScoped<IWeakPointDetectionCriteriaGenerator, WeakPointDetectionCriteriaGenerator>();
+            services.AddScoped<IWeakPointRecheckService, WeakPointRecheckService>();
 
             // design doc §4.2's retry sub-state-machine for a 200-OK-but-invalid-content AI
             // response — distinct from Polly's transport-level retries above.

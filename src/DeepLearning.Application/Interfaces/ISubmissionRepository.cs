@@ -8,9 +8,14 @@ namespace DeepLearning.Application.Interfaces
     /// fetched via separate methods, no EF collection nav properties — same convention already
     /// established for Question/MeaningCheckpoint/TaskBSeededError (see AGENTS.md).
     /// </summary>
+    /// <summary>The original source text and the user's translation for one submission — the weak_point_recheck call's input. Null if the submission or its question no longer exists.</summary>
+    public record SubmissionSourceAndTranslation(string SourceText, string TranslationText);
+
     public interface ISubmissionRepository
     {
         Task<Submission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+        Task<SubmissionSourceAndTranslation?> GetSourceAndTranslationAsync(Guid submissionId, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Just the status, read fresh every time.

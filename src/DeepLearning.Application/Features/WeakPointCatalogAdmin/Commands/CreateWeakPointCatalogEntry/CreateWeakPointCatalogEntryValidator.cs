@@ -6,7 +6,7 @@ namespace DeepLearning.Application.Features.WeakPointCatalogAdmin.Commands.Creat
     {
         public CreateWeakPointCatalogEntryValidator()
         {
-            RuleFor(x => x.ExamTypeId).NotEmpty();
+            RuleFor(x => x.CategoryId).NotEmpty();
             RuleFor(x => x.Code).NotEmpty().MaximumLength(60)
                 .Matches("^[a-z0-9_]+$").WithMessage("Code must be lower_snake_case (a-z, 0-9, underscore).");
             RuleFor(x => x.Name).NotEmpty().MaximumLength(100);

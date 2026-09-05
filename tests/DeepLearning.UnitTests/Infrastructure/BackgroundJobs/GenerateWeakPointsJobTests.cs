@@ -62,6 +62,9 @@ namespace DeepLearning.UnitTests.Infrastructure.BackgroundJobs
             public Task<Submission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
                 => Task.FromResult<Submission?>(_submission.Id == id ? _submission : null);
 
+            public Task<SubmissionSourceAndTranslation?> GetSourceAndTranslationAsync(Guid submissionId, CancellationToken cancellationToken = default)
+                => throw new NotSupportedException();
+
             public Task<SubmissionStatus?> GetStatusAsync(Guid id, CancellationToken cancellationToken = default)
                 => Task.FromResult<SubmissionStatus?>(_submission.Status);
 
