@@ -22,6 +22,20 @@ namespace DeepLearning.Application.Common
     /// </summary>
     public static class AdaptiveCompletionRunner
     {
+        /// <summary>
+        /// Hard backstop above LlmResiliencePipeline's own 60s-per-attempt/180s-total transport
+        /// timeout — a safety net for the 2026-09-05 incident where a grading call sat in
+        /// ai_call_logs with status='calling' and attempt_count stuck at 1 for 10+ minutes: the
+        /// underlying HttpClient.SendAsync neither returned nor threw, so Polly's own
+        /// AttemptTimeout/TotalRequestTimeout evidently never fired for it. Root cause unconfirmed
+        /// (no way to attach to the hung process after the fact) — this does not depend on Polly's
+        /// internals at all, so it is not a fix for whatever that was, only a guarantee that it
+        /// cannot hang forever again: <see cref="CancellationTokenSource.CancelAfter(TimeSpan)"/>
+        /// fires unconditionally, so <see cref="IAiCallRetryExecutor"/>'s outer retry loop is
+        /// always eventually given an exception to act on.
+        /// </summary>
+        private static readonly TimeSpan HardAttemptTimeout = TimeSpan.FromSeconds(240);
+
         public static Task<T> RunAsync<T>(
             IAiCallRetryExecutor retryExecutor,
             ILlmClient llmClient,
@@ -43,13 +57,30 @@ namespace DeepLearning.Application.Common
 
             return retryExecutor.ExecuteAsync(log, async () =>
             {
-                var completion = await llmClient.CompleteAsync(
-                    new LlmCompletionRequest(
-                        SystemPrompt: null,
-                        UserPrompt: prompt + notice(rejectionReason, lastAttemptWasTruncated),
-                        MaxTokens: budget,
-                        Temperature: temperature),
-                    cancellationToken);
+                using var hardTimeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                hardTimeoutCts.CancelAfter(HardAttemptTimeout);
+
+                LlmCompletionResult completion;
+                try
+                {
+                    completion = await llmClient.CompleteAsync(
+                        new LlmCompletionRequest(
+                            SystemPrompt: null,
+                            UserPrompt: prompt + notice(rejectionReason, lastAttemptWasTruncated),
+                            MaxTokens: budget,
+                            Temperature: temperature),
+                        hardTimeoutCts.Token);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // Distinguishes "our own backstop fired" from "the caller's token was
+                    // cancelled" (e.g. the request was legitimately aborted upstream) — only the
+                    // former is a bug worth a message that says so explicitly in ai_call_logs.
+                    throw new TimeoutException(
+                        $"LLM call did not complete within the {HardAttemptTimeout.TotalSeconds:0}s hard backstop " +
+                        "— the transport-level resilience timeout should have failed this well before that and didn't.");
+                }
+
                 log.LatencyMs = (log.LatencyMs ?? 0) + completion.LatencyMs;
 
                 try

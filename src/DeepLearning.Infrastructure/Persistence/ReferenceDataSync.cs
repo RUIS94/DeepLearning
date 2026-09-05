@@ -58,6 +58,11 @@ namespace DeepLearning.Infrastructure.Persistence
             "prompt_templates",
             "llm_provider_settings",
             "llm_provider_models",
+            // The two-level weak-point taxonomy (薄弱点分类与生命周期管理_策划书.md §1) — global,
+            // not per-exam-type, but still hand-curated/reviewed reference data (proposed leaves
+            // get approved/merged through the admin surface) rather than per-learner business data.
+            "weak_point_categories",
+            "weak_point_catalog",
             "users",
             "questions",
             // The question bank's own child rows. A question without these is not a lighter copy of
@@ -82,6 +87,7 @@ namespace DeepLearning.Infrastructure.Persistence
         /// </summary>
         private static readonly Dictionary<string, string[]> RequiredCompanions = new(StringComparer.Ordinal)
         {
+            ["weak_point_catalog"] = ["weak_point_categories"],               // .category_id (nullable, but a dangling id is still wrong)
             [QuestionsTable] = [UsersTable],                                  // questions.created_by
             ["meaning_checkpoints"] = [QuestionsTable],                       // .question_id
             ["reference_translations"] = [QuestionsTable],                    // .question_id
