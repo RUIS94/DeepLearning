@@ -10,13 +10,15 @@ using MediatR;
 namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollowUpThread
 {
     /// <summary>
-    /// The "结算" step design decision (2026-09-02) moved out of every round and into here: a
-    /// separate AiOperationType.followup_summary call sees the thread's entire message history
-    /// and hands back ONE final verdict, exactly like CreateFollowUpQuestionCommandHandler used
-    /// to do per single-shot question. Persist logic below is a straight port of that retired
-    /// handler's post-AI-call half (StandardOverride creation, activation-threshold check,
-    /// submission TransitionTo) — see StandardOverride.TriggeredByFollowUpThreadId's doc comment
-    /// for why it writes a different FK column than the old flow did.
+    /// The "结算" step. Three shapes:
+    ///   - knowledge thread → nothing to adjudicate: close it, release the submission, no AI call.
+    ///   - dispute / score_challenge with request.Input → commit the user-reviewed summary as-is
+    ///     (no AI call — the frontend already drafted it via PreviewFollowUpCloseQuery).
+    ///   - dispute / score_challenge without Input → run the summary AI call and commit its output
+    ///     (the original one-shot path; kept for tests and a "just close it" caller).
+    /// Commit side effects are unchanged: StandardOverride creation + activation-threshold check
+    /// for a dispute; GradingResult.Band rewrite + GradingResultRevision + regraded for a
+    /// score_challenge adjust.
     /// </summary>
     public class CloseFollowUpThreadCommandHandler : IRequestHandler<CloseFollowUpThreadCommand, FollowUpThreadResult>
     {
@@ -29,6 +31,9 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
         private readonly IReferenceTranslationRepository _referenceTranslationRepository;
         private readonly IStandardOverrideRepository _standardOverrideRepository;
         private readonly IGenerationPolicyRepository _generationPolicyRepository;
+        private readonly IGradingResultRevisionRepository _gradingResultRevisionRepository;
+        private readonly IGradingSummaryRepository _gradingSummaryRepository;
+        private readonly IEnumerable<IGradingResultInterpreter> _interpreters;
         private readonly IAiCallLogRepository _aiCallLogRepository;
         private readonly IExamConfigLoader _examConfigLoader;
         private readonly ILlmClientResolver _llmClientResolver;
@@ -45,6 +50,9 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
             IReferenceTranslationRepository referenceTranslationRepository,
             IStandardOverrideRepository standardOverrideRepository,
             IGenerationPolicyRepository generationPolicyRepository,
+            IGradingResultRevisionRepository gradingResultRevisionRepository,
+            IGradingSummaryRepository gradingSummaryRepository,
+            IEnumerable<IGradingResultInterpreter> interpreters,
             IAiCallLogRepository aiCallLogRepository,
             IExamConfigLoader examConfigLoader,
             ILlmClientResolver llmClientResolver,
@@ -60,6 +68,9 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
             _referenceTranslationRepository = referenceTranslationRepository;
             _standardOverrideRepository = standardOverrideRepository;
             _generationPolicyRepository = generationPolicyRepository;
+            _gradingResultRevisionRepository = gradingResultRevisionRepository;
+            _gradingSummaryRepository = gradingSummaryRepository;
+            _interpreters = interpreters;
             _aiCallLogRepository = aiCallLogRepository;
             _examConfigLoader = examConfigLoader;
             _llmClientResolver = llmClientResolver;
@@ -86,53 +97,91 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
             var question = await _questionRepository.GetByIdAsync(submission.QuestionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Question), submission.QuestionId);
 
-            var aiCallLog = new AiCallLog
+            // A pure-knowledge thread never disputed anything — no summary, no verdict, no AI call.
+            if (thread.Kind == FollowUpThreadKind.knowledge)
             {
-                Id = Guid.NewGuid(),
-                RequestType = AiOperationType.followup_summary,
-                RelatedId = thread.Id,
-                Status = CallStatus.calling,
-                AttemptCount = 1,
-                MaxRetries = 3,
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
-            await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+                thread.Status = FollowUpThreadStatus.closed;
+                thread.FinalVerdict = null;
+                thread.ClosedAt = DateTimeOffset.UtcNow;
+                submission.TransitionTo(SubmissionStatus.graded);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                return FollowUpThreadResult.From(thread, submission.Status, standardOverrideStatus: null);
+            }
 
             var context = await FollowUpThreadSupport.LoadContextAsync(
                 thread.ExamTypeId, submission, question,
                 _assessmentDimensionRepository, _errorTaxonomyRepository, _submissionRepository, _referenceTranslationRepository,
                 cancellationToken);
+
+            if (thread.Kind == FollowUpThreadKind.score_challenge)
+            {
+                return await CloseScoreChallengeAsync(thread, submission, question, context, request.Input, cancellationToken);
+            }
+
             var dimensionKeys = FollowUpThreadSupport.DimensionKeys(context);
 
             FollowUpSummaryPayload payload;
-            try
+            AiCallLog? aiCallLog = null;
+            if (request.Input is { } input)
             {
-                var model = FollowUpThreadSupport.BuildTemplateModel(
-                    questionText: string.Empty, thread.ContextRef, submission, question, context, history: thread.Messages);
-                var prompt = await _examConfigLoader.BuildPromptAsync(thread.ExamTypeId, AiOperationType.followup_summary, model, cancellationToken);
-
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.followup_summary, cancellationToken);
-                payload = await AdaptiveCompletionRunner.RunAsync(
-                    _aiCallRetryExecutor,
-                    llmClient,
-                    aiCallLog,
-                    prompt,
-                    initialBudget: AiOutputBudget.MediumInitial,
-                    maxBudget: AiOutputBudget.MediumMax,
-                    parse: FollowUpThreadSupport.ParsePayload<FollowUpSummaryPayload>,
-                    validate: p => FollowUpThreadSupport.ValidateSummaryPayload(p, dimensionKeys),
-                    cancellationToken: cancellationToken);
+                payload = new FollowUpSummaryPayload
+                {
+                    AiResponse = input.AiResponse,
+                    FinalVerdict = input.FinalVerdict,
+                    StandardRevision = input.StandardRevision is null ? null : new StandardRevisionPayload
+                    {
+                        Scope = input.StandardRevision.Scope,
+                        DimensionOrRule = input.StandardRevision.DimensionOrRule,
+                        OriginalRuleText = input.StandardRevision.OriginalRuleText,
+                        RevisedRuleText = input.StandardRevision.RevisedRuleText,
+                    },
+                };
+                FollowUpThreadSupport.ValidateSummaryPayload(payload, dimensionKeys);
             }
-            catch (Exception ex)
+            else
             {
-                // The thread stays open (not closed) and the submission stays under_dispute
-                // untouched — the dispute is still unresolved, the user can try closing again.
-                aiCallLog.Status = CallStatus.final_failure;
-                aiCallLog.LastErrorMessage = $"Failed after {aiCallLog.AttemptCount} attempt(s): {ex.Message}";
-                aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
+                aiCallLog = new AiCallLog
+                {
+                    Id = Guid.NewGuid(),
+                    RequestType = AiOperationType.followup_summary,
+                    RelatedId = thread.Id,
+                    Status = CallStatus.calling,
+                    AttemptCount = 1,
+                    MaxRetries = 3,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                };
+                await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
-                throw new AiCallFailedException($"Follow-up thread could not be closed: {ex.Message}", ex);
+
+                try
+                {
+                    var model = FollowUpThreadSupport.BuildTemplateModel(
+                        thread.Kind.ToString(), questionText: string.Empty, thread.ContextRef, submission, question, context,
+                        history: thread.Messages, challengedDimensionId: thread.DimensionId);
+                    var prompt = await _examConfigLoader.BuildPromptAsync(thread.ExamTypeId, AiOperationType.followup_summary, model, cancellationToken);
+
+                    var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.followup_summary, cancellationToken);
+                    payload = await AdaptiveCompletionRunner.RunAsync(
+                        _aiCallRetryExecutor,
+                        llmClient,
+                        aiCallLog,
+                        prompt,
+                        initialBudget: AiOutputBudget.MediumInitial,
+                        maxBudget: AiOutputBudget.MediumMax,
+                        parse: FollowUpThreadSupport.ParsePayload<FollowUpSummaryPayload>,
+                        validate: p => FollowUpThreadSupport.ValidateSummaryPayload(p, dimensionKeys),
+                        cancellationToken: cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    // The thread stays open (not closed) and the submission stays under_dispute
+                    // untouched — the dispute is still unresolved, the user can try closing again.
+                    aiCallLog.Status = CallStatus.final_failure;
+                    aiCallLog.LastErrorMessage = $"Failed after {aiCallLog.AttemptCount} attempt(s): {ex.Message}";
+                    aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                    throw new AiCallFailedException($"Follow-up thread could not be closed: {ex.Message}", ex);
+                }
             }
 
             try
@@ -170,8 +219,11 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
                 thread.StandardOverrideId = newOverride?.Id;
                 thread.ClosedAt = DateTimeOffset.UtcNow;
 
-                aiCallLog.Status = CallStatus.success;
-                aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
+                if (aiCallLog is not null)
+                {
+                    aiCallLog.Status = CallStatus.success;
+                    aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
+                }
 
                 // Persisted before the activation-threshold count below — that count queries the
                 // database directly, so this row must actually be committed first for the count
@@ -196,9 +248,12 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
                     submission.Status = SubmissionStatus.under_dispute;
                 }
 
-                aiCallLog.Status = CallStatus.final_failure;
-                aiCallLog.LastErrorMessage = $"Failed to persist follow-up thread close: {ex.Message}";
-                aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
+                if (aiCallLog is not null)
+                {
+                    aiCallLog.Status = CallStatus.final_failure;
+                    aiCallLog.LastErrorMessage = $"Failed to persist follow-up thread close: {ex.Message}";
+                    aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
+                }
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
                 throw new AiCallFailedException($"Follow-up thread could not be closed: {ex.Message}", ex);
             }
@@ -240,6 +295,171 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
             }
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Closing path for a score_challenge thread. `input` non-null = commit the user-reviewed
+        /// decision (no AI call); null = run the score_challenge_summary call first. adjust
+        /// rewrites the disputed dimension's GradingResult.Band in place, writes a
+        /// GradingResultRevision audit row, recomputes PassBool (via the same
+        /// IGradingResultInterpreter grading uses) and the GradingSummary roll-up, and moves the
+        /// submission to `regraded`. uphold just returns it to `graded`. Never touches
+        /// StandardOverride — a score challenge fixes this score, it does not patch the rubric.
+        /// </summary>
+        private async Task<FollowUpThreadResult> CloseScoreChallengeAsync(
+            FollowUpThread thread,
+            Submission submission,
+            Question question,
+            FollowUpThreadContext context,
+            FollowUpCloseInput? input,
+            CancellationToken cancellationToken)
+        {
+            ScoreChallengeSummaryPayload payload;
+            AiCallLog? aiCallLog = null;
+            if (input is not null)
+            {
+                payload = new ScoreChallengeSummaryPayload
+                {
+                    AiResponse = input.AiResponse,
+                    Decision = input.Decision ?? ScoreChallengeDecision.uphold,
+                    RevisedBand = input.RevisedBand,
+                    RevisedRationale = input.RevisedRationale,
+                };
+                FollowUpThreadSupport.ValidateScoreChallengePayload(payload);
+            }
+            else
+            {
+                aiCallLog = new AiCallLog
+                {
+                    Id = Guid.NewGuid(),
+                    RequestType = AiOperationType.score_challenge_summary,
+                    RelatedId = thread.Id,
+                    Status = CallStatus.calling,
+                    AttemptCount = 1,
+                    MaxRetries = 3,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                };
+                await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                try
+                {
+                    var model = FollowUpThreadSupport.BuildTemplateModel(
+                        thread.Kind.ToString(), questionText: string.Empty, thread.ContextRef, submission, question, context,
+                        history: thread.Messages, challengedDimensionId: thread.DimensionId);
+                    var prompt = await _examConfigLoader.BuildPromptAsync(thread.ExamTypeId, AiOperationType.score_challenge_summary, model, cancellationToken);
+
+                    var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.score_challenge_summary, cancellationToken);
+                    payload = await AdaptiveCompletionRunner.RunAsync(
+                        _aiCallRetryExecutor,
+                        llmClient,
+                        aiCallLog,
+                        prompt,
+                        initialBudget: AiOutputBudget.MediumInitial,
+                        maxBudget: AiOutputBudget.MediumMax,
+                        parse: FollowUpThreadSupport.ParsePayload<ScoreChallengeSummaryPayload>,
+                        validate: FollowUpThreadSupport.ValidateScoreChallengePayload,
+                        cancellationToken: cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    // Thread stays open, submission stays under_dispute — the challenge is unresolved.
+                    aiCallLog.Status = CallStatus.final_failure;
+                    aiCallLog.LastErrorMessage = $"Failed after {aiCallLog.AttemptCount} attempt(s): {ex.Message}";
+                    aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                    throw new AiCallFailedException($"Score challenge could not be closed: {ex.Message}", ex);
+                }
+            }
+
+            try
+            {
+                if (payload.Decision == ScoreChallengeDecision.adjust)
+                {
+                    var gradingResult = context.GradingResults.Single(r => r.DimensionId == thread.DimensionId!.Value);
+                    var dimension = context.Dimensions.Single(d => d.Id == thread.DimensionId!.Value);
+                    var fromBand = gradingResult.Band;
+                    var toBand = payload.RevisedBand!.Value;
+
+                    var interpretation = _interpreters.First(i => i.ScaleType == dimension.ScaleType)
+                        .Interpret(toBand.ToString(), dimension.PassThreshold);
+
+                    await _gradingResultRevisionRepository.AddAsync(new GradingResultRevision
+                    {
+                        Id = Guid.NewGuid(),
+                        SubmissionId = submission.Id,
+                        DimensionId = dimension.Id,
+                        GradingResultId = gradingResult.Id,
+                        FromBand = fromBand,
+                        ToBand = toBand,
+                        Reason = payload.RevisedRationale!,
+                        TriggeredByFollowUpThreadId = thread.Id,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                    }, cancellationToken);
+
+                    gradingResult.Band = interpretation.Band;
+                    gradingResult.PassBool = interpretation.PassBool;
+                    gradingResult.Rationale =
+                        $"{gradingResult.Rationale}\n\n[追问改判 Band {fromBand}→{toBand}] {payload.RevisedRationale}";
+                    // The AI-derived confidence / probabilities described the original Band, not this one.
+                    gradingResult.Confidence = null;
+                    gradingResult.EstimatedPassProbability = null;
+                    gradingResult.AlternativeBand = null;
+
+                    await RecomputeGradingSummaryAsync(submission.Id, context.GradingResults, cancellationToken);
+
+                    submission.TransitionTo(SubmissionStatus.regraded);
+                }
+                else
+                {
+                    submission.TransitionTo(SubmissionStatus.graded);
+                }
+
+                thread.Status = FollowUpThreadStatus.closed;
+                thread.ClosedAt = DateTimeOffset.UtcNow;
+
+                if (aiCallLog is not null)
+                {
+                    aiCallLog.Status = CallStatus.success;
+                    aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
+                }
+
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                return FollowUpThreadResult.From(thread, submission.Status, standardOverrideStatus: null);
+            }
+            catch (Exception ex)
+            {
+                // Mirror the followup-summary path: an in-memory TransitionTo may have run with
+                // nothing committed — reset so the failure guard's own bookkeeping is legal.
+                if (submission.Status is SubmissionStatus.graded or SubmissionStatus.regraded)
+                {
+                    submission.Status = SubmissionStatus.under_dispute;
+                }
+
+                if (aiCallLog is not null)
+                {
+                    aiCallLog.Status = CallStatus.final_failure;
+                    aiCallLog.LastErrorMessage = $"Failed to persist score challenge close: {ex.Message}";
+                    aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
+                }
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                throw new AiCallFailedException($"Score challenge could not be closed: {ex.Message}", ex);
+            }
+        }
+
+        private async Task RecomputeGradingSummaryAsync(
+            Guid submissionId, IReadOnlyList<GradingResult> gradingResults, CancellationToken cancellationToken)
+        {
+            var summary = await _gradingSummaryRepository.GetBySubmissionIdAsync(submissionId, cancellationToken);
+            if (summary is null)
+            {
+                return;
+            }
+
+            summary.OverallPassBool = gradingResults.All(r => r.PassBool);
+            // Best effort: the re-graded dimension now contributes 1.0 (its estimate was cleared).
+            summary.OverallPassProbability = gradingResults.Aggregate(1m, (acc, r) => acc * (r.EstimatedPassProbability ?? 1m));
         }
     }
 }

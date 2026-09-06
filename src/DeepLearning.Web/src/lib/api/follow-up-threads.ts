@@ -2,6 +2,8 @@ import { createBrowserApiClient } from "./fetcher";
 import type {
   AddFollowUpMessageRequest,
   CreateFollowUpThreadRequest,
+  FollowUpClosePreview,
+  FollowUpCloseInput,
   FollowUpThreadDetail,
   FollowUpThreadSummary,
 } from "@/lib/types/dtos";
@@ -24,13 +26,26 @@ export async function addFollowUpMessage(
   });
 }
 
+/** 生成结算草稿（会发一次 AI 调用），线程保持 open、不落库。 */
+export async function previewFollowUpClose(
+  threadId: string,
+  userId: string,
+): Promise<FollowUpClosePreview> {
+  return api<FollowUpClosePreview>(`/follow-up-threads/${threadId}/close/preview`, {
+    method: "POST",
+    body: { userId },
+  });
+}
+
+/** input 为用户确认/编辑后的结算内容；不传则后端自己跑 AI 结算（旧行为，knowledge 线程恒不跑）。 */
 export async function closeFollowUpThread(
   threadId: string,
   userId: string,
+  input?: FollowUpCloseInput,
 ): Promise<FollowUpThreadDetail> {
   return api<FollowUpThreadDetail>(`/follow-up-threads/${threadId}/close`, {
     method: "POST",
-    body: { userId },
+    body: input ? { userId, input } : { userId },
   });
 }
 

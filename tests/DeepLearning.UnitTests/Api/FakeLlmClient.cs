@@ -224,16 +224,23 @@ namespace DeepLearning.UnitTests.Api
         public const string GradingMarker = "GRADING_MARKER";
         public const string FollowUpMarker = "FOLLOWUP_MARKER";
         public const string SummaryMarker = "FOLLOWUP_SUMMARY_MARKER";
+        public const string ScoreChallengeSummaryMarker = "SCORE_CHALLENGE_SUMMARY_MARKER";
 
         private readonly string _dimensionKey;
         private readonly string _followUpResponseJson;
         private readonly string? _summaryResponseJson;
+        private readonly string? _scoreChallengeSummaryResponseJson;
 
-        public FakeFollowUpFlowLlmClient(string dimensionKey, string followUpResponseJson, string? summaryResponseJson = null)
+        public FakeFollowUpFlowLlmClient(
+            string dimensionKey,
+            string followUpResponseJson,
+            string? summaryResponseJson = null,
+            string? scoreChallengeSummaryResponseJson = null)
         {
             _dimensionKey = dimensionKey;
             _followUpResponseJson = followUpResponseJson;
             _summaryResponseJson = summaryResponseJson;
+            _scoreChallengeSummaryResponseJson = scoreChallengeSummaryResponseJson;
         }
 
         /// <summary>
@@ -255,6 +262,14 @@ namespace DeepLearning.UnitTests.Api
                 // submission to reach Graded, so the grading reports no errors.
                 var gradingJson = FakeGradingPayloads.Build(_dimensionKey, errorCategoryKey: null);
                 return Task.FromResult(new LlmCompletionResult(gradingJson, 10, 20, "fake-model", 5));
+            }
+
+            if (request.UserPrompt.Contains(ScoreChallengeSummaryMarker, StringComparison.Ordinal))
+            {
+                LastSummaryPrompt = request.UserPrompt;
+                return Task.FromResult(new LlmCompletionResult(
+                    _scoreChallengeSummaryResponseJson ?? throw new InvalidOperationException("This FakeFollowUpFlowLlmClient was constructed without a scoreChallengeSummaryResponseJson."),
+                    10, 20, "fake-model", 5));
             }
 
             if (request.UserPrompt.Contains(SummaryMarker, StringComparison.Ordinal))

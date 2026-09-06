@@ -109,7 +109,8 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.AddFollowUp
             try
             {
                 var model = FollowUpThreadSupport.BuildTemplateModel(
-                    request.QuestionText, thread.ContextRef, submission, question, context, history: priorMessages);
+                    thread.Kind.ToString(), request.QuestionText, thread.ContextRef, submission, question, context, history: priorMessages,
+                    challengedDimensionId: thread.DimensionId);
                 var prompt = await _examConfigLoader.BuildPromptAsync(thread.ExamTypeId, AiOperationType.followup, model, cancellationToken);
 
                 var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.followup, cancellationToken);
@@ -133,6 +134,13 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.AddFollowUp
                 aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
                 throw new AiCallFailedException($"Follow-up reply could not be used: {ex.Message}", ex);
+            }
+
+            // A later round can still reveal the thread was really a challenge (user never
+            // anchored a finding). One-way: knowledge -> dispute, never back.
+            if (thread.Kind == FollowUpThreadKind.knowledge && payload.DisputeDetected)
+            {
+                thread.Kind = FollowUpThreadKind.dispute;
             }
 
             try

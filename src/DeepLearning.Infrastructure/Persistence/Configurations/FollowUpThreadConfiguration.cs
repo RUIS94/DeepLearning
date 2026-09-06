@@ -20,6 +20,10 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
             // rely on the DB default anyway; the real risk is any future non-zero-default status
             // getting dropped from the INSERT. Kept for consistency with that documented fix.
             builder.Property(x => x.Status).HasDefaultValue(FollowUpThreadStatus.open).ValueGeneratedNever();
+            // Same HasDefaultValue footgun as Status above: knowledge is ordinal 0, so without
+            // ValueGeneratedNever() EF would omit it from the INSERT for a knowledge thread and
+            // lean on the DB default — fine now, a silent drop the day the default changes.
+            builder.Property(x => x.Kind).HasDefaultValue(FollowUpThreadKind.knowledge).ValueGeneratedNever();
             builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
 
             // A submission can have many threads over time (design revision, 2026-09-02): once a

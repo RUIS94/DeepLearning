@@ -4,6 +4,7 @@ namespace DeepLearning.Application.Features.Submissions.Queries.GetSubmissionByI
 {
     public record GradingResultItem(
         Guid Id,
+        Guid DimensionId,
         string DimensionKey,
         string DimensionName,
         string RubricVersion,

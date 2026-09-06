@@ -231,6 +231,7 @@ export interface GradingStatusResult {
 
 export interface GradingResultItem {
   id: string;
+  dimensionId: string;
   dimensionKey: string;
   dimensionName: string;
   rubricVersion: string;
@@ -326,11 +327,48 @@ export interface CreateFollowUpThreadRequest {
   examTypeId: string;
   contextRef: string | null;
   questionText: string;
+  /** null = 由后端推断（有 contextRef 则 dispute，否则 knowledge）。score_challenge 必须显式传，并带 dimensionId。见 enums.ts 的 FollowUpThreadKind。 */
+  kind?: number | null;
+  /** 仅 kind=score_challenge 时必填：被申请改判的维度 id。 */
+  dimensionId?: string | null;
 }
 
 export interface AddFollowUpMessageRequest {
   userId: string;
   questionText: string;
+}
+
+/** 对应后端 StandardRevisionPreview / StandardRevisionInput。 */
+export interface StandardRevisionDraft {
+  /** OverrideScope 序数：grading_rubric=0 / translation_reference=1。 */
+  scope: number;
+  dimensionOrRule: string;
+  originalRuleText: string | null;
+  revisedRuleText: string;
+}
+
+/** 对应后端 FollowUpClosePreview —— 结算 AI 草稿，尚未落库。按 kind 只有部分字段有值。 */
+export interface FollowUpClosePreview {
+  kind: number;
+  aiResponse: string;
+  finalVerdict: number | null;
+  standardRevision: StandardRevisionDraft | null;
+  /** "uphold" | "adjust"，score_challenge 才有。 */
+  decision: string | null;
+  revisedBand: number | null;
+  revisedRationale: string | null;
+  currentBand: number | null;
+  challengedDimensionKey: string | null;
+}
+
+/** 对应后端 FollowUpCloseInput —— 用户确认/编辑后的结算内容，回传给 close。 */
+export interface FollowUpCloseInput {
+  aiResponse: string;
+  finalVerdict: number | null;
+  standardRevision: StandardRevisionDraft | null;
+  decision: string | null;
+  revisedBand: number | null;
+  revisedRationale: string | null;
 }
 
 /** 对应后端 FollowUpMessageResult。role/verdict 是数字序数——见 enums.ts 的 FollowUpMessageRole/FollowUpVerdict。verdict 仅 AI 消息非空，且只是这一轮的看法，不驱动任何副作用（见后端 FollowUpMessage 的注释）。 */
@@ -346,6 +384,10 @@ export interface FollowUpMessageDetail {
 export interface FollowUpThreadSummary {
   id: string;
   status: number;
+  /** 见 enums.ts 的 FollowUpThreadKind。 */
+  kind: number;
+  /** 仅 kind=score_challenge 时非空：被申请改判的维度 id。 */
+  dimensionId: string | null;
   finalVerdict: number | null;
   standardOverrideId: string | null;
   messageCount: number;
@@ -366,6 +408,10 @@ export interface FollowUpThreadDetail {
   submissionId: string;
   userId: string;
   contextRef: string | null;
+  /** 见 enums.ts 的 FollowUpThreadKind。 */
+  kind: number;
+  /** 仅 kind=score_challenge 时非空：被申请改判的维度 id。 */
+  dimensionId: string | null;
   status: number;
   finalVerdict: number | null;
   standardOverrideId: string | null;

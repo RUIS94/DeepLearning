@@ -31,6 +31,13 @@ namespace DeepLearning.Domain.Enums
         // batched into one call for all such codes. Returns resolved / still_weak / not_present
         // per code — never writes error_list or increments RecurrenceCount/OccurrenceSubmissionCount
         // (策划书 §2/§3). Skipped entirely when the user has no active weak points to recheck.
-        weak_point_recheck
+        weak_point_recheck,
+        // Closing call for a FollowUpThreadKind.score_challenge thread (CloseFollowUpThreadCommand
+        // when thread.Kind == score_challenge). Per-round replies in such a thread reuse the
+        // plain 'followup' template (score_challenge falls in its non-knowledge branch); only
+        // this summary call decides decision=uphold|adjust and, on adjust, rewrites the
+        // disputed dimension's GradingResult.Band + writes a GradingResultRevision +
+        // TransitionTo(regraded). Never emits a standardRevision.
+        score_challenge_summary
     }
 }

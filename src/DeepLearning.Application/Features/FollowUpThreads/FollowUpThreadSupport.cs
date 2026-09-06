@@ -43,15 +43,40 @@ namespace DeepLearning.Application.Features.FollowUpThreads
         /// the followup_summary template only renders `history`, never `question_text`).
         /// history is prior turns only for a per-round call (the newest question is passed
         /// separately via questionText) but ALL turns for the closing summary call.
+        ///
+        /// Dimensions carry level_descriptions (the official per-Band rubric text, same
+        /// Dictionary&lt;string,string&gt; shape GradeSubmissionCommandHandler feeds the grading
+        /// template) and pass_threshold, so the followup templates' "对照 Band 原文核对,不要凭印象"
+        /// instruction actually has the Band text to check against; error taxonomies carry
+        /// Description for the same reason. History AI turns carry that round's Verdict so the
+        /// model reads the recorded adjudications instead of re-inferring them from prose
+        /// (reset_followup_prompts_v1_production.sql).
+        ///
+        /// kind is the thread's FollowUpThreadKind as a string ("knowledge" / "dispute" /
+        /// "score_challenge") — the followup template gates the whole evaluation scaffold
+        /// (error list, grading results, Band text, taxonomy, Major/Minor definitions) behind
+        /// {{ if kind != "knowledge" }}, so a plain knowledge question isn't buried under it.
+        /// major/minor_error_definition are the canonical NAATI wording from
+        /// ErrorSeverityDefinitions, always supplied (the template decides whether to show them).
+        /// challengedDimensionId (score_challenge only) resolves to challenged_dimension_key so
+        /// the template can name the exact dimension whose Band is in dispute.
         /// </summary>
         public static object BuildTemplateModel(
+            string kind,
             string questionText,
             string? contextRef,
             Submission submission,
             Question question,
             FollowUpThreadContext context,
-            IEnumerable<FollowUpMessage> history) => new
+            IEnumerable<FollowUpMessage> history,
+            Guid? challengedDimensionId = null) => new
             {
+                Kind = kind,
+                MajorErrorDefinition = ErrorSeverityDefinitions.Major,
+                MinorErrorDefinition = ErrorSeverityDefinitions.Minor,
+                ChallengedDimensionKey = challengedDimensionId is { } cdId
+                    ? context.Dimensions.FirstOrDefault(d => d.Id == cdId)?.DimensionKey
+                    : null,
                 QuestionText = questionText,
                 ContextRef = contextRef,
                 TaskType = submission.TaskType.ToString(),
@@ -62,11 +87,15 @@ namespace DeepLearning.Application.Features.FollowUpThreads
                     DimensionKey = r.Dimension!.DimensionKey,
                     Band = r.Band,
                     Rationale = r.Rationale,
+                    CumulativeDensityNote = r.CumulativeDensityNote,
                 }),
                 Errors = context.ErrorList.Select(e => new
                 {
                     PositionRef = e.PositionRef,
+                    DimensionKey = e.Dimension!.DimensionKey,
                     ErrorCategory = e.ErrorTaxonomy!.CategoryKey,
+                    Severity = e.Severity.ToString(),
+                    Summary = e.Summary,
                     Explanation = e.Explanation,
                     ImpactsCore = e.ImpactsCore,
                 }),
@@ -74,11 +103,14 @@ namespace DeepLearning.Application.Features.FollowUpThreads
                 {
                     DimensionKey = d.DimensionKey,
                     DimensionName = d.DimensionName,
+                    PassThreshold = d.PassThreshold,
+                    LevelDescriptions = JsonSerializer.Deserialize<Dictionary<string, string>>(d.LevelDescriptions) ?? [],
                 }),
                 ErrorTaxonomies = context.ErrorTaxonomies.Select(t => new
                 {
                     CategoryKey = t.CategoryKey,
                     CategoryName = t.CategoryName,
+                    Description = t.Description,
                 }),
                 ReferenceTranslation = context.ReferenceTranslation is null ? null : new
                 {
@@ -89,6 +121,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads
                 {
                     Role = m.Role.ToString(),
                     Content = m.Content,
+                    Verdict = m.Verdict?.ToString(),
                 }),
             };
 
@@ -154,6 +187,29 @@ namespace DeepLearning.Application.Features.FollowUpThreads
             }
         }
 
+        /// <summary>
+        /// decision=uphold needs nothing further. decision=adjust must name the new Band (1..5)
+        /// and say why — CloseFollowUpThreadCommandHandler rewrites the GradingResult and writes
+        /// a GradingResultRevision from exactly these two fields.
+        /// </summary>
+        public static void ValidateScoreChallengePayload(ScoreChallengeSummaryPayload payload)
+        {
+            if (payload.Decision != ScoreChallengeDecision.adjust)
+            {
+                return;
+            }
+
+            if (payload.RevisedBand is not (>= 1 and <= 5))
+            {
+                throw new InvalidOperationException("decision=adjust requires revisedBand in 1..5.");
+            }
+
+            if (string.IsNullOrWhiteSpace(payload.RevisedRationale))
+            {
+                throw new InvalidOperationException("decision=adjust requires a non-empty revisedRationale.");
+            }
+        }
+
         private static string StripMarkdownFence(string text)
         {
             if (!text.StartsWith("```", StringComparison.Ordinal))
@@ -182,6 +238,15 @@ namespace DeepLearning.Application.Features.FollowUpThreads
 
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public FollowUpVerdict? Verdict { get; set; }
+
+        /// <summary>
+        /// Only meaningful while the thread is still <see cref="FollowUpThreadKind.knowledge"/>:
+        /// the model's read on whether this round was actually challenging a specific finding
+        /// (so the user never anchored one / forgot to). True promotes the thread to
+        /// <see cref="FollowUpThreadKind.dispute"/> so later rounds carry the evaluation
+        /// scaffold. Ignored once the thread is already dispute/score_challenge.
+        /// </summary>
+        public bool DisputeDetected { get; set; }
     }
 
     /// <summary>Structured-output contract for the closing summary call (AiOperationType.followup_summary) — this is the one call whose verdict/standardRevision has real side effects. FinalVerdict is null when the thread never disputed a judgment.</summary>
@@ -205,5 +270,30 @@ namespace DeepLearning.Application.Features.FollowUpThreads
         public string? OriginalRuleText { get; set; }
 
         public string RevisedRuleText { get; set; } = string.Empty;
+    }
+
+    public enum ScoreChallengeDecision
+    {
+        uphold,
+        adjust,
+    }
+
+    /// <summary>
+    /// Structured-output contract for the closing call of a FollowUpThreadKind.score_challenge
+    /// thread (AiOperationType.score_challenge_summary). Unlike FollowUpSummaryPayload this
+    /// never carries a standardRevision — a score challenge rewrites THIS submission's Band, it
+    /// does not patch the rubric. decision=adjust => RevisedBand (1..5) + RevisedRationale are
+    /// required (ValidateScoreChallengePayload enforces it) and drive the re-grade.
+    /// </summary>
+    internal class ScoreChallengeSummaryPayload
+    {
+        public string AiResponse { get; set; } = string.Empty;
+
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public ScoreChallengeDecision Decision { get; set; }
+
+        public int? RevisedBand { get; set; }
+
+        public string? RevisedRationale { get; set; }
     }
 }

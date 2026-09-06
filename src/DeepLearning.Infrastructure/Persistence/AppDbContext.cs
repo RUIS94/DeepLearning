@@ -23,6 +23,7 @@ namespace DeepLearning.Infrastructure.Persistence
         public DbSet<ReferenceTranslation> ReferenceTranslations => Set<ReferenceTranslation>();
         public DbSet<Submission> Submissions => Set<Submission>();
         public DbSet<GradingResult> GradingResults => Set<GradingResult>();
+        public DbSet<GradingResultRevision> GradingResultRevisions => Set<GradingResultRevision>();
         public DbSet<GradingSummary> GradingSummaries => Set<GradingSummary>();
         public DbSet<ErrorListItem> ErrorList => Set<ErrorListItem>();
         public DbSet<FollowUpQuestion> FollowUpQuestions => Set<FollowUpQuestion>();

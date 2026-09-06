@@ -155,6 +155,7 @@ export function SubmissionPage() {
   const graded =
     s.status === SubmissionStatus.graded ||
     s.status === SubmissionStatus.standard_revised ||
+    s.status === SubmissionStatus.regraded ||
     s.status === SubmissionStatus.under_dispute;
   const archived = s.status === SubmissionStatus.archived;
 
@@ -221,6 +222,7 @@ export function SubmissionPage() {
           ) : null}
           {graded && !archived ? (
             <FollowUpPanel
+              key={submissionId}
               submissionId={submissionId}
               onChanged={() =>
                 queryClient.invalidateQueries({ queryKey: ["submission", submissionId] })

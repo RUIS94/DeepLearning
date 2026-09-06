@@ -4,6 +4,7 @@ using DeepLearning.Domain.Enums;
 using DeepLearning.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,16 +13,18 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DeepLearning.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260906033217_AddFollowUpThreadKind")]
+    partial class AddFollowUpThreadKind
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
                 .HasAnnotation("ProductVersion", "10.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "ai_operation_type_enum", new[] { "question_gen", "grading", "followup", "standard_revision", "deep_learning", "progress_trend", "followup_summary", "weak_point_classification", "weak_point_detection_criteria", "weak_point_recheck", "score_challenge_summary" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "ai_operation_type_enum", new[] { "question_gen", "grading", "followup", "standard_revision", "deep_learning", "progress_trend", "followup_summary", "weak_point_classification", "weak_point_detection_criteria", "weak_point_recheck" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "call_status_enum", new[] { "pending", "calling", "success", "failed", "final_failure" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "category_type_enum", new[] { "domain", "scenario" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "checkpoint_importance_enum", new[] { "core", "peripheral" });
@@ -40,7 +43,7 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "scale_type_enum", new[] { "band_1_5", "score_0_100", "rubric_level" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "source_type_enum", new[] { "real_exam", "ai_generated", "user_generated" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "subject_category_enum", new[] { "translation", "language_arts", "math", "science", "other" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "submission_status_enum", new[] { "draft", "submitted", "grading", "grading_failed", "graded", "under_dispute", "standard_revised", "archived", "grading_abandoned", "regraded" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "submission_status_enum", new[] { "draft", "submitted", "grading", "grading_failed", "graded", "under_dispute", "standard_revised", "archived", "grading_abandoned" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "task_type_enum", new[] { "A", "B" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "template_layer_enum", new[] { "shared_methodology", "exam_specific" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "visibility_enum", new[] { "private", "shared" });
@@ -765,69 +768,6 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_grading_results_alternative_band_range", "alternative_band IS NULL OR alternative_band BETWEEN 1 AND 5");
 
                             t.HasCheckConstraint("ck_grading_results_band_range", "band BETWEEN 1 AND 5");
-                        });
-                });
-
-            modelBuilder.Entity("DeepLearning.Domain.Entities.GradingResultRevision", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<Guid>("DimensionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("dimension_id");
-
-                    b.Property<int>("FromBand")
-                        .HasColumnType("integer")
-                        .HasColumnName("from_band");
-
-                    b.Property<Guid>("GradingResultId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("grading_result_id");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("reason");
-
-                    b.Property<Guid>("SubmissionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("submission_id");
-
-                    b.Property<int>("ToBand")
-                        .HasColumnType("integer")
-                        .HasColumnName("to_band");
-
-                    b.Property<Guid>("TriggeredByFollowUpThreadId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("triggered_by_follow_up_thread_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_grading_result_revisions");
-
-                    b.HasIndex("DimensionId")
-                        .HasDatabaseName("ix_grading_result_revisions_dimension_id");
-
-                    b.HasIndex("SubmissionId")
-                        .HasDatabaseName("idx_grading_result_revisions_submission");
-
-                    b.HasIndex("TriggeredByFollowUpThreadId")
-                        .HasDatabaseName("ix_grading_result_revisions_triggered_by_follow_up_thread_id");
-
-                    b.ToTable("grading_result_revisions", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_grading_result_revisions_from_band_range", "from_band BETWEEN 1 AND 5");
-
-                            t.HasCheckConstraint("ck_grading_result_revisions_to_band_range", "to_band BETWEEN 1 AND 5");
                         });
                 });
 
@@ -2461,36 +2401,6 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                     b.Navigation("Dimension");
 
                     b.Navigation("Submission");
-                });
-
-            modelBuilder.Entity("DeepLearning.Domain.Entities.GradingResultRevision", b =>
-                {
-                    b.HasOne("DeepLearning.Domain.Entities.AssessmentDimension", "Dimension")
-                        .WithMany()
-                        .HasForeignKey("DimensionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_grading_result_revisions_assessment_dimensions_dimension_id");
-
-                    b.HasOne("DeepLearning.Domain.Entities.Submission", "Submission")
-                        .WithMany()
-                        .HasForeignKey("SubmissionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_grading_result_revisions_submissions_submission_id");
-
-                    b.HasOne("DeepLearning.Domain.Entities.FollowUpThread", "TriggeredByFollowUpThread")
-                        .WithMany()
-                        .HasForeignKey("TriggeredByFollowUpThreadId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_grading_result_revisions_follow_up_threads_triggered_by_fol");
-
-                    b.Navigation("Dimension");
-
-                    b.Navigation("Submission");
-
-                    b.Navigation("TriggeredByFollowUpThread");
                 });
 
             modelBuilder.Entity("DeepLearning.Domain.Entities.GradingSummary", b =>

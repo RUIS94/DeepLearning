@@ -66,6 +66,7 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<IAiOperationProviderOverrideRepository, AiOperationProviderOverrideRepository>();
             services.AddScoped<ISubmissionRepository, SubmissionRepository>();
             services.AddScoped<IGradingSummaryRepository, GradingSummaryRepository>();
+            services.AddScoped<IGradingResultRevisionRepository, GradingResultRevisionRepository>();
             services.AddScoped<IGenerationPolicyRepository, GenerationPolicyRepository>();
             services.AddScoped<IFollowUpQuestionRepository, FollowUpQuestionRepository>();
             services.AddScoped<IFollowUpThreadRepository, FollowUpThreadRepository>();

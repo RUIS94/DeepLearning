@@ -39,6 +39,7 @@ namespace DeepLearning.Application.Features.Submissions.Queries.GetSubmissionByI
                 submission.CreatedAt,
                 gradingResults.Select(r => new GradingResultItem(
                     r.Id,
+                    r.DimensionId,
                     r.Dimension!.DimensionKey,
                     r.Dimension.DimensionName,
                     r.RubricVersion,

@@ -24,6 +24,21 @@ namespace DeepLearning.Domain.Entities
         public Guid UserId { get; set; }
         public Guid ExamTypeId { get; set; }
         public string? ContextRef { get; set; }
+
+        /// <summary>
+        /// Knowledge / dispute / score_challenge — see <see cref="FollowUpThreadKind"/>. Set at
+        /// creation (knowledge unless the user anchored a specific finding); a knowledge thread
+        /// may be promoted to dispute once, when a round's reply reports disputeDetected.
+        /// </summary>
+        public FollowUpThreadKind Kind { get; set; } = FollowUpThreadKind.knowledge;
+
+        /// <summary>
+        /// The assessment dimension a <see cref="FollowUpThreadKind.score_challenge"/> thread is
+        /// about. Null for knowledge / dispute threads. Plain pointer, no EF navigation — same
+        /// treatment as <see cref="StandardOverrideId"/>.
+        /// </summary>
+        public Guid? DimensionId { get; set; }
+
         public FollowUpThreadStatus Status { get; set; } = FollowUpThreadStatus.open;
         public FollowUpVerdict? FinalVerdict { get; set; }
         public Guid? StandardOverrideId { get; set; }

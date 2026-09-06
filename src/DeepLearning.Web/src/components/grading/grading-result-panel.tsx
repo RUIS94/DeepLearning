@@ -1,12 +1,22 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Flame } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { AlertCircle, CheckCircle2, Flame, MessageSquare, Scale } from "lucide-react";
 import type { SubmissionDetail } from "@/lib/types/dtos";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { bandLabel, bandToColor } from "@/lib/band";
-import { ErrorSeverity, ErrorSeverityLabel, errorImpactLabel } from "@/lib/types/enums";
+import {
+  ErrorSeverity,
+  ErrorSeverityLabel,
+  FollowUpThreadKind,
+  FollowUpThreadStatus,
+  SubmissionStatus,
+  errorImpactLabel,
+} from "@/lib/types/enums";
 import { cn } from "@/lib/utils";
+import { FollowUpPanel } from "@/components/grading/follow-up-panel";
+import { listFollowUpThreads } from "@/lib/api/follow-up-threads";
 
 const SEVERITY_BADGE: Record<number, string> = {
   [ErrorSeverity.minor]: "border-border text-muted-foreground",
@@ -83,6 +93,36 @@ function DimensionBandRow({
 
 export function GradingResultPanel({ submission }: { submission: SubmissionDetail }) {
   const summary = submission.overallSummary;
+  // 结果区在这些状态下都在（见 submission-page 的 graded 判断），改判入口的可见性再据线程情况细分。
+  const resultsVisible =
+    submission.status === SubmissionStatus.graded ||
+    submission.status === SubmissionStatus.regraded ||
+    submission.status === SubmissionStatus.standard_revised ||
+    submission.status === SubmissionStatus.under_dispute;
+
+  const threads = useQuery({
+    queryKey: ["follow-up-threads", submission.id],
+    queryFn: () => listFollowUpThreads(submission.id),
+    enabled: resultsVisible,
+  });
+  const openThread = threads.data?.find((t) => t.status === FollowUpThreadStatus.open) ?? null;
+  const openScoreChallenge =
+    openThread?.kind === FollowUpThreadKind.score_challenge ? openThread : null;
+  const noOpenThread = threads.isSuccess && !openThread;
+  const canStartChallenge =
+    noOpenThread &&
+    (submission.status === SubmissionStatus.graded ||
+      submission.status === SubmissionStatus.regraded);
+
+  // 某个维度行是否给出改判入口：没有进行中线程时给"申请改判"；
+  // 已有针对该维度的进行中改判申请时给"查看进行中的改判申请"（这也是关掉 popup 后再打开的入口）。
+  const challengeFor = (dimensionId: string): "start" | "reopen" | null => {
+    if (openScoreChallenge) {
+      return openScoreChallenge.dimensionId === dimensionId ? "reopen" : null;
+    }
+    return canStartChallenge ? "start" : null;
+  };
+
   return (
     <div className="space-y-6">
       {summary ? (
@@ -132,7 +172,7 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 pt-0">
-          {submission.errorList.map((e) => (
+          {submission.errorList.map((e, i) => (
             <div key={e.id} className="rounded-lg border border-border p-4">
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <Badge
@@ -177,6 +217,29 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
               {e.suggestion ? (
                 <p className="mt-1 text-sm text-primary">建议：{e.suggestion}</p>
               ) : null}
+              {/* 始终挂载：popup 打开后即使 canStartChallenge 变 false（发送首条消息建线程后）也不卸载。 */}
+              <div className={canStartChallenge ? "mt-2" : undefined}>
+                <FollowUpPanel
+                  submissionId={submission.id}
+                  disputeAnchor={{
+                    contextRef:
+                      `错误#${i + 1} · ${e.positionRef ?? "?"} · ${e.errorCategory}`.slice(0, 100),
+                    label: `${e.dimensionKey} / ${e.errorCategory}${e.summary ? " · " + e.summary : ""}`,
+                  }}
+                  renderTrigger={(openPanel) =>
+                    canStartChallenge ? (
+                      <button
+                        type="button"
+                        onClick={openPanel}
+                        className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                      >
+                        <MessageSquare className="size-3" />
+                        针对这条错误提问 / 质疑
+                      </button>
+                    ) : null
+                  }
+                />
+              </div>
             </div>
           ))}
         </CardContent>
@@ -187,19 +250,53 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
           <CardTitle className="text-base">维度评分</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          {submission.gradingResults.map((r) => (
-            <DimensionBandRow
-              key={r.id}
-              name={r.dimensionName}
-              band={r.band}
-              pass={r.passBool}
-              rationale={r.rationale}
-              densityNote={r.cumulativeDensityNote}
-              probability={r.estimatedPassProbability}
-              confidence={r.confidence}
-              alternativeBand={r.alternativeBand}
-            />
-          ))}
+          {submission.gradingResults.map((r) => {
+            const mode = challengeFor(r.dimensionId);
+            return (
+              <div key={r.id}>
+                <DimensionBandRow
+                  name={r.dimensionName}
+                  band={r.band}
+                  pass={r.passBool}
+                  rationale={r.rationale}
+                  densityNote={r.cumulativeDensityNote}
+                  probability={r.estimatedPassProbability}
+                  confidence={r.confidence}
+                  alternativeBand={r.alternativeBand}
+                />
+                {/* 始终挂载；是否给出可点的入口由 renderTrigger 决定，这样 popup 打开后线程状态变化不会卸载它。 */}
+                <div className={mode ? "-mt-1 pb-3" : undefined}>
+                  <FollowUpPanel
+                    submissionId={submission.id}
+                    scoreChallenge={{ dimensionId: r.dimensionId, dimensionKey: r.dimensionKey }}
+                    renderTrigger={(openPanel) =>
+                      mode ? (
+                        <button
+                          type="button"
+                          onClick={openPanel}
+                          className={cn(
+                            "inline-flex items-center gap-1 text-xs underline underline-offset-2",
+                            mode === "reopen"
+                              ? "text-primary hover:text-primary/80"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {mode === "reopen" ? (
+                            <MessageSquare className="size-3" />
+                          ) : (
+                            <Scale className="size-3" />
+                          )}
+                          {mode === "reopen"
+                            ? "查看进行中的改判申请"
+                            : "对这个维度的 Band 申请改判"}
+                        </button>
+                      ) : null
+                    }
+                  />
+                </div>
+              </div>
+            );
+          })}
         </CardContent>
       </Card>
     </div>

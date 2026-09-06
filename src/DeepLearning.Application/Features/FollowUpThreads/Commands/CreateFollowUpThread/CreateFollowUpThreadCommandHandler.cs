@@ -108,11 +108,33 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CreateFollo
 
             var askedAt = DateTimeOffset.UtcNow;
 
+            // Explicit Kind wins (score_challenge from the score display). Otherwise: anchoring
+            // a specific finding (ContextRef) means "I'm challenging this" -> dispute; a bare
+            // question is knowledge until a round's reply says otherwise (payload.DisputeDetected).
+            var kind = request.Kind
+                ?? (request.ContextRef is not null ? FollowUpThreadKind.dispute : FollowUpThreadKind.knowledge);
+
+            if (kind == FollowUpThreadKind.score_challenge)
+            {
+                if (request.DimensionId is not { } dimId || context.Dimensions.All(d => d.Id != dimId))
+                {
+                    await FailAsync(submission, aiCallLog, "score_challenge DimensionId is not a dimension of this exam type.", cancellationToken);
+                    throw new NotFoundException(nameof(AssessmentDimension), request.DimensionId ?? Guid.Empty);
+                }
+
+                if (context.GradingResults.All(r => r.DimensionId != request.DimensionId))
+                {
+                    await FailAsync(submission, aiCallLog, "score_challenge dimension has no grading result to re-grade.", cancellationToken);
+                    throw new ConflictException($"Submission '{submission.Id}' has no grading result for dimension '{request.DimensionId}'.");
+                }
+            }
+
             FollowUpTurnPayload payload;
             try
             {
                 var model = FollowUpThreadSupport.BuildTemplateModel(
-                    request.QuestionText, request.ContextRef, submission, question, context, history: []);
+                    kind.ToString(), request.QuestionText, request.ContextRef, submission, question, context, history: [],
+                    challengedDimensionId: kind == FollowUpThreadKind.score_challenge ? request.DimensionId : null);
                 var prompt = await _examConfigLoader.BuildPromptAsync(request.ExamTypeId, AiOperationType.followup, model, cancellationToken);
 
                 var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.followup, cancellationToken);
@@ -135,6 +157,14 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CreateFollo
                 throw new AiCallFailedException($"Follow-up thread could not be started: {ex.Message}", ex);
             }
 
+            // A round-1 reply that turns out to be a challenge promotes an un-anchored thread
+            // to dispute, so round 2+ carries the evaluation scaffold. (score_challenge is a
+            // deliberate track, never reached by this promotion.)
+            if (kind == FollowUpThreadKind.knowledge && payload.DisputeDetected)
+            {
+                kind = FollowUpThreadKind.dispute;
+            }
+
             try
             {
                 var thread = new FollowUpThread
@@ -144,6 +174,8 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CreateFollo
                     UserId = request.UserId,
                     ExamTypeId = request.ExamTypeId,
                     ContextRef = request.ContextRef,
+                    Kind = kind,
+                    DimensionId = kind == FollowUpThreadKind.score_challenge ? request.DimensionId : null,
                     Status = FollowUpThreadStatus.open,
                     CreatedAt = askedAt,
                 };

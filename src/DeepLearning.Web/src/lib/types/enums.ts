@@ -15,6 +15,9 @@ export const SubmissionStatus = {
   standard_revised: 6,
   archived: 7,
   grading_abandoned: 8,
+  // 后端 SubmissionStatus.cs 里 regraded 追加在末尾（=9），不是插在中间——见那里的注释。
+  // score_challenge 追问 decision=adjust 后：那一个维度的 Band 已被改写、留有 GradingResultRevision 审计行。
+  regraded: 9,
 } as const;
 export const FollowUpVerdict = {
   user_correct: 0,
@@ -85,12 +88,23 @@ export const AiOperationType = {
   weak_point_classification: 7,
   weak_point_detection_criteria: 8,
   weak_point_recheck: 9,
+  score_challenge_summary: 10,
 } as const;
 
 // 追问线程（design decision, 2026-09-02）：一个 submission 最多一条线程，存续期间
 // submission 停在 under_dispute，用户点“结束追问”才结算——见 FollowUpThread.cs 的注释。
 export const FollowUpThreadStatus = { open: 0, closed: 1 } as const;
 export const FollowUpMessageRole = { user: 0, ai: 1 } as const;
+// 追问线程的种类（后端 FollowUpThreadKind）。knowledge = 纯知识问答；dispute = 质疑某条评判；
+// score_challenge = 从分数区对某个维度的 Band 发起改判申请（结算时可真正改分）。
+export const FollowUpThreadKind = { knowledge: 0, dispute: 1, score_challenge: 2 } as const;
+export const FollowUpThreadKindLabel: Record<number, string> = {
+  [FollowUpThreadKind.knowledge]: "知识追问",
+  [FollowUpThreadKind.dispute]: "评判质疑",
+  [FollowUpThreadKind.score_challenge]: "分数改判申请",
+};
+// score_challenge_summary 的 decision（后端 ScoreChallengeDecision）——JSON 里是字符串，不是序数。
+export const ScoreChallengeDecision = { uphold: "uphold", adjust: "adjust" } as const;
 
 export const TaskTypeLabel: Record<number, string> = {
   [TaskType.A]: "TaskA · 翻译",
@@ -113,6 +127,7 @@ export const SubmissionStatusLabel: Record<number, string> = {
   [SubmissionStatus.standard_revised]: "标准已修订",
   [SubmissionStatus.archived]: "已归档",
   [SubmissionStatus.grading_abandoned]: "已放弃批改",
+  [SubmissionStatus.regraded]: "已改判",
 };
 
 export const FollowUpVerdictLabel: Record<number, string> = {
@@ -198,6 +213,7 @@ export const AiOperationTypeLabel: Record<number, string> = {
   [AiOperationType.weak_point_classification]: "薄弱点分类",
   [AiOperationType.weak_point_detection_criteria]: "薄弱点筛查标准生成",
   [AiOperationType.weak_point_recheck]: "薄弱点复核",
+  [AiOperationType.score_challenge_summary]: "改判结算",
 };
 
 export const FollowUpThreadStatusLabel: Record<number, string> = {

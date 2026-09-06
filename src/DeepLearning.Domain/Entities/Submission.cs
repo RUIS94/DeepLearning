@@ -37,8 +37,11 @@ namespace DeepLearning.Domain.Entities
             [SubmissionStatus.grading] = [SubmissionStatus.grading_failed, SubmissionStatus.graded],
             [SubmissionStatus.grading_failed] = [SubmissionStatus.grading, SubmissionStatus.grading_abandoned],
             [SubmissionStatus.graded] = [SubmissionStatus.under_dispute, SubmissionStatus.archived],
-            [SubmissionStatus.under_dispute] = [SubmissionStatus.standard_revised, SubmissionStatus.graded],
+            // regraded is the score_challenge outcome; standard_revised the standardRevision one.
+            [SubmissionStatus.under_dispute] = [SubmissionStatus.standard_revised, SubmissionStatus.graded, SubmissionStatus.regraded],
             [SubmissionStatus.standard_revised] = [SubmissionStatus.graded],
+            // A re-graded submission behaves like graded: it can be disputed again or archived.
+            [SubmissionStatus.regraded] = [SubmissionStatus.under_dispute, SubmissionStatus.archived],
             [SubmissionStatus.grading_abandoned] = [],
             [SubmissionStatus.archived] = [],
         };

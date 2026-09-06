@@ -1054,6 +1054,7 @@ export async function gradeSubmission(
     gradingResults: [
       {
         id: nextId("gr"),
+        dimensionId: nextId("dim"),
         dimensionKey: "meaning_transfer",
         dimensionName: "意义传递",
         rubricVersion: "v2026.1",
@@ -1069,6 +1070,7 @@ export async function gradeSubmission(
       },
       {
         id: nextId("gr"),
+        dimensionId: nextId("dim"),
         dimensionKey: "textual_norms",
         dimensionName: "语篇规范",
         rubricVersion: "v2026.1",
@@ -1084,6 +1086,7 @@ export async function gradeSubmission(
       },
       {
         id: nextId("gr"),
+        dimensionId: nextId("dim"),
         dimensionKey: "language_proficiency",
         dimensionName: "语言能力",
         rubricVersion: "v2026.1",

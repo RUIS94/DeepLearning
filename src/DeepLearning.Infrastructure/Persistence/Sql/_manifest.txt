@@ -98,3 +98,10 @@ fix_weak_point_prompts_exam_specific.sql
 reset_weak_point_classification_prompt_v1_exam_specific.sql
 reset_weak_point_detection_criteria_prompt_v1_exam_specific.sql
 reset_weak_point_recheck_prompt_v1_exam_specific.sql
+
+# --- 2026-09-06: the three follow-up prompt types (followup / followup_summary /
+#     score_challenge_summary) wiped and reset to one clean exam_specific v1 each — the
+#     production form of the design iteration (kind-gated context, official Band text +
+#     Major/Minor defs, score_challenge scoped to its dimension, per-turn verdict replay).
+#     Must stay LAST of the followup scripts. ---
+reset_followup_prompts_v1_production.sql
