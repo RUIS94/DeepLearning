@@ -115,3 +115,8 @@ reset_deep_learning_prompt_v1_exam_specific.sql
 # --- 2026-09-06: vocab_semantic_drift 提示词 v1 —— 词汇跨题复现时判断语义有无新义、
 #     有则丰富 vocab_glossary.accumulated_semantics(AnalyzeVocabSemanticDriftJob 用) ---
 add_vocab_semantic_drift_prompt_template.sql
+
+# --- 2026-09-06: progress_trend 提示词整表重置为唯一一行 production v1 + exam_specific
+#     (NAATI CT):作用域 shared_methodology→exam_specific,写入三维度官方通过线,点评与
+#     keyTurningPoint 判据改为按「达标/临界/未达标」及跨线事件驱动。删除旧 shared 行。 ---
+reset_progress_trend_prompt_v1_exam_specific.sql
