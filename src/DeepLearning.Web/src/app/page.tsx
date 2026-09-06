@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import { LoginPage } from "./login-page";
 
 export const metadata: Metadata = {
-  title: { absolute: "译练 · 中英翻译练习与 AI 批改" },
+  title: { absolute: "Deep Learning · Chinese-English Translation Practice & AI Grading" },
   description:
-    "面向 NAATI 认证笔译的翻译练习平台：真题题库、TaskA 翻译与 TaskB 找错标注、AI 分维度批改、追问复核与学习曲线。",
+    "A translation practice platform for NAATI-certified interpreters: authentic exam questions, TaskA translation and TaskB error annotation, AI-powered dimension-based grading, follow-up review, and learning curves.",
   openGraph: {
-    title: "译练 · 中英翻译练习与 AI 批改",
-    description: "真题练习、AI 分维度批改与薄弱点追踪，一站式提升中英笔译水平。",
+    title: "Deep Learning · Chinese-English Translation Practice & AI Grading",
+    description: "Authentic practice, AI-powered dimension-based grading, and weak point tracking for improving Chinese-English interpretation skills.",
   },
 };
 

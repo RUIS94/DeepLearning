@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import { ProgressPage } from "./progress-page";
 
 export const metadata: Metadata = {
-  title: "学习曲线",
-  description: "三维度 Band 趋势与通过率仪表盘，含 AI 趋势点评。",
+  title: "Learning Progress",
+  description: "Three-dimensional Band trends and pass rate dashboard, with AI trend commentary.",
   openGraph: {
-    title: "学习曲线 · 译练",
-    description: "三维度 Band 趋势与通过率仪表盘。",
+    title: "Learning Progress · Deep Learning",
+    description: "Three-dimensional Band trends and pass rate dashboard, with AI trend commentary.",
   },
 };
 

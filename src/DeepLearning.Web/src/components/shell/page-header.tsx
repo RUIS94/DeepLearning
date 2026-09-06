@@ -37,7 +37,7 @@ export function PageHeader({
           onClick={() => (backHref ? router.push(backHref) : router.back())}
         >
           <ArrowLeft className="size-4" />
-          返回
+          Back
         </Button>
       ) : null}
       <div className="flex flex-wrap items-end justify-between gap-4">

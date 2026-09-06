@@ -24,8 +24,8 @@ export function ExamManagementPage() {
 
   return (
     <PageShell
-      title="考试管理"
-      description="管理考试类型"
+      title="Management"
+      description="Manage and Add Exam Types"
     >
       {examTypes.isPending ? (
         <Skeleton className="h-48 w-full rounded-xl" />
@@ -37,11 +37,11 @@ export function ExamManagementPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Code</TableHead>
-                <TableHead>名称</TableHead>
-                <TableHead>学科类别</TableHead>
-                <TableHead>描述</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead className="w-24 text-right">配置</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Subject Category</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-24 text-right">Configuration</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -55,12 +55,12 @@ export function ExamManagementPage() {
                   <TableCell className="max-w-md text-sm text-muted-foreground">
                     {e.description ?? "—"}
                   </TableCell>
-                  <TableCell>{e.isActive ? "启用" : "停用"}</TableCell>
+                  <TableCell>{e.isActive ? "Enabled" : "Disabled"}</TableCell>
                   <TableCell className="text-right">
                     <Button asChild size="sm" variant="outline">
                       <Link href={`/exam-management/${e.id}`}>
                         <Settings2 className="size-3.5" />
-                        配置
+                        Configure
                       </Link>
                     </Button>
                   </TableCell>

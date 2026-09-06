@@ -23,7 +23,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     kind: "link",
     key: "practice",
-    label: "题库",
+    label: "Question Bank",
     href: "/practice",
     icon: BookOpen,
     match: "/practice",
@@ -31,7 +31,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     kind: "link",
     key: "exam-management",
-    label: "考试管理",
+    label: "Management",
     href: "/exam-management",
     icon: GraduationCap,
     match: "/exam-management",
@@ -39,7 +39,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     kind: "link",
     key: "review",
-    label: "复习",
+    label: "Review",
     href: "/review",
     icon: LibraryBig,
     match: "/review",
@@ -47,7 +47,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     kind: "link",
     key: "progress",
-    label: "进度",
+    label: "Progress",
     href: "/progress",
     icon: LineChart,
     match: "/progress",

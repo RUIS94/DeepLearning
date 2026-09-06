@@ -34,18 +34,18 @@ export function ExamTypeConfigPage() {
     string,
     { label: string; ref: React.RefObject<CrudCreateHandle | null> }
   > = {
-    dimensions: { label: "新建版本", ref: dimensionsCreate },
-    "error-taxonomies": { label: "新建错误分类", ref: taxonomiesCreate },
-    categories: { label: "新建题库分类", ref: categoriesCreate },
-    "prompt-templates": { label: "新建 Prompt 模板", ref: promptCreate },
-    "weak-point-catalog": { label: "新建薄弱点种类", ref: weakPointCatalogCreate },
+    dimensions: { label: "Add Dimension", ref: dimensionsCreate },
+    "error-taxonomies": { label: "Add Error Taxonomy", ref: taxonomiesCreate },
+    categories: { label: "Add Question Category", ref: categoriesCreate },
+    "prompt-templates": { label: "Add Prompt Template", ref: promptCreate },
+    "weak-point-catalog": { label: "Add Weak Point Category", ref: weakPointCatalogCreate },
   };
   const activeCreate = createActions[tab];
 
   return (
     <PageShell
-      title={examType.data ? `配置 · ${examType.data.name}` : "考试配置"}
-      description="评分维度、错误分类、题库分类、Prompt 模板、标准修正。"
+      title={examType.data ? `Configuration · ${examType.data.name}` : "Exam Configuration"}
+      description="Scoring Dimensions, Error Taxonomies, Question Categories, Prompt Templates, Weak Point Catalog, and Standard Overrides."
       back
       backHref="/exam-management"
     >
@@ -58,12 +58,12 @@ export function ExamTypeConfigPage() {
       >
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
           <TabsList className="flex-wrap">
-            <TabsTrigger value="dimensions">评分维度</TabsTrigger>
-            <TabsTrigger value="error-taxonomies">错误分类</TabsTrigger>
-            <TabsTrigger value="categories">题库分类</TabsTrigger>
-            <TabsTrigger value="prompt-templates">Prompt 模板</TabsTrigger>
-            <TabsTrigger value="weak-point-catalog">薄弱点种类</TabsTrigger>
-            <TabsTrigger value="standard-overrides">标准修正</TabsTrigger>
+            <TabsTrigger value="dimensions">Scoring Dimensions</TabsTrigger>
+            <TabsTrigger value="error-taxonomies">Error Taxonomies</TabsTrigger>
+            <TabsTrigger value="categories">Question Categories</TabsTrigger>
+            <TabsTrigger value="prompt-templates">Prompt Templates</TabsTrigger>
+            <TabsTrigger value="weak-point-catalog">Weak Point Catalog</TabsTrigger>
+            <TabsTrigger value="standard-overrides">Standard Overrides</TabsTrigger>
           </TabsList>
           {activeCreate ? (
             <Button onClick={() => activeCreate.ref.current?.openCreate()}>

@@ -39,14 +39,14 @@ export function WeakPointsPanel({ status }: { status: number | "all" }) {
     onSuccess: (res) => {
       showToast({
         variant: "success",
-        title: res.mergedIntoExisting ? "已并入该种类下已有的薄弱点" : "已重新归类",
+        title: res.mergedIntoExisting ? "Merged into an existing weak area in this category" : "Classification Updated",
       });
       queryClient.invalidateQueries({ queryKey: ["weak-points"] });
     },
     onError: (err) =>
       showToast({
         variant: "error",
-        title: "归类失败",
+        title: "Classification Failed",
         description: err instanceof ApiError ? (err.problem?.title ?? "") : "",
       }),
     onSettled: () => setPendingId(null),
@@ -74,7 +74,7 @@ export function WeakPointsPanel({ status }: { status: number | "all" }) {
         </div>
       ) : (
         <p className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
-          暂无薄弱点记录，继续练习后 AI 会自动归类。
+          No weak points yet. Keep practicing and AI will automatically identify and categorize them.
         </p>
       )}
     </div>

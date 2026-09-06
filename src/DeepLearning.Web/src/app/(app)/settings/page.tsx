@@ -6,17 +6,17 @@ import { LlmProvidersPanel } from "@/app/(app)/admin/llm-providers/llm-providers
 
 export default function SettingsPage() {
   return (
-    <PageShell title="设置" back backHref="/practice">
+    <PageShell title="Settings" back backHref="/practice">
       <Tabs defaultValue="llm">
         <TabsList>
-          <TabsTrigger value="llm">AI 供应商</TabsTrigger>
-          <TabsTrigger value="general">通用</TabsTrigger>
+          <TabsTrigger value="llm">AI Providers</TabsTrigger>
+          <TabsTrigger value="general">General</TabsTrigger>
         </TabsList>
         <TabsContent value="llm" className="mt-6">
           <LlmProvidersPanel />
         </TabsContent>
         <TabsContent value="general" className="mt-6">
-          <p className="text-sm text-muted-foreground">通用设置占位，暂无内容。</p>
+          <p className="text-sm text-muted-foreground">General settings placeholder, no content available.</p>
         </TabsContent>
       </Tabs>
     </PageShell>

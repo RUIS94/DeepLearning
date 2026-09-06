@@ -23,12 +23,12 @@ export function QuestionCard({
           <DifficultyBadge difficulty={question.difficulty} />
           {question.inBank ? (
             <Badge variant="outline" className="border-primary/30 text-primary">
-              题库
+              Imported
             </Badge>
           ) : null}
           {practiced ? (
             <Badge variant="outline" className="border-transparent bg-success/12 text-success">
-              已练 {question.myAttemptCount} 次
+              Practiced {question.myAttemptCount} times
             </Badge>
           ) : null}
         </div>
@@ -36,7 +36,7 @@ export function QuestionCard({
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span className="text-numeric inline-flex items-center gap-1">
             <FileText className="size-3.5" />
-            {question.wordCount ?? "—"} 词 · {formatDate(question.createdAt)}
+            {question.wordCount ?? "—"} words · {formatDate(question.createdAt)}
           </span>
           <div className="flex items-center gap-3">
             {practiced && onOpenRecords ? (
@@ -46,14 +46,14 @@ export function QuestionCard({
                 className="inline-flex items-center gap-1 font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
                 <History className="size-3.5" />
-                记录
+                Records
               </button>
             ) : null}
             <Link
               href={`/practice/${question.id}`}
               className="inline-flex items-center gap-1 font-medium text-primary"
             >
-              开始作答
+              Start
               <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
             </Link>
           </div>

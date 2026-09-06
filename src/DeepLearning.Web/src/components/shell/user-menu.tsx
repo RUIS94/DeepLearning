@@ -67,11 +67,11 @@ export function UserMenu() {
             >
               <DropdownMenuItem onSelect={() => router.push("/profile")}>
                 <User className="size-4" />
-                个人资料
+                Profile
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => router.push("/settings")}>
                 <Settings className="size-4" />
-                设置
+                Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -81,7 +81,7 @@ export function UserMenu() {
                 }}
               >
                 <LogOut className="size-4" />
-                退出登录
+                Log Out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -92,10 +92,10 @@ export function UserMenu() {
         open={logoutOpen}
         onOpenChange={setLogoutOpen}
         tone="warning"
-        title="退出登录？"
-        description="将结束当前会话，需要重新登录才能继续练习。"
-        confirmLabel="退出登录"
-        cancelLabel="取消"
+        title="Log Out?"
+        description="This will end your current session and you'll need to log in again to continue practicing."
+        confirmLabel="Log Out"
+        cancelLabel="Cancel"
         onConfirm={handleLogout}
       />
     </>

@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import { PracticePage } from "./practice-page";
 
 export const metadata: Metadata = {
-  title: "题库浏览",
-  description: "按任务类型、难度与题材筛选 NAATI 中英笔译练习题目。",
+  title: "Question Bank · Translation Practice",
+  description: "Filter NAATI Chinese-English translation practice questions by task type, difficulty, and topic.",
   openGraph: {
-    title: "题库浏览 · 译练",
-    description: "按任务类型、难度与题材筛选中英笔译练习题目。",
+    title: "Question Bank · Translation Practice",
+    description: "Filter NAATI Chinese-English translation practice questions by task type, difficulty, and topic.",
   },
 };
 

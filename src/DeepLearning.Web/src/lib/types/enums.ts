@@ -108,82 +108,82 @@ export const FollowUpThreadKindLabel: Record<number, string> = {
 export const ScoreChallengeDecision = { uphold: "uphold", adjust: "adjust" } as const;
 
 export const TaskTypeLabel: Record<number, string> = {
-  [TaskType.A]: "TaskA · 翻译",
-  [TaskType.B]: "TaskB · 找错标注",
+  [TaskType.A]: "TaskA",
+  [TaskType.B]: "TaskB",
 };
 
 export const DifficultyLabel: Record<number, string> = {
-  [Difficulty.easy]: "简单",
-  [Difficulty.medium]: "中等",
-  [Difficulty.hard]: "困难",
+  [Difficulty.easy]: "Simple",
+  [Difficulty.medium]: "Medium",
+  [Difficulty.hard]: "Hard",
 };
 
 export const SubmissionStatusLabel: Record<number, string> = {
-  [SubmissionStatus.draft]: "草稿",
-  [SubmissionStatus.submitted]: "已提交",
-  [SubmissionStatus.grading]: "批改中",
-  [SubmissionStatus.grading_failed]: "批改失败",
-  [SubmissionStatus.graded]: "已批改",
-  [SubmissionStatus.under_dispute]: "追问中",
-  [SubmissionStatus.standard_revised]: "标准已修订",
-  [SubmissionStatus.archived]: "已归档",
-  [SubmissionStatus.grading_abandoned]: "已放弃批改",
-  [SubmissionStatus.regraded]: "已改判",
+  [SubmissionStatus.draft]: "Draft",
+  [SubmissionStatus.submitted]: "Submitted",
+  [SubmissionStatus.grading]: "Grading",
+  [SubmissionStatus.grading_failed]: "Grading Failed",
+  [SubmissionStatus.graded]: "Graded",
+  [SubmissionStatus.under_dispute]: "Under Dispute",
+  [SubmissionStatus.standard_revised]: "Standard Revised",
+  [SubmissionStatus.archived]: "Archived",
+  [SubmissionStatus.grading_abandoned]: "Grading Abandoned",
+  [SubmissionStatus.regraded]: "Regarded",
 };
 
 export const FollowUpVerdictLabel: Record<number, string> = {
-  [FollowUpVerdict.user_correct]: "用户判断正确",
-  [FollowUpVerdict.user_incorrect]: "维持原判",
-  [FollowUpVerdict.partial]: "部分成立",
-  [FollowUpVerdict.pending]: "处理中",
+  [FollowUpVerdict.user_correct]: "User Correct",
+  [FollowUpVerdict.user_incorrect]: "User Incorrect",
+  [FollowUpVerdict.partial]: "Partial",
+  [FollowUpVerdict.pending]: "Pending",
 };
 
 export const OverrideStatusLabel: Record<number, string> = {
-  [OverrideStatus.observing]: "观察中",
-  [OverrideStatus.active]: "已生效",
-  [OverrideStatus.deprecated]: "已废弃",
+  [OverrideStatus.observing]: "Observing",
+  [OverrideStatus.active]: "Active",
+  [OverrideStatus.deprecated]: "Deprecated",
 };
 
 export const WeakPointCatalogStatusLabel: Record<number, string> = {
-  [WeakPointCatalogStatus.proposed]: "待审",
-  [WeakPointCatalogStatus.active]: "已启用",
-  [WeakPointCatalogStatus.deprecated]: "已退役",
+  [WeakPointCatalogStatus.proposed]: "Proposed",
+  [WeakPointCatalogStatus.active]: "Active",
+  [WeakPointCatalogStatus.deprecated]: "Deprecated",
 };
 
 export const WeakPointStatusLabel: Record<number, string> = {
-  [WeakPointStatus.active]: "活跃",
-  [WeakPointStatus.resolved]: "已改善",
-  [WeakPointStatus.tracking]: "观察中",
+  [WeakPointStatus.active]: "Active",
+  [WeakPointStatus.resolved]: "Resolved",
+  [WeakPointStatus.tracking]: "Tracking",
 };
 
 export const PriorityLabel: Record<number, string> = {
-  [Priority.high]: "高",
-  [Priority.medium]: "中",
-  [Priority.low]: "低",
+  [Priority.high]: "High",
+  [Priority.medium]: "Medium",
+  [Priority.low]: "Low",
 };
 
 export const MasteryLevelLabel: Record<number, string> = {
-  [MasteryLevel.New]: "新接触",
-  [MasteryLevel.Familiar]: "熟悉",
-  [MasteryLevel.Mastered]: "已掌握",
+  [MasteryLevel.New]: "New",
+  [MasteryLevel.Familiar]: "Familiar",
+  [MasteryLevel.Mastered]: "Mastered",
 };
 
 export const SubjectCategoryLabel: Record<number, string> = {
-  [SubjectCategory.translation]: "翻译",
-  [SubjectCategory.language_arts]: "语言文学",
-  [SubjectCategory.math]: "数学",
-  [SubjectCategory.science]: "科学",
-  [SubjectCategory.other]: "其他",
+  [SubjectCategory.translation]: "Translation",
+  [SubjectCategory.language_arts]: "Language Arts",
+  [SubjectCategory.math]: "Math",
+  [SubjectCategory.science]: "Science",
+  [SubjectCategory.other]: "Other",
 };
 
 export const TemplateLayerLabel: Record<number, string> = {
-  [TemplateLayer.shared_methodology]: "共享方法论",
-  [TemplateLayer.exam_specific]: "考试类型专属",
+  [TemplateLayer.shared_methodology]: "Shared Methodology",
+  [TemplateLayer.exam_specific]: "Exam-Specific",
 };
 
 export const CheckpointImportanceLabel: Record<number, string> = {
-  [CheckpointImportance.core]: "核心",
-  [CheckpointImportance.peripheral]: "边缘",
+  [CheckpointImportance.core]: "Core",
+  [CheckpointImportance.peripheral]: "Peripheral",
 };
 
 export const ErrorSeverityLabel: Record<number, string> = {
@@ -204,32 +204,32 @@ export function errorImpactLabel(severity: number): {
 }
 
 export const AiOperationTypeLabel: Record<number, string> = {
-  [AiOperationType.question_gen]: "出题",
-  [AiOperationType.grading]: "评分",
-  [AiOperationType.followup]: "追问",
-  [AiOperationType.standard_revision]: "标准修订",
-  [AiOperationType.deep_learning]: "深入学习",
-  [AiOperationType.progress_trend]: "进度趋势",
-  [AiOperationType.followup_summary]: "追问总结",
-  [AiOperationType.weak_point_classification]: "薄弱点分类",
-  [AiOperationType.weak_point_detection_criteria]: "薄弱点筛查标准生成",
-  [AiOperationType.weak_point_recheck]: "薄弱点复核",
-  [AiOperationType.score_challenge_summary]: "改判结算",
-  [AiOperationType.vocab_semantic_drift]: "词汇语义积累",
+  [AiOperationType.question_gen]: "Question Generation",
+  [AiOperationType.grading]: "Grading",
+  [AiOperationType.followup]: "Follow-up",
+  [AiOperationType.standard_revision]: "Standard Revision",
+  [AiOperationType.deep_learning]: "Deep Learning",
+  [AiOperationType.progress_trend]: "Progress Trend",
+  [AiOperationType.followup_summary]: "Follow-up Summary",
+  [AiOperationType.weak_point_classification]: "Weak Point Classification",
+  [AiOperationType.weak_point_detection_criteria]: "Weak Point Detection Criteria",
+  [AiOperationType.weak_point_recheck]: "Weak Point Recheck",
+  [AiOperationType.score_challenge_summary]: "Score Challenge Summary",
+  [AiOperationType.vocab_semantic_drift]: "Vocabulary Semantic Drift",
 };
 
 export const FollowUpThreadStatusLabel: Record<number, string> = {
-  [FollowUpThreadStatus.open]: "追问中",
-  [FollowUpThreadStatus.closed]: "已结束",
+  [FollowUpThreadStatus.open]: "Follow-up in Progress",
+  [FollowUpThreadStatus.closed]: "Closed",
 };
 
 export const ScaleTypeLabel: Record<number, string> = {
   [ScaleType.band_1_5]: "Band 1-5",
-  [ScaleType.score_0_100]: "百分制",
-  [ScaleType.rubric_level]: "等级制",
+  [ScaleType.score_0_100]: "Percentage Scale",
+  [ScaleType.rubric_level]: "Rubric Level",
 };
 
 export const CategoryTypeLabel: Record<number, string> = {
-  [CategoryType.domain]: "领域",
-  [CategoryType.scenario]: "应用场景",
+  [CategoryType.domain]: "Domain",
+  [CategoryType.scenario]: "Scenario",
 };

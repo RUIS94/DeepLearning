@@ -32,16 +32,16 @@ export function ReviewPage() {
 
   return (
     <PageShell
-      title="复习"
-      description="练习中沉淀的句型/词汇复习库，以及 AI 归类的薄弱点。"
+      title="Review Library"
+      description="A review library of useful phrases and vocabulary from practice, plus AI-identified weak areas."
       bodyClassName="flex min-h-0 flex-col overflow-hidden"
     >
       <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
           <TabsList>
-            <TabsTrigger value="patterns">句型</TabsTrigger>
-            <TabsTrigger value="vocab">词汇表达</TabsTrigger>
-            <TabsTrigger value="weak-points">薄弱点</TabsTrigger>
+            <TabsTrigger value="patterns">Patterns</TabsTrigger>
+            <TabsTrigger value="vocab">Vocabulary</TabsTrigger>
+            <TabsTrigger value="weak-points">Weak Points</TabsTrigger>
           </TabsList>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -51,18 +51,18 @@ export function ReviewPage() {
                 value={status}
                 onChange={setStatus}
                 allowAll
-                allLabel="全部状态"
-                placeholder="状态"
+                allLabel="All Status"
+                placeholder="Status"
                 className="w-36"
               />
             ) : (
               <>
                 <Select value={mastery} onValueChange={setMastery}>
                   <SelectTrigger className="w-40">
-                    <SelectValue placeholder="掌握程度" />
+                    <SelectValue placeholder="Mastery Level" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ALL}>全部掌握程度</SelectItem>
+                    <SelectItem value={ALL}>All Mastery Levels</SelectItem>
                     {Object.values(MasteryLevel).map((level) => (
                       <SelectItem key={level} value={String(level)}>
                         {MasteryLevelLabel[level]}
@@ -72,10 +72,10 @@ export function ReviewPage() {
                 </Select>
                 <Select value={domain} onValueChange={setDomain}>
                   <SelectTrigger className="w-40">
-                    <SelectValue placeholder="题材" />
+                    <SelectValue placeholder="Domain" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ALL}>全部题材</SelectItem>
+                    <SelectItem value={ALL}>All Domains</SelectItem>
                     {domains.map((d) => (
                       <SelectItem key={d} value={d}>
                         {d}

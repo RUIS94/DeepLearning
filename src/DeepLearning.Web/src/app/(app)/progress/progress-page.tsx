@@ -36,18 +36,18 @@ export function ProgressPage() {
 
   return (
     <AppShell
-      title="学习曲线"
-      description="按周期汇总的三维度 Band 均值与通过率，AI 会在关键节点附上趋势点评。"
+      title="Learning Progress"
+      description="Three-dimensional Band trends and pass rate dashboard, with AI trend commentary."
       actions={
         <Select value={difficultyTier} onValueChange={setDifficultyTier}>
           <SelectTrigger className="w-36">
-            <SelectValue placeholder="难度层级" />
+            <SelectValue placeholder="Difficulty Tier" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>全部难度</SelectItem>
-            <SelectItem value="easy">简单</SelectItem>
-            <SelectItem value="medium">中等</SelectItem>
-            <SelectItem value="hard">困难</SelectItem>
+            <SelectItem value={ALL}>All Difficulties</SelectItem>
+            <SelectItem value="easy">Easy</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="hard">Hard</SelectItem>
           </SelectContent>
         </Select>
       }
@@ -61,7 +61,7 @@ export function ProgressPage() {
         <div className="space-y-6">
           <Card className="border-border shadow-none">
             <CardHeader>
-              <CardTitle className="text-base">三维度 Band 趋势（数值越低越好）</CardTitle>
+              <CardTitle className="text-base">Three-Dimensional Band Trends (Lower Values Are Better)</CardTitle>
             </CardHeader>
             <CardContent>
               <BandTrendChart snapshots={snapshots.data} />
@@ -70,7 +70,7 @@ export function ProgressPage() {
 
           <Card className="border-border shadow-none">
             <CardHeader>
-              <CardTitle className="text-base">通过率趋势</CardTitle>
+              <CardTitle className="text-base">Pass Rate Trends</CardTitle>
             </CardHeader>
             <CardContent>
               <PassRateChart snapshots={snapshots.data} />
@@ -82,7 +82,7 @@ export function ProgressPage() {
               <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
               <div className="space-y-1">
                 <p className="text-sm font-medium">
-                  最新周期点评（{formatDate(latest.periodStart)} – {formatDate(latest.periodEnd)}）
+                  Latest Period Commentary ({formatDate(latest.periodStart)} - {formatDate(latest.periodEnd)})
                 </p>
                 <p className="text-sm leading-relaxed text-muted-foreground">{latest.trendNote}</p>
               </div>
@@ -91,7 +91,7 @@ export function ProgressPage() {
         </div>
       ) : (
         <p className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
-          暂无学习曲线数据，累计更多提交后会自动生成周期快照。
+          No learning curve data available. More submissions will automatically generate periodic snapshots.
         </p>
       )}
     </AppShell>

@@ -61,17 +61,17 @@ export function PracticePage() {
 
   return (
     <AppShell
-      title="题库"
-      description="选题并练习"
+      title="Question Bank"
+      description="Select a topic and start practicing"
       actions={
         <>
           <Button variant="outline" onClick={() => importPanel.open()}>
             <Upload className="size-4" />
-            导入题目
+            Import Question
           </Button>
           <Button onClick={() => setGenOpen(true)}>
             <Sparkles className="size-4" />
-            AI 出题
+            Generate Question
           </Button>
         </>
       }
@@ -79,10 +79,10 @@ export function PracticePage() {
       <div className="mb-6 flex flex-wrap gap-3">
         <Select value={taskType} onValueChange={setTaskType}>
           <SelectTrigger className="w-44">
-            <SelectValue placeholder="任务类型" />
+            <SelectValue placeholder="Task Type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>全部任务类型</SelectItem>
+            <SelectItem value={ALL}>All Task Types</SelectItem>
             {Object.entries(TaskTypeLabel).map(([value, label]) => (
               <SelectItem key={value} value={value}>
                 {label}
@@ -93,10 +93,10 @@ export function PracticePage() {
 
         <Select value={difficulty} onValueChange={setDifficulty}>
           <SelectTrigger className="w-36">
-            <SelectValue placeholder="难度" />
+            <SelectValue placeholder="Difficulty" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>全部难度</SelectItem>
+            <SelectItem value={ALL}>All Difficulties</SelectItem>
             {Object.entries(DifficultyLabel).map(([value, label]) => (
               <SelectItem key={value} value={value}>
                 {label}
@@ -107,10 +107,10 @@ export function PracticePage() {
 
         <Select value={categoryId} onValueChange={setCategoryId}>
           <SelectTrigger className="w-44">
-            <SelectValue placeholder="题材分类" />
+            <SelectValue placeholder="Categories" />
           </SelectTrigger>
           <SelectContent className="max-h-72">
-            <SelectItem value={ALL}>全部分类</SelectItem>
+            <SelectItem value={ALL}>All Categories</SelectItem>
             {(categories.data ?? []).map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 {c.name}
