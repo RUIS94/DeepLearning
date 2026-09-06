@@ -20,7 +20,7 @@ export async function getSupabaseServerClient(): Promise<SupabaseClient | null> 
         try {
           cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
         } catch {
-          // Server Component 里 cookies() 是只读的，set 会抛错——中间件（middleware.ts）已经在
+          // Server Component 里 cookies() 是只读的，set 会抛错——代理层（proxy.ts）已经在
           // 每次请求时负责刷新 session cookie，这里可以安全忽略，是 @supabase/ssr 官方文档里
           // 推荐的处理方式。
         }

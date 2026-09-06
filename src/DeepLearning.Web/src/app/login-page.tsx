@@ -18,7 +18,7 @@ export function LoginPage() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 已登录还落在 "/"（比如手动输入 localhost:3000）时，直接进应用。
-  // 用浏览器端 client 判断——比只靠 middleware 的服务端 getUser() 更可靠（后者可能因
+  // 用浏览器端 client 判断——比只靠 proxy 层的服务端 getUser() 更可靠（后者可能因
   // 服务端拿不到 cookie / 校验请求失败而误判为未登录）。
   const [checkingSession, setCheckingSession] = useState(Boolean(supabase));
 

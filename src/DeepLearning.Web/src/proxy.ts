@@ -6,12 +6,15 @@ import { NextResponse, type NextRequest } from "next/server";
  * 不是单独的 /login 路由；/api/backend/** 是代理层，不需要在这里拦截（它自己会转发未认证请求，
  * 后端 JWT 本来就是可选携带的）。
  *
+ * Next.js 16 把 `middleware.ts` 约定改名为 `proxy.ts`、导出函数 `middleware` → `proxy`
+ * （旧名仍可用但会告警）。行为、`config.matcher`、运行环境都不变。
+ *
  * Supabase 还没配置（NEXT_PUBLIC_SUPABASE_URL/ANON_KEY 缺失）时完全不拦截——保留原型阶段
  * "任意路径都能直接访问、无需登录"的行为，直到你提供 NEXT_PUBLIC_SUPABASE_ANON_KEY 才会真正
  * 启用登录态保护。/admin/** 目前和其他页面受同一套保护（"已登录"），design doc §16 第 4 点已
  * 点名的已知风险仍然成立：后端没有角色系统，任何登录用户都能访问 admin，不是这次改动的范围。
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const url = process.env["NEXT_PUBLIC_SUPABASE_URL"];
   const anonKey = process.env["NEXT_PUBLIC_SUPABASE_ANON_KEY"];
   if (!url || !anonKey) return NextResponse.next();
