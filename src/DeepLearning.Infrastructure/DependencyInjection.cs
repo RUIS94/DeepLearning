@@ -154,6 +154,7 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<IWeakPointClassifier, WeakPointClassifier>();
             services.AddScoped<IWeakPointDetectionCriteriaGenerator, WeakPointDetectionCriteriaGenerator>();
             services.AddScoped<IWeakPointRecheckService, WeakPointRecheckService>();
+            services.AddScoped<IVocabSemanticDriftService, VocabSemanticDriftService>();
 
             // design doc §4.2's retry sub-state-machine for a 200-OK-but-invalid-content AI
             // response — distinct from Polly's transport-level retries above.
@@ -178,6 +179,9 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<GenerateWeakPointsJob>();
             // Weak-point extraction runs after grading, not inside it — see IWeakPointGenerationQueue.
             services.AddScoped<IWeakPointGenerationQueue, HangfireWeakPointGenerationQueue>();
+            services.AddScoped<AnalyzeVocabSemanticDriftJob>();
+            // Vocab-glossary drift analysis runs after deep-learning generation — see IVocabGlossaryQueue.
+            services.AddScoped<IVocabGlossaryQueue, HangfireVocabGlossaryQueue>();
 
             return services;
         }

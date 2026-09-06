@@ -41,7 +41,7 @@ CREATE TYPE mastery_level_enum AS ENUM ('new','familiar','mastered');
 CREATE TYPE category_type_enum AS ENUM ('domain','scenario');
 CREATE TYPE subject_category_enum AS ENUM ('translation','language_arts','math','science','other');
 CREATE TYPE scale_type_enum AS ENUM ('band_1_5','score_0_100','rubric_level');
-CREATE TYPE ai_operation_type_enum AS ENUM ('question_gen','grading','followup','standard_revision');
+CREATE TYPE ai_operation_type_enum AS ENUM ('question_gen','grading','followup','standard_revision','deep_learning','progress_trend','followup_summary','weak_point_classification','weak_point_detection_criteria','weak_point_recheck','score_challenge_summary','vocab_semantic_drift');
 CREATE TYPE template_layer_enum AS ENUM ('shared_methodology','exam_specific');
 CREATE TYPE call_status_enum AS ENUM ('pending','calling','success','failed','final_failure');
 CREATE TYPE checkpoint_importance_enum AS ENUM ('core','peripheral');
@@ -178,6 +178,7 @@ CREATE TABLE meaning_checkpoints (
 CREATE TABLE reference_translations (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     question_id         UUID NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+    reference_title      TEXT,
     reference_text       TEXT NOT NULL,
     comparison_notes     JSONB,
     created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -271,6 +272,7 @@ CREATE TABLE sentence_patterns (
     created_at               TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- 逐题快照:某次「深入学习」生成为该题产出的词条,插入后永不修改,深入学习页按 question_id 展示。
 CREATE TABLE vocab_expressions (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     question_id         UUID REFERENCES questions(id) ON DELETE SET NULL,
@@ -281,8 +283,30 @@ CREATE TABLE vocab_expressions (
     domain                   VARCHAR(50),
     scenario                  VARCHAR(100),
     frequency_tag              VARCHAR(20),
+    literal_translatable       BOOLEAN,
+    canonical_key              VARCHAR(255),
     created_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- 跨题词条:每个 canonical_key 一行,AI 维护的累积语义。首现确定性写种子;此后每次复现由
+-- vocab_semantic_drift AI 调用判断是否有新义,有才丰富 accumulated_semantics。复习库词汇视图读这张表。
+CREATE TABLE vocab_glossary (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    canonical_key         VARCHAR(255) NOT NULL,
+    english_expr          VARCHAR(255) NOT NULL,
+    accumulated_semantics TEXT NOT NULL,
+    chinese_equiv         VARCHAR(255),
+    category              VARCHAR(50),
+    domain                VARCHAR(50),
+    scenario              VARCHAR(100),
+    frequency_tag         VARCHAR(20),
+    sense_count           INT NOT NULL DEFAULT 1,
+    occurrence_count      INT NOT NULL DEFAULT 1,
+    first_seen_question_id UUID,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX idx_vocab_glossary_canonical ON vocab_glossary(canonical_key);
 
 -- =====================================================================
 -- 第六节:薄弱点追踪
@@ -417,7 +441,7 @@ CREATE TABLE user_pattern_review (
 CREATE TABLE user_vocab_review (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id             UUID NOT NULL REFERENCES users(id),
-    vocab_id              UUID NOT NULL REFERENCES vocab_expressions(id) ON DELETE CASCADE,
+    vocab_id              UUID NOT NULL REFERENCES vocab_glossary(id) ON DELETE CASCADE,
     times_encountered        INT NOT NULL DEFAULT 1,
     mastery_level               mastery_level_enum NOT NULL DEFAULT 'new',
     last_reviewed_at              TIMESTAMPTZ,

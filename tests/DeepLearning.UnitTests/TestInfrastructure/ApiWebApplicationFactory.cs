@@ -62,6 +62,12 @@ namespace DeepLearning.UnitTests.TestInfrastructure
                 // test asserting on the weak points a submission produced should not have to
                 // wait on a background worker to get there.
                 services.AddScoped<IWeakPointGenerationQueue, InlineWeakPointGenerationQueue>();
+
+                // Deep-learning generation enqueues vocab-glossary drift analysis on a recurring
+                // expression. That analysis is a background LLM call with its own handler test —
+                // an API test only needs the enqueue recorded, not run.
+                services.AddSingleton<RecordingVocabGlossaryQueue>();
+                services.AddScoped<IVocabGlossaryQueue>(sp => sp.GetRequiredService<RecordingVocabGlossaryQueue>());
             });
         }
 

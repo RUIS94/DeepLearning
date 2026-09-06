@@ -23,8 +23,8 @@ namespace DeepLearning.Application.Features.ReviewLibrary.Commands.MarkVocabRevi
         {
             _ = await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
                 ?? throw new NotFoundException(nameof(User), request.UserId);
-            _ = await _reviewLibraryRepository.GetVocabByIdAsync(request.VocabId, cancellationToken)
-                ?? throw new NotFoundException(nameof(VocabExpression), request.VocabId);
+            _ = await _reviewLibraryRepository.GetGlossaryEntryByIdAsync(request.VocabId, cancellationToken)
+                ?? throw new NotFoundException(nameof(VocabGlossaryEntry), request.VocabId);
 
             var now = DateTimeOffset.UtcNow;
             var review = await _reviewLibraryRepository.GetUserVocabReviewAsync(request.UserId, request.VocabId, cancellationToken);

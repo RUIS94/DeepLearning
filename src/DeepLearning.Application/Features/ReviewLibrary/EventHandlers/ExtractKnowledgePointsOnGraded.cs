@@ -32,8 +32,17 @@ namespace DeepLearning.Application.Features.ReviewLibrary.EventHandlers
             var gradedEvent = notification.DomainEvent;
 
             var patterns = await _reviewLibraryRepository.GetPatternsByQuestionIdAsync(gradedEvent.QuestionId, cancellationToken);
-            var vocab = await _reviewLibraryRepository.GetVocabByQuestionIdAsync(gradedEvent.QuestionId, cancellationToken);
-            if (patterns.Count == 0 && vocab.Count == 0)
+
+            // vocab_expressions are per-question snapshots; mastery (user_vocab_review) is tracked
+            // against the canonical vocab_glossary entry, so map this question's snapshots to
+            // their glossary rows via canonical_key.
+            var questionVocab = await _reviewLibraryRepository.GetVocabByQuestionIdAsync(gradedEvent.QuestionId, cancellationToken);
+            var canonicalKeys = questionVocab
+                .Where(v => v.CanonicalKey is not null)
+                .Select(v => v.CanonicalKey!);
+            var glossaryEntries = await _reviewLibraryRepository.ListGlossaryEntriesByCanonicalKeysAsync(canonicalKeys, cancellationToken);
+
+            if (patterns.Count == 0 && glossaryEntries.Count == 0)
             {
                 return;
             }
@@ -63,16 +72,16 @@ namespace DeepLearning.Application.Features.ReviewLibrary.EventHandlers
                 }
             }
 
-            foreach (var expr in vocab)
+            foreach (var entry in glossaryEntries)
             {
-                var review = await _reviewLibraryRepository.GetUserVocabReviewAsync(gradedEvent.UserId, expr.Id, cancellationToken);
+                var review = await _reviewLibraryRepository.GetUserVocabReviewAsync(gradedEvent.UserId, entry.Id, cancellationToken);
                 if (review is null)
                 {
                     await _reviewLibraryRepository.AddUserVocabReviewAsync(new UserVocabReview
                     {
                         Id = Guid.NewGuid(),
                         UserId = gradedEvent.UserId,
-                        VocabId = expr.Id,
+                        VocabId = entry.Id,
                         TimesEncountered = 1,
                         MasteryLevel = MasteryLevel.New,
                         LastReviewedAt = now,

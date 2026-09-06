@@ -54,6 +54,8 @@ const OPERATION_TYPE_LABEL: Record<AiOperationType, string> = {
   weak_point_classification: "薄弱点分类",
   weak_point_detection_criteria: "薄弱点识别标准生成",
   weak_point_recheck: "薄弱点复查",
+  score_challenge_summary: "改判申请结算",
+  vocab_semantic_drift: "词汇跨题语义积累",
 };
 
 const FOLLOW_GLOBAL_VALUE = "__follow_global__";

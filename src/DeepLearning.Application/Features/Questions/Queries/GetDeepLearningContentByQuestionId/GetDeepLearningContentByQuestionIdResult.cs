@@ -2,6 +2,7 @@ namespace DeepLearning.Application.Features.Questions.Queries.GetDeepLearningCon
 {
     public record GetDeepLearningContentByQuestionIdResult(
         Guid QuestionId,
+        string? ReferenceTitle,
         string ReferenceText,
         string? ComparisonNotes,
         List<SentencePatternResultItem> SentencePatterns,

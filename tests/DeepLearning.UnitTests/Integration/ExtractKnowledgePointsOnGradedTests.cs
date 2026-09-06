@@ -72,17 +72,31 @@ namespace DeepLearning.UnitTests.Integration
                 PatternName = "Cleft sentence",
                 CreatedAt = DateTimeOffset.UtcNow,
             };
+            var canonicalKey = $"in light of {Guid.NewGuid():N}";
             var vocab = new VocabExpression
             {
                 Id = Guid.NewGuid(),
                 QuestionId = question.Id,
                 EnglishExpr = "in light of",
+                CanonicalKey = canonicalKey,
                 CreatedAt = DateTimeOffset.UtcNow,
+            };
+            // Mastery (user_vocab_review) is tracked against the canonical glossary entry the
+            // per-question snapshot maps to via canonical_key.
+            var glossary = new VocabGlossaryEntry
+            {
+                Id = Guid.NewGuid(),
+                CanonicalKey = canonicalKey,
+                EnglishExpr = "in light of",
+                AccumulatedSemantics = "鉴于;考虑到。",
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
             };
             await context.Users.AddAsync(user);
             await context.Questions.AddAsync(question);
             await context.SentencePatterns.AddAsync(pattern);
             await context.VocabExpressions.AddAsync(vocab);
+            await context.VocabGlossary.AddAsync(glossary);
             await context.SaveChangesAsync();
 
             var reviewLibraryRepository = new ReviewLibraryRepository(context);
@@ -104,7 +118,7 @@ namespace DeepLearning.UnitTests.Integration
             {
                 var patternReview = await midContext.UserPatternReview.SingleAsync(x => x.UserId == user.Id && x.PatternId == pattern.Id);
                 Assert.Equal(1, patternReview.TimesEncountered);
-                var vocabReview = await midContext.UserVocabReview.SingleAsync(x => x.UserId == user.Id && x.VocabId == vocab.Id);
+                var vocabReview = await midContext.UserVocabReview.SingleAsync(x => x.UserId == user.Id && x.VocabId == glossary.Id);
                 Assert.Equal(1, vocabReview.TimesEncountered);
             }
 
@@ -129,7 +143,7 @@ namespace DeepLearning.UnitTests.Integration
             await using var readContext = _fixture.CreateContext();
             var finalPatternReview = await readContext.UserPatternReview.SingleAsync(x => x.UserId == user.Id && x.PatternId == pattern.Id);
             Assert.Equal(2, finalPatternReview.TimesEncountered);
-            var finalVocabReview = await readContext.UserVocabReview.SingleAsync(x => x.UserId == user.Id && x.VocabId == vocab.Id);
+            var finalVocabReview = await readContext.UserVocabReview.SingleAsync(x => x.UserId == user.Id && x.VocabId == glossary.Id);
             Assert.Equal(2, finalVocabReview.TimesEncountered);
         }
     }

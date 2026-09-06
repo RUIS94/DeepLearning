@@ -148,6 +148,10 @@ namespace DeepLearning.UnitTests.Api
             var listResponse = await client.GetAsync($"{ApiRoutes.LlmProviderSettings.Base}/operation-overrides");
             var all = await listResponse.Content.ReadFromJsonAsync<List<AiOperationOverrideResultItem>>();
             Assert.Equal(providerKey, all!.Single(x => x.OperationType == operationType).ProviderKey);
+            // Every AiOperationType — including any newly added AI call — is listed, so a new
+            // operation is provider-pinnable from the admin surface without a code change here.
+            Assert.Equal(Enum.GetValues<AiOperationType>().Length, all.Count);
+            Assert.Equal(Enum.GetValues<AiOperationType>().Length, all.Select(x => x.OperationType).Distinct().Count());
 
             var clearResponse = await client.DeleteAsync($"{ApiRoutes.LlmProviderSettings.Base}/operation-overrides/{operationType}");
             Assert.Equal(HttpStatusCode.NoContent, clearResponse.StatusCode);

@@ -216,6 +216,11 @@ export function DeepLearningPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {content.data.referenceTitle ? (
+                      <p className="text-[15px] font-semibold leading-snug">
+                        {content.data.referenceTitle}
+                      </p>
+                    ) : null}
                     <ArticleText text={content.data.referenceText} className="text-[15px]" />
                     {content.data.comparisonNotes ? (
                       <div className="rounded-lg border border-border bg-secondary/50 p-4 text-sm leading-relaxed">

@@ -164,6 +164,7 @@ namespace DeepLearning.UnitTests.Api
             var firstResult = await firstGenerate.Content.ReadFromJsonAsync<GenerateDeepLearningContentResult>();
 
             Assert.False(firstResult!.WasCached);
+            Assert.Equal(FakeDeepLearningLlmClient.ReferenceTitle, firstResult.ReferenceTitle);
             Assert.Equal(FakeDeepLearningLlmClient.ReferenceText, firstResult.ReferenceText);
             Assert.Single(firstResult.SentencePatterns);
             Assert.Equal(FakeDeepLearningLlmClient.PatternName, firstResult.SentencePatterns[0].PatternName);
@@ -188,7 +189,8 @@ namespace DeepLearning.UnitTests.Api
             var getResponse = await deepLearningClient.GetAsync($"{ApiRoutes.Questions.Base}/{questionId}/deep-learning");
             Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
             var fetched = await getResponse.Content.ReadFromJsonAsync<GetDeepLearningContentByQuestionIdResult>();
-            Assert.Equal(FakeDeepLearningLlmClient.ReferenceText, fetched!.ReferenceText);
+            Assert.Equal(FakeDeepLearningLlmClient.ReferenceTitle, fetched!.ReferenceTitle);
+            Assert.Equal(FakeDeepLearningLlmClient.ReferenceText, fetched.ReferenceText);
             Assert.Single(fetched.SentencePatterns);
             Assert.Single(fetched.VocabExpressions);
         }

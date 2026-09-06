@@ -28,6 +28,7 @@ namespace DeepLearning.Application.Features.Questions.Queries.GetDeepLearningCon
 
             return new GetDeepLearningContentByQuestionIdResult(
                 referenceTranslation.QuestionId,
+                referenceTranslation.ReferenceTitle,
                 referenceTranslation.ReferenceText,
                 referenceTranslation.ComparisonNotes,
                 patterns.Select(p => new SentencePatternResultItem(p.Id, p.PatternName, p.ExampleSentence, p.BreakdownSteps, p.Variants, p.Domain, p.Scenario, p.FrequencyTag)).ToList(),

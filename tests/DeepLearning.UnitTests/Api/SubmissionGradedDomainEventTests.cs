@@ -107,18 +107,32 @@ namespace DeepLearning.UnitTests.Api
                     PatternName = "Cleft sentence",
                     CreatedAt = DateTimeOffset.UtcNow,
                 };
+                var canonicalKey = $"in light of {Guid.NewGuid():N}";
                 var vocab = new VocabExpression
                 {
                     Id = Guid.NewGuid(),
                     QuestionId = question.Id,
                     EnglishExpr = "in light of",
+                    CanonicalKey = canonicalKey,
                     CreatedAt = DateTimeOffset.UtcNow,
+                };
+                // Mastery is tracked against the canonical glossary entry the per-question
+                // snapshot maps to via canonical_key.
+                var glossary = new VocabGlossaryEntry
+                {
+                    Id = Guid.NewGuid(),
+                    CanonicalKey = canonicalKey,
+                    EnglishExpr = "in light of",
+                    AccumulatedSemantics = "鉴于;考虑到。",
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow,
                 };
                 await context.SentencePatterns.AddAsync(pattern);
                 await context.VocabExpressions.AddAsync(vocab);
+                await context.VocabGlossary.AddAsync(glossary);
                 await context.SaveChangesAsync();
                 patternId = pattern.Id;
-                vocabId = vocab.Id;
+                vocabId = glossary.Id;
             }
 
             var createResponse = await client.PostAsJsonAsync(ApiRoutes.Submissions.Base, new

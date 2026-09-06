@@ -17,9 +17,13 @@ type ReviewRow = {
   title: string;
   subtitle: string | null;
   subtitleClassName: string;
+  /** vocab 专用:AI 维护的跨题累积语义。 */
+  body: string | null;
   domain: string | null;
   scenario: string | null;
   frequencyTag: string | null;
+  /** vocab 专用:词条附加计数标签(义项数 / 出现次数)。 */
+  countNote: string | null;
   timesEncountered: number;
   lastReviewedAt: string | null;
   questionId: string | null;
@@ -78,9 +82,11 @@ export function ReviewLibraryList({
           title: p.patternName,
           subtitle: p.exampleSentence,
           subtitleClassName: "source-text text-sm text-muted-foreground",
+          body: null,
           domain: p.domain,
           scenario: p.scenario,
           frequencyTag: p.frequencyTag,
+          countNote: null,
           timesEncountered: p.timesEncountered,
           lastReviewedAt: p.lastReviewedAt,
           questionId: p.questionId,
@@ -91,12 +97,15 @@ export function ReviewLibraryList({
           title: v.englishExpr,
           subtitle: v.chineseEquiv,
           subtitleClassName: "text-sm text-primary",
+          body: v.accumulatedSemantics || null,
           domain: v.domain,
           scenario: v.scenario,
-          frequencyTag: v.frequencyTag,
+          frequencyTag: v.category ?? v.frequencyTag,
+          countNote:
+            v.occurrenceCount > 1 ? `${v.senseCount} 个义项 · 出现 ${v.occurrenceCount} 次` : null,
           timesEncountered: v.timesEncountered,
           lastReviewedAt: v.lastReviewedAt,
-          questionId: v.questionId,
+          questionId: null,
           masteryLevel: v.masteryLevel,
         }));
 
@@ -127,6 +136,9 @@ export function ReviewLibraryList({
             <div className="min-w-64 flex-1 space-y-2">
               <p className="text-sm font-medium">{r.title}</p>
               <p className={r.subtitleClassName}>{r.subtitle}</p>
+              {r.body ? (
+                <p className="whitespace-pre-line text-sm text-muted-foreground">{r.body}</p>
+              ) : null}
               <div className="flex flex-wrap items-center gap-2">
                 {[r.domain, r.scenario, r.frequencyTag].filter(Boolean).map((t) => (
                   <Badge key={t} variant="outline" className="border-border text-muted-foreground">
@@ -134,7 +146,8 @@ export function ReviewLibraryList({
                   </Badge>
                 ))}
                 <span className="text-numeric text-xs text-muted-foreground">
-                  遇见 {r.timesEncountered} 次 · 上次复习 {formatDate(r.lastReviewedAt)}
+                  {r.countNote ? `${r.countNote} · ` : ""}遇见 {r.timesEncountered} 次 · 上次复习{" "}
+                  {formatDate(r.lastReviewedAt)}
                 </span>
                 {r.questionId ? (
                   <Link

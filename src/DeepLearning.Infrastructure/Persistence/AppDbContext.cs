@@ -32,6 +32,7 @@ namespace DeepLearning.Infrastructure.Persistence
         public DbSet<StandardOverride> StandardOverrides => Set<StandardOverride>();
         public DbSet<SentencePattern> SentencePatterns => Set<SentencePattern>();
         public DbSet<VocabExpression> VocabExpressions => Set<VocabExpression>();
+        public DbSet<VocabGlossaryEntry> VocabGlossary => Set<VocabGlossaryEntry>();
         public DbSet<WeakPoint> WeakPoints => Set<WeakPoint>();
         public DbSet<WeakPointOccurrence> WeakPointOccurrences => Set<WeakPointOccurrence>();
         public DbSet<WeakPointCatalog> WeakPointCatalog => Set<WeakPointCatalog>();

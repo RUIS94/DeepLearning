@@ -15,15 +15,16 @@ namespace DeepLearning.Application.Features.ReviewLibrary.Queries.ListReviewVoca
 
         public async Task<List<ReviewVocabResultItem>> Handle(ListReviewVocabQuery request, CancellationToken cancellationToken)
         {
-            var vocab = await _reviewLibraryRepository.ListVocabAsync(request.Domain, request.Scenario, request.FrequencyTag, cancellationToken);
-            var reviews = await _reviewLibraryRepository.ListUserVocabReviewsAsync(request.UserId, vocab.Select(v => v.Id), cancellationToken);
+            var glossary = await _reviewLibraryRepository.ListGlossaryAsync(request.Domain, request.Scenario, request.FrequencyTag, cancellationToken);
+            var reviews = await _reviewLibraryRepository.ListUserVocabReviewsAsync(request.UserId, glossary.Select(v => v.Id), cancellationToken);
             var reviewsByVocab = reviews.ToDictionary(r => r.VocabId);
 
-            return vocab.Select(v =>
+            return glossary.Select(v =>
             {
                 reviewsByVocab.TryGetValue(v.Id, out var review);
                 return new ReviewVocabResultItem(
-                    v.Id, v.QuestionId, v.EnglishExpr, v.ChineseEquiv, v.Domain, v.Scenario, v.FrequencyTag,
+                    v.Id, v.EnglishExpr, v.ChineseEquiv, v.AccumulatedSemantics, v.Category, v.Domain, v.Scenario, v.FrequencyTag,
+                    v.SenseCount, v.OccurrenceCount,
                     review?.TimesEncountered ?? 0, review?.MasteryLevel ?? MasteryLevel.New, review?.LastReviewedAt);
             }).ToList();
         }

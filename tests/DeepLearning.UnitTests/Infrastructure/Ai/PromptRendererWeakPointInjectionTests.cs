@@ -85,31 +85,6 @@ namespace DeepLearning.UnitTests.Infrastructure.Ai
             Assert.Equal(string.Empty, withoutHint.Trim());
         }
 
-        // The prior-vocab dedup block improve_deep_learning_dedup_prompt_template.sql seeds into
-        // the deep_learning template — nested if/for/if, not in the integration test DB.
-        private const string PriorVocabBlock =
-            "{{ if prior_vocab.size > 0 }}\n【以下表达此前已在其它篇目积累过】\n{{ for pv in prior_vocab }}\n- {{ pv.english_expr }}{{ if pv.chinese_equiv }}({{ pv.chinese_equiv }}){{ end }}{{ if pv.context_note }} —— 旧笔记:{{ pv.context_note }}{{ end }}\n{{ end }}\n{{ end }}";
-
-        [Fact]
-        public void Prior_vocab_block_renders_nested_items_and_collapses_when_empty()
-        {
-            var renderer = new PromptRenderer();
-
-            var withItems = renderer.Render(PriorVocabBlock, new
-            {
-                PriorVocab = new[]
-                {
-                    new { EnglishExpr = "in the wake of", ChineseEquiv = "在……之后", ContextNote = "多用于负面事件后" },
-                    new { EnglishExpr = "subject to", ChineseEquiv = (string?)null, ContextNote = (string?)null },
-                },
-            });
-            Assert.Contains("- in the wake of(在……之后) —— 旧笔记:多用于负面事件后", withItems);
-            Assert.Contains("- subject to\n", withItems);
-
-            var empty = renderer.Render(PriorVocabBlock, new { PriorVocab = Array.Empty<object>() });
-            Assert.Equal(string.Empty, empty.Trim());
-        }
-
         // The two loops add_weak_point_classification_prompt_template.sql (M10) renders against
         // the shape WeakPointClassifier builds — not in the integration test DB.
         private const string ClassificationLoops =

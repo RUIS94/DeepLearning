@@ -32,6 +32,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
         private readonly IExamConfigLoader _examConfigLoader;
         private readonly ILlmClientResolver _llmClientResolver;
         private readonly IAiCallRetryExecutor _aiCallRetryExecutor;
+        private readonly IVocabGlossaryQueue _vocabGlossaryQueue;
         private readonly IUnitOfWork _unitOfWork;
 
         public GenerateDeepLearningContentCommandHandler(
@@ -43,6 +44,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             IExamConfigLoader examConfigLoader,
             ILlmClientResolver llmClientResolver,
             IAiCallRetryExecutor aiCallRetryExecutor,
+            IVocabGlossaryQueue vocabGlossaryQueue,
             IUnitOfWork unitOfWork)
         {
             _examTypeRepository = examTypeRepository;
@@ -53,6 +55,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             _examConfigLoader = examConfigLoader;
             _llmClientResolver = llmClientResolver;
             _aiCallRetryExecutor = aiCallRetryExecutor;
+            _vocabGlossaryQueue = vocabGlossaryQueue;
             _unitOfWork = unitOfWork;
         }
 
@@ -89,24 +92,23 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             DeepLearningPayload payload;
             try
             {
-                // Deliberately just TaskType + SourceText + the cross-question dedup feed — see
-                // the isolation note in the class doc comment. No submission content, no
-                // grading_results, no meaning_checkpoints. PriorVocab is expressions accumulated
-                // from OTHER questions that literally recur in this source text (design doc §9):
-                // the prompt is told to re-explain them in this context, not repeat the old
-                // entry. Inside the try so a failure here (query, template render) still routes
-                // through FailAsync instead of leaving the call log stuck at 'calling'.
-                var priorVocab = await _reviewLibraryRepository.ListPriorVocabForSourceAsync(question.SourceText, 40, cancellationToken);
+                // Deliberately just TaskType + SourceText — see the isolation note in the class
+                // doc comment. No submission content, no grading_results, no meaning_checkpoints.
+                // Cross-question vocab handling was pulled out of this call on purpose: dedup is
+                // the backend's job (merge on canonical_key), and re-explaining a recurring term
+                // in a new context is meant to be its own small AI call, not a growing pile of
+                // prior-entry preamble stapled to this four-part generation. Kept inside the try
+                // so a failure here (template render) still routes through FailAsync instead of
+                // leaving the call log stuck at 'calling'.
                 var templateModel = new
                 {
                     TaskType = question.TaskType.ToString(),
+                    // The source article's own English title (questions.title, author-supplied —
+                    // not the user's). Without it the reference translation renders the title
+                    // blind and the pattern/vocab material can't draw on it. Same branch shape as
+                    // grading's template; empty when the source genuinely has none.
+                    SourceTitle = question.Title,
                     SourceText = question.SourceText,
-                    PriorVocab = priorVocab.Select(v => new
-                    {
-                        EnglishExpr = v.EnglishExpr,
-                        ChineseEquiv = v.ChineseEquiv,
-                        ContextNote = v.ContextNote,
-                    }),
                 };
                 var prompt = await _examConfigLoader.BuildPromptAsync(request.ExamTypeId, AiOperationType.deep_learning, templateModel, cancellationToken);
 
@@ -130,6 +132,12 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                     maxBudget: AiOutputBudget.LongMax,
                     parse: ParsePayload,
                     validate: ValidatePayload,
+                    // temperature 0: this is structured extraction (reference translation + notes
+                    // + patterns + vocab as strict JSON), not a task that benefits from sampling
+                    // variety — and a lower temperature markedly cuts mimo's malformed-JSON rate
+                    // (unescaped inner quotes in comparisonNotes/contextNote) that was driving the
+                    // reject-and-retry loop. Same choice as grading / weak_point_* / the drift call.
+                    temperature: 0m,
                     cancellationToken: cancellationToken);
             }
             catch (Exception ex)
@@ -141,12 +149,14 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             ReferenceTranslation referenceTranslation;
             List<SentencePattern> patterns;
             List<VocabExpression> vocab;
+            var anyRecurringExpression = false;
             try
             {
                 referenceTranslation = new ReferenceTranslation
                 {
                     Id = Guid.NewGuid(),
                     QuestionId = question.Id,
+                    ReferenceTitle = string.IsNullOrWhiteSpace(payload.ReferenceTitle) ? null : payload.ReferenceTitle.Trim(),
                     ReferenceText = payload.ReferenceText,
                     ComparisonNotes = payload.ComparisonNotes.ValueKind == JsonValueKind.Undefined ? null : payload.ComparisonNotes.GetRawText(),
                     CreatedAt = DateTimeOffset.UtcNow,
@@ -186,15 +196,66 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                 }).ToList();
                 await _reviewLibraryRepository.AddVocabAsync(vocab, cancellationToken);
 
+                // vocab_glossary: one canonical row per distinct expression, seeded
+                // deterministically on first sight. Every VocabExpression above stays a frozen
+                // per-question snapshot; this is the separate living record the review library
+                // reads and the vocab_semantic_drift job maintains. A recurrence (an expression
+                // whose canonical key already had a glossary row) only bumps the counter here —
+                // whether this passage adds a new *sense* is decided later, off the request
+                // thread, by AnalyzeVocabSemanticDriftJob.
+                var now = DateTimeOffset.UtcNow;
+                var distinctVocab = vocab
+                    .Where(v => v.CanonicalKey is not null)
+                    .GroupBy(v => v.CanonicalKey!)
+                    .Select(g => g.First())
+                    .ToList();
+                foreach (var v in distinctVocab)
+                {
+                    var glossary = await _reviewLibraryRepository.GetGlossaryEntryByCanonicalKeyAsync(v.CanonicalKey!, cancellationToken);
+                    if (glossary is null)
+                    {
+                        await _reviewLibraryRepository.AddGlossaryEntryAsync(new VocabGlossaryEntry
+                        {
+                            Id = Guid.NewGuid(),
+                            CanonicalKey = v.CanonicalKey!,
+                            EnglishExpr = v.EnglishExpr,
+                            AccumulatedSemantics = v.ContextNote ?? string.Empty,
+                            ChineseEquiv = v.ChineseEquiv,
+                            Category = v.Category,
+                            Domain = v.Domain,
+                            Scenario = v.Scenario,
+                            FrequencyTag = v.FrequencyTag,
+                            FirstSeenQuestionId = question.Id,
+                            CreatedAt = now,
+                            UpdatedAt = now,
+                        }, cancellationToken);
+                    }
+                    else
+                    {
+                        glossary.OccurrenceCount += 1;
+                        glossary.UpdatedAt = now;
+                        anyRecurringExpression = true;
+                    }
+                }
+
                 aiCallLog.Status = CallStatus.success;
                 aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
 
+                // A concurrent first-time generation of a *different* question that seeds one of
+                // these same brand-new canonical keys between our read above and this save is
+                // rare (generation is once-per-question, cached after) and self-correcting: this
+                // whole save rolls back, the user retries, and the second pass finds the row.
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
             catch (Exception ex)
             {
                 await FailAsync(aiCallLog, $"Failed to persist deep learning content: {ex.Message}");
                 throw new AiCallFailedException($"Deep learning content could not be used: {ex.Message}", ex);
+            }
+
+            if (anyRecurringExpression)
+            {
+                await _vocabGlossaryQueue.EnqueueAsync(question.Id, request.ExamTypeId, cancellationToken);
             }
 
             return ToResult(referenceTranslation, patterns, vocab, wasCached: false);
@@ -218,6 +279,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             List<VocabExpression> vocab,
             bool wasCached) => new(
                 referenceTranslation.QuestionId,
+                referenceTranslation.ReferenceTitle,
                 referenceTranslation.ReferenceText,
                 referenceTranslation.ComparisonNotes,
                 patterns.Select(p => new SentencePatternItem(p.Id, p.PatternName, p.ExampleSentence, p.BreakdownSteps, p.Variants, p.Domain, p.Scenario, p.FrequencyTag)).ToList(),
@@ -291,6 +353,8 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
 
         private class DeepLearningPayload
         {
+            public string? ReferenceTitle { get; set; }
+
             public string ReferenceText { get; set; } = string.Empty;
 
             public JsonElement ComparisonNotes { get; set; }

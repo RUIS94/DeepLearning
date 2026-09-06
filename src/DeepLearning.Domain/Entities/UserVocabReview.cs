@@ -13,6 +13,12 @@ namespace DeepLearning.Domain.Entities
         public DateTimeOffset CreatedAt { get; set; }
 
         public User? User { get; set; }
-        public VocabExpression? Vocab { get; set; }
+
+        /// <summary>
+        /// The canonical glossary entry (one per distinct expression), not the per-question
+        /// <see cref="VocabExpression"/> snapshot — mastery is tracked per word, across every
+        /// passage it appears in.
+        /// </summary>
+        public VocabGlossaryEntry? Vocab { get; set; }
     }
 }

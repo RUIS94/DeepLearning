@@ -89,6 +89,7 @@ export const AiOperationType = {
   weak_point_detection_criteria: 8,
   weak_point_recheck: 9,
   score_challenge_summary: 10,
+  vocab_semantic_drift: 11,
 } as const;
 
 // 追问线程（design decision, 2026-09-02）：一个 submission 最多一条线程，存续期间
@@ -214,6 +215,7 @@ export const AiOperationTypeLabel: Record<number, string> = {
   [AiOperationType.weak_point_detection_criteria]: "薄弱点筛查标准生成",
   [AiOperationType.weak_point_recheck]: "薄弱点复核",
   [AiOperationType.score_challenge_summary]: "改判结算",
+  [AiOperationType.vocab_semantic_drift]: "词汇语义积累",
 };
 
 export const FollowUpThreadStatusLabel: Record<number, string> = {

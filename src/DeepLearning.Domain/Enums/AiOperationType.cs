@@ -38,6 +38,13 @@ namespace DeepLearning.Domain.Enums
         // this summary call decides decision=uphold|adjust and, on adjust, rewrites the
         // disputed dimension's GradingResult.Band + writes a GradingResultRevision +
         // TransitionTo(regraded). Never emits a standardRevision.
-        score_challenge_summary
+        score_challenge_summary,
+        // Post-deep-learning background call (AnalyzeVocabSemanticDriftJob). For each expression
+        // that recurs in a later question, checks whether this passage's sense is already covered
+        // by vocab_glossary.accumulated_semantics and, if not, folds the new sense in. Never
+        // touches the frozen per-question vocab_expressions rows. Optional: no template
+        // configured -> the glossary keeps its first-occurrence seed, exactly as if the word
+        // never recurred.
+        vocab_semantic_drift
     }
 }

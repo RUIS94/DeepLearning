@@ -71,6 +71,70 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
             return query.OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);
         }
 
+        public Task<VocabGlossaryEntry?> GetGlossaryEntryByCanonicalKeyAsync(string canonicalKey, CancellationToken cancellationToken = default)
+            => _context.VocabGlossary.FirstOrDefaultAsync(x => x.CanonicalKey == canonicalKey, cancellationToken);
+
+        public Task<VocabGlossaryEntry?> GetGlossaryEntryByIdAsync(Guid id, CancellationToken cancellationToken = default)
+            => _context.VocabGlossary.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        public async Task AddGlossaryEntryAsync(VocabGlossaryEntry entry, CancellationToken cancellationToken = default)
+            => await _context.VocabGlossary.AddAsync(entry, cancellationToken);
+
+        public Task<List<VocabGlossaryEntry>> ListGlossaryAsync(
+            string? domain, string? scenario, string? frequencyTag, CancellationToken cancellationToken = default)
+        {
+            var query = _context.VocabGlossary.AsQueryable();
+
+            if (!string.IsNullOrEmpty(domain))
+            {
+                query = query.Where(x => x.Domain == domain);
+            }
+
+            if (!string.IsNullOrEmpty(scenario))
+            {
+                query = query.Where(x => x.Scenario == scenario);
+            }
+
+            if (!string.IsNullOrEmpty(frequencyTag))
+            {
+                query = query.Where(x => x.FrequencyTag == frequencyTag);
+            }
+
+            return query.OrderByDescending(x => x.UpdatedAt).ToListAsync(cancellationToken);
+        }
+
+        public Task<List<VocabGlossaryEntry>> ListGlossaryEntriesByCanonicalKeysAsync(
+            IEnumerable<string> canonicalKeys, CancellationToken cancellationToken = default)
+        {
+            var keys = canonicalKeys.Distinct().ToList();
+            if (keys.Count == 0)
+            {
+                return Task.FromResult(new List<VocabGlossaryEntry>());
+            }
+
+            return _context.VocabGlossary.Where(x => keys.Contains(x.CanonicalKey)).ToListAsync(cancellationToken);
+        }
+
+        public async Task<List<VocabExpression>> ListRecurringVocabForQuestionAsync(Guid questionId, CancellationToken cancellationToken = default)
+        {
+            // canonical_key values that appear on more than one question overall.
+            var recurringKeys = await _context.VocabExpressions
+                .Where(x => x.CanonicalKey != null)
+                .GroupBy(x => x.CanonicalKey)
+                .Where(g => g.Select(x => x.QuestionId).Distinct().Count() > 1)
+                .Select(g => g.Key)
+                .ToListAsync(cancellationToken);
+
+            if (recurringKeys.Count == 0)
+            {
+                return [];
+            }
+
+            return await _context.VocabExpressions
+                .Where(x => x.QuestionId == questionId && x.CanonicalKey != null && recurringKeys.Contains(x.CanonicalKey))
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<List<VocabExpression>> ListPriorVocabForSourceAsync(string sourceText, int take, CancellationToken cancellationToken = default)
         {
             // "does canonical_key appear as a substring of the source text" is a

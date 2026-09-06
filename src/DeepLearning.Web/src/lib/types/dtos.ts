@@ -474,6 +474,8 @@ export interface VocabExpression {
 
 export interface DeepLearningContent {
   questionId: string;
+  /** 原文标题的中文译文,与正文 referenceText 分开;原文无标题时为 null。 */
+  referenceTitle: string | null;
   referenceText: string;
   comparisonNotes: string | null;
   sentencePatterns: SentencePattern[];
@@ -525,12 +527,18 @@ export interface ReviewPatternItem {
 
 export interface ReviewVocabItem {
   id: string;
-  questionId: string | null;
   englishExpr: string;
   chineseEquiv: string | null;
+  /** AI 维护的跨题累积语义:该词到目前为止出现过的所有义项 / 用法 / 语域。 */
+  accumulatedSemantics: string;
+  category: string | null;
   domain: string | null;
   scenario: string | null;
   frequencyTag: string | null;
+  /** accumulatedSemantics 里记录的义项数。 */
+  senseCount: number;
+  /** 该词在所有题目里累计出现的次数。 */
+  occurrenceCount: number;
   timesEncountered: number;
   masteryLevel: number;
   lastReviewedAt: string | null;
@@ -653,9 +661,11 @@ export type AiOperationType =
   | "followup_summary"
   | "weak_point_classification"
   | "weak_point_detection_criteria"
-  | "weak_point_recheck";
+  | "weak_point_recheck"
+  | "score_challenge_summary"
+  | "vocab_semantic_drift";
 
-/** 对应后端 AiOperationOverrideResultItem——固定 10 行（每个 AiOperationType 一行）。
+/** 对应后端 AiOperationOverrideResultItem——固定 12 行（每个 AiOperationType 一行）。
  * providerKey 为 null：该任务跟随全局 active provider，未被单独绑定（此时 model/thinkingEnabled/
  * effort 恒为 null）。providerKey 有值时，model 为 null 表示跟随该 provider 自己的当前模型，
  * thinkingEnabled 为 null 表示跟随该 provider 自己的 thinking 开关，effort 为 null 表示跟随该

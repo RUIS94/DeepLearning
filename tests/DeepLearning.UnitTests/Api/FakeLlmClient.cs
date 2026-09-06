@@ -294,6 +294,7 @@ namespace DeepLearning.UnitTests.Api
     /// </summary>
     public class FakeDeepLearningLlmClient : ILlmClient
     {
+        public const string ReferenceTitle = "这是标题译文";
         public const string ReferenceText = "这是标准参考译文。";
         public const string PatternName = "非限定性定语从句";
         public const string VocabExpr = "in light of";
@@ -309,6 +310,7 @@ namespace DeepLearning.UnitTests.Api
 
             var json = $$"""
                 {
+                  "referenceTitle": "{{ReferenceTitle}}",
                   "referenceText": "{{ReferenceText}}",
                   "comparisonNotes": ["注意不要逐字直译"],
                   "sentencePatterns": [

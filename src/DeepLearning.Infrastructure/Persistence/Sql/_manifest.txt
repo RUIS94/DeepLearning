@@ -105,3 +105,13 @@ reset_weak_point_recheck_prompt_v1_exam_specific.sql
 #     Major/Minor defs, score_challenge scoped to its dimension, per-turn verdict replay).
 #     Must stay LAST of the followup scripts. ---
 reset_followup_prompts_v1_production.sql
+
+# --- 2026-09-06: deep_learning 提示词整表重置为唯一一行 production v1 + exam_specific
+#     (折入 NAATI 定位、参考译文达标线、comparisonNotes 收紧、breakdownSteps 固定四键、
+#     frequencyTag 判定说明、输出卫生);删除历史 shared_methodology v1-v4 与旧 exam_specific 行。
+#     必须保持在 deep_learning 相关脚本的最后一条。 ---
+reset_deep_learning_prompt_v1_exam_specific.sql
+
+# --- 2026-09-06: vocab_semantic_drift 提示词 v1 —— 词汇跨题复现时判断语义有无新义、
+#     有则丰富 vocab_glossary.accumulated_semantics(AnalyzeVocabSemanticDriftJob 用) ---
+add_vocab_semantic_drift_prompt_template.sql

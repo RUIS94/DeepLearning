@@ -23,6 +23,8 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // VocabId points at vocab_glossary (the canonical entry), not vocab_expressions
+            // (per-question snapshots) — mastery is per word, not per passage.
             builder.HasOne(x => x.Vocab)
                 .WithMany()
                 .HasForeignKey(x => x.VocabId)

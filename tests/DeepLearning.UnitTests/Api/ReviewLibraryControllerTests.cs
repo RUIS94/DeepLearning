@@ -179,13 +179,24 @@ namespace DeepLearning.UnitTests.Api
             var client = _factory.CreateClient();
             var scenario = $"immigration_letter_{Guid.NewGuid():N}";
             var user = NewUser();
-            var vocab = new VocabExpression { Id = Guid.NewGuid(), EnglishExpr = "in light of", Scenario = scenario, CreatedAt = DateTimeOffset.UtcNow };
+            // The review library reads the canonical vocab_glossary entry (one per expression),
+            // not the per-question vocab_expressions snapshots.
+            var vocab = new VocabGlossaryEntry
+            {
+                Id = Guid.NewGuid(),
+                CanonicalKey = $"in light of {Guid.NewGuid():N}",
+                EnglishExpr = "in light of",
+                AccumulatedSemantics = "鉴于;考虑到。",
+                Scenario = scenario,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
 
             using (var scope = _factory.Services.CreateScope())
             {
                 var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 await context.Users.AddAsync(user);
-                await context.VocabExpressions.AddAsync(vocab);
+                await context.VocabGlossary.AddAsync(vocab);
                 await context.SaveChangesAsync();
             }
 
