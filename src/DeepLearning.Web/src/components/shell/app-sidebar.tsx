@@ -38,7 +38,7 @@ export function AppSidebar() {
               aria-label="Expand sidebar"
               className="group/logo flex size-8 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent cursor-pointer data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-foreground"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {/* Static SVG in /public — next/image would be overkill for a fixed 32px logo. */}
               <img
                 src="/logo.svg"
                 alt="DeepLearning"
@@ -49,7 +49,7 @@ export function AppSidebar() {
           ) : (
             <>
               <Link href="/practice" className="flex min-w-0 items-center gap-2 rounded-md">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {/* Static SVG in /public — next/image would be overkill for a fixed 32px logo. */}
                 <img src="/logo.svg" alt="DeepLearning" className="size-8 shrink-0 rounded-lg" />
               </Link>
               <SidebarTrigger className="shrink-0" />
