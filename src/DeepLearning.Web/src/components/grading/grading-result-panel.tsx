@@ -18,10 +18,15 @@ import { cn } from "@/lib/utils";
 import { FollowUpPanel } from "@/components/grading/follow-up-panel";
 import { listFollowUpThreads } from "@/lib/api/follow-up-threads";
 
-const SEVERITY_BADGE: Record<number, string> = {
-  [ErrorSeverity.minor]: "border-border text-muted-foreground",
-  [ErrorSeverity.major]: "border-destructive/40 text-destructive",
+const SEVERITY_TEXT: Record<number, string> = {
+  [ErrorSeverity.minor]: "text-muted-foreground",
+  [ErrorSeverity.major]: "text-destructive",
 };
+
+/** code → 展示名：下划线转空格、首字母大写。用于没有独立 name 字段的分类 code。 */
+function humanizeCode(code: string): string {
+  return code.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
 
 function DimensionBandRow({
   name,
@@ -99,6 +104,10 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
   const { ErrorSeverityLabel } = useEnumLabels();
   const errorImpactLabel = useErrorImpactLabel();
   const summary = submission.overallSummary;
+  // errorList 只有 dimensionKey，没有维度名；从评分结果里按 key 取对应的展示名。
+  const dimensionNameByKey = new Map(
+    submission.gradingResults.map((r) => [r.dimensionKey, r.dimensionName]),
+  );
   // 结果区在这些状态下都在（见 submission-page 的 graded 判断），改判入口的可见性再据线程情况细分。
   const resultsVisible =
     submission.status === SubmissionStatus.graded ||
@@ -175,45 +184,48 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
             </span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 pt-0">
+        <CardContent className="pt-0">
           {submission.errorList.map((e, i) => (
-            <div key={e.id} className="rounded-lg border border-border p-4">
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "font-medium",
-                    SEVERITY_BADGE[e.severity] ?? SEVERITY_BADGE[ErrorSeverity.minor],
-                  )}
-                >
-                  {e.summary
-                    ? t("grading.severityWithSummary", {
-                        label: ErrorSeverityLabel[e.severity] ?? e.severity,
-                        summary: e.summary,
-                      })
-                    : (ErrorSeverityLabel[e.severity] ?? e.severity)}
-                </Badge>
-                <Badge variant="outline" className="border-accent/40 text-accent">
-                  {e.errorCategory}
-                </Badge>
-                <Badge variant="outline" className="border-border text-muted-foreground">
-                  {e.dimensionKey}
-                </Badge>
-                {(() => {
-                  const impact = errorImpactLabel(e.severity);
-                  const Icon = impact.tone === "danger" ? AlertCircle : CheckCircle2;
-                  return (
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 text-xs",
-                        impact.tone === "danger" ? "text-destructive" : "text-muted-foreground",
-                      )}
-                    >
-                      <Icon className="size-3.5" />
-                      {impact.text}
-                    </span>
-                  );
-                })()}
+            <div
+              key={e.id}
+              className="border-b border-dashed border-border py-4 first:pt-0 last:border-0 last:pb-0"
+            >
+              <div className="mb-2 flex items-start justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span
+                    className={cn(
+                      "text-xs",
+                      SEVERITY_TEXT[e.severity] ?? SEVERITY_TEXT[ErrorSeverity.minor],
+                    )}
+                  >
+                    {e.summary
+                      ? t("grading.severityWithSummary", {
+                          label: ErrorSeverityLabel[e.severity] ?? e.severity,
+                          summary: e.summary,
+                        })
+                      : (ErrorSeverityLabel[e.severity] ?? e.severity)}
+                  </span>
+                  {(() => {
+                    const impact = errorImpactLabel(e.severity);
+                    const Icon = impact.tone === "danger" ? AlertCircle : CheckCircle2;
+                    return (
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 text-xs",
+                          impact.tone === "danger" ? "text-destructive" : "text-muted-foreground",
+                        )}
+                      >
+                        <Icon className="size-3.5" />
+                        {impact.text}
+                      </span>
+                    );
+                  })()}
+                </div>
+                <div className="shrink-0 text-right text-xs text-muted-foreground">
+                  {humanizeCode(e.errorCategory)}
+                  {" · "}
+                  {dimensionNameByKey.get(e.dimensionKey) ?? humanizeCode(e.dimensionKey)}
+                </div>
               </div>
               {e.sourceTextSnippet ? (
                 <p className="mb-1 text-sm text-muted-foreground">
@@ -232,7 +244,7 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
                 </p>
               ) : null}
               {/* 始终挂载：popup 打开后即使 canStartChallenge 变 false（发送首条消息建线程后）也不卸载。 */}
-              <div className={canStartChallenge ? "mt-2" : undefined}>
+              <div className={cn("flex justify-end", canStartChallenge && "mt-2")}>
                 <FollowUpPanel
                   submissionId={submission.id}
                   disputeAnchor={{
@@ -248,7 +260,7 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
                       <button
                         type="button"
                         onClick={openPanel}
-                        className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                        className="inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs text-secondary hover:bg-secondary/10"
                       >
                         <MessageSquare className="size-3" />
                         {t("grading.askAboutError")}

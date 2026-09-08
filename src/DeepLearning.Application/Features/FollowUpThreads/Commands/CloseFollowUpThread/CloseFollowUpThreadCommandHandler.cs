@@ -98,7 +98,9 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
                 ?? throw new NotFoundException(nameof(Question), submission.QuestionId);
 
             // A pure-knowledge thread never disputed anything — no summary, no verdict, no AI call.
-            if (thread.Kind == FollowUpThreadKind.knowledge)
+            // SkipSummary opts a dispute / score_challenge into the same "just close it" behaviour:
+            // no AI call, no verdict, no StandardOverride, no Band rewrite.
+            if (thread.Kind == FollowUpThreadKind.knowledge || request.SkipSummary)
             {
                 thread.Status = FollowUpThreadStatus.closed;
                 thread.FinalVerdict = null;

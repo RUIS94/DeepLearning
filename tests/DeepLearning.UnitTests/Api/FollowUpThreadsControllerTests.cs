@@ -536,6 +536,70 @@ namespace DeepLearning.UnitTests.Api
         }
 
         [Fact]
+        public async Task Close_dispute_with_skipSummary_closes_it_with_no_ai_no_verdict_no_override()
+        {
+            var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
+            // summaryResponseJson deliberately null — if the AI summary call fires this test fails.
+            var client = CreateClient(dimensionKey);
+            var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
+            await SeedTemplatesAsync(_factory);
+            var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
+
+            var created = await (await CreateThreadAsync(client, submissionId, userId, examTypeId, "Why?", contextRef: "error#1"))
+                .Content.ReadFromJsonAsync<FollowUpThreadResult>();
+
+            var closeResponse = await client.PostAsJsonAsync(
+                $"{ApiRoutes.FollowUpThreads.Base}/{created!.Id}/close",
+                new { UserId = userId, SkipSummary = true });
+
+            Assert.Equal(HttpStatusCode.OK, closeResponse.StatusCode);
+            var thread = await closeResponse.Content.ReadFromJsonAsync<FollowUpThreadResult>();
+            Assert.Equal(FollowUpThreadStatus.closed, thread!.Status);
+            Assert.Null(thread.FinalVerdict);
+            Assert.Null(thread.StandardOverrideId);
+            Assert.Equal(SubmissionStatus.graded, thread.SubmissionStatus);
+            Assert.NotNull(thread.ClosedAt);
+        }
+
+        [Fact]
+        public async Task Close_score_challenge_with_skipSummary_closes_it_at_graded_without_touching_the_band()
+        {
+            var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
+            // scoreChallengeSummaryResponseJson deliberately null — the AI call must not fire.
+            var client = CreateClient(dimensionKey);
+            var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
+            await SeedTemplatesAsync(_factory);
+            var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
+            var dimensionId = await DimensionIdAsync(examTypeId);
+
+            var created = await (await client.PostAsJsonAsync(ApiRoutes.FollowUpThreads.Base, new
+            {
+                SubmissionId = submissionId,
+                UserId = userId,
+                ExamTypeId = examTypeId,
+                ContextRef = (string?)null,
+                QuestionText = "Challenge",
+                Kind = FollowUpThreadKind.score_challenge,
+                DimensionId = dimensionId,
+            })).Content.ReadFromJsonAsync<FollowUpThreadResult>();
+
+            var before = await GradingStateAsync(submissionId);
+
+            var closeResponse = await client.PostAsJsonAsync(
+                $"{ApiRoutes.FollowUpThreads.Base}/{created!.Id}/close",
+                new { UserId = userId, SkipSummary = true });
+
+            Assert.Equal(HttpStatusCode.OK, closeResponse.StatusCode);
+            var thread = await closeResponse.Content.ReadFromJsonAsync<FollowUpThreadResult>();
+            Assert.Equal(FollowUpThreadStatus.closed, thread!.Status);
+            Assert.Equal(SubmissionStatus.graded, thread.SubmissionStatus);
+
+            var after = await GradingStateAsync(submissionId);
+            Assert.Equal(before.Band, after.Band);
+            Assert.Equal(0, after.RevisionCount);
+        }
+
+        [Fact]
         public async Task Close_score_challenge_with_reviewed_adjust_input_rewrites_the_band_without_the_ai()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";

@@ -67,13 +67,13 @@ namespace DeepLearning.Api.Controllers
             return Ok(result);
         }
 
-        public record CloseFollowUpThreadRequest(Guid UserId, FollowUpCloseInput? Input = null);
+        public record CloseFollowUpThreadRequest(Guid UserId, FollowUpCloseInput? Input = null, bool SkipSummary = false);
 
         [HttpPost("{id:guid}/close")]
         public async Task<ActionResult<FollowUpThreadResult>> Close(Guid id, CloseFollowUpThreadRequest request, CancellationToken cancellationToken)
         {
             var userId = _currentUser.UserId ?? request.UserId;
-            var result = await _mediator.Send(new CloseFollowUpThreadCommand(id, userId, request.Input), cancellationToken);
+            var result = await _mediator.Send(new CloseFollowUpThreadCommand(id, userId, request.Input, request.SkipSummary), cancellationToken);
             return Ok(result);
         }
 

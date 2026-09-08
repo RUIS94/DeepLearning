@@ -17,12 +17,18 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
     /// <para>A pure-knowledge thread (never a dispute, never score_challenge) has nothing to
     /// adjudicate: it closes with FinalVerdict = null and no AI call at all, whatever Input says.</para>
     ///
+    /// <para><see cref="SkipSummary"/> = "close this dispute / score_challenge without generating
+    /// anything": no AI call, no verdict, no StandardOverride, no Band rewrite — it closes exactly
+    /// like a knowledge thread (FinalVerdict = null, submission back to graded). Input is ignored
+    /// when it is set.</para>
+    ///
     /// Never reopened afterwards (single-thread-per-submission).
     /// </summary>
     public record CloseFollowUpThreadCommand(
         Guid ThreadId,
         Guid UserId,
-        FollowUpCloseInput? Input = null) : IRequest<FollowUpThreadResult>;
+        FollowUpCloseInput? Input = null,
+        bool SkipSummary = false) : IRequest<FollowUpThreadResult>;
 
     /// <summary>
     /// The reviewed summary the user is committing. Shape covers both close kinds; the handler

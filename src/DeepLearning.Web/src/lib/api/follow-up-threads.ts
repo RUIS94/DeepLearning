@@ -37,15 +37,19 @@ export async function previewFollowUpClose(
   });
 }
 
-/** input 为用户确认/编辑后的结算内容；不传则后端自己跑 AI 结算（旧行为，knowledge 线程恒不跑）。 */
+/**
+ * input 为用户确认/编辑后的结算内容；不传则后端自己跑 AI 结算（旧行为，knowledge 线程恒不跑）。
+ * skipSummary=true：直接关闭 dispute / 改判线程，不调 AI、不生成结算/verdict/标准修正（input 被忽略）。
+ */
 export async function closeFollowUpThread(
   threadId: string,
   userId: string,
   input?: FollowUpCloseInput,
+  skipSummary = false,
 ): Promise<FollowUpThreadDetail> {
   return api<FollowUpThreadDetail>(`/follow-up-threads/${threadId}/close`, {
     method: "POST",
-    body: input ? { userId, input } : { userId },
+    body: skipSummary ? { userId, skipSummary: true } : input ? { userId, input } : { userId },
   });
 }
 

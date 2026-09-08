@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, MessageCircleQuestion, Plus, Scale, Send } from "lucide-react";
+import { Loader2, MessageCircleQuestion, Plus, Scale, Send, X } from "lucide-react";
 import {
   SidePanel,
   SidePanelBody,
@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AiLoadingState, ErrorBanner } from "@/components/shared/ai-loading-state";
+import { ErrorBanner } from "@/components/shared/ai-loading-state";
 import {
   addFollowUpMessage,
   closeFollowUpThread,
@@ -87,6 +87,34 @@ function threadChipTone(thread: FollowUpThreadSummary): string {
   }
 }
 
+/** 结算 / 保存进行中的等待态：与"AI 正在输入"一致的气泡（bg-muted 跳动圆点）+ 一句提示。出错回退到 ErrorBanner。 */
+function ChatWaiting({
+  status,
+  error,
+  hint,
+}: {
+  status: "idle" | "pending" | "success" | "error";
+  error?: unknown;
+  hint: string;
+}) {
+  if (status === "pending") {
+    return (
+      <div className="flex flex-col items-start gap-1.5">
+        <div className="flex items-center gap-1 rounded-lg bg-muted px-3 py-2.5">
+          <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
+          <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
+          <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground" />
+        </div>
+        <span className="text-xs text-muted-foreground">{hint}</span>
+      </div>
+    );
+  }
+  if (status === "error" && error) {
+    return <ErrorBanner error={error} />;
+  }
+  return null;
+}
+
 type ScoreChallengeTarget = { dimensionId: string; dimensionKey: string };
 type DisputeAnchor = { contextRef: string; label: string };
 
@@ -150,13 +178,26 @@ export function FollowUpPanel({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<string | null>(null); // thread id | NEW | null(未初始化)
   const [text, setText] = useState("");
-  const [confirmingClose, setConfirmingClose] = useState(false);
+  // 已发出、正在等待回复的那条消息 —— 输入框在提交瞬间就清空，乐观气泡渲染这个快照。
+  const [sentText, setSentText] = useState("");
+  // false = not confirming; "normal" = 结束并（若需要）生成结算；"skip" = 直接结束、不生成任何结算。
+  const [confirmingClose, setConfirmingClose] = useState<false | "normal" | "skip">(false);
   const [draft, setDraft] = useState<FollowUpCloseInput | null>(null);
   const [draftMeta, setDraftMeta] = useState<FollowUpClosePreview | null>(null);
+  // 结算草稿面板被临时收起（点 X）——草稿内容仍保留在 draft / draftMeta 里，可原样恢复，不必重新生成。
+  const [draftCollapsed, setDraftCollapsed] = useState(false);
+
+  // 彻底丢弃草稿（"放弃"按钮 / 切换线程 / 关闭成功后）。
+  function clearDraft() {
+    setDraft(null);
+    setDraftMeta(null);
+    setDraftCollapsed(false);
+  }
   const examType = useExamType();
   const currentUser = useCurrentUser();
   const queryClient = useQueryClient();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastAiMsgRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
   const threads = useQuery({
@@ -195,6 +236,7 @@ export function FollowUpPanel({
       setText("");
       setDraft(null);
       setDraftMeta(null);
+      setDraftCollapsed(false);
       setConfirmingClose(false);
     }
   }, [threads.data, threads.isFetching, active, openThread]);
@@ -217,25 +259,28 @@ export function FollowUpPanel({
   }
 
   const send = useMutation({
-    mutationFn: () =>
+    mutationFn: (questionText: string) =>
       composing
         ? createFollowUpThread({
             submissionId,
             userId: currentUser.data!.id,
             examTypeId: examType.data!.id,
             contextRef: disputeAnchor ? disputeAnchor.contextRef : null,
-            questionText: text,
+            questionText,
             kind: scoreChallenge ? FollowUpThreadKind.score_challenge : null,
             dimensionId: scoreChallenge ? scoreChallenge.dimensionId : null,
           })
         : addFollowUpMessage(detail.data!.id, {
             userId: currentUser.data!.id,
-            questionText: text,
+            questionText,
           }),
     onSuccess: (data) => {
       applyResult(data);
-      setText("");
       setActive(data.id);
+    },
+    // 发送失败时把刚清空的输入还回去（除非用户已经开始输入新的内容）。
+    onError: (_err, questionText) => {
+      setText((cur) => (cur.length > 0 ? cur : questionText));
     },
   });
 
@@ -244,23 +289,49 @@ export function FollowUpPanel({
     onSuccess: (p) => {
       setDraftMeta(p);
       setDraft(previewToInput(p));
+      setDraftCollapsed(false);
     },
   });
 
   const close = useMutation({
-    mutationFn: (input?: FollowUpCloseInput) =>
-      closeFollowUpThread(detail.data!.id, currentUser.data!.id, input),
+    mutationFn: (opts?: { input?: FollowUpCloseInput; skipSummary?: boolean }) =>
+      closeFollowUpThread(
+        detail.data!.id,
+        currentUser.data!.id,
+        opts?.input,
+        opts?.skipSummary ?? false,
+      ),
     onSuccess: (data) => {
       applyResult(data);
       setConfirmingClose(false);
-      setDraft(null);
-      setDraftMeta(null);
+      clearDraft();
     },
   });
 
+  const messages = detail.data?.messages ?? [];
+  const aiReplyCount = messages.filter((m) => m.role === FollowUpMessageRole.ai).length;
+  const lastMessageIsAi = messages[messages.length - 1]?.role === FollowUpMessageRole.ai;
+
+  // 发送 / 生成结算 / 落库进行中：贴到底部，让那排跳动圆点进入视野。
+  // AI 回复落地后：滚到这条回复的顶部，方便从头读起，而不是一路冲到长回复的末尾。
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [detail.data?.messages.length, send.isPending, composing, draft]);
+    if (send.isPending || preview.isPending || close.isPending) {
+      bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    } else if (lastMessageIsAi && lastAiMsgRef.current) {
+      lastAiMsgRef.current.scrollIntoView({ block: "start", behavior: "smooth" });
+    } else {
+      bottomRef.current?.scrollIntoView({ block: "end" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    aiReplyCount,
+    messages.length,
+    send.isPending,
+    preview.isPending,
+    close.isPending,
+    composing,
+    draft,
+  ]);
 
   const viewedThread = detail.data;
   const isViewingOpen = viewedThread?.status === FollowUpThreadStatus.open;
@@ -289,7 +360,9 @@ export function FollowUpPanel({
 
   function submitMessage() {
     if (!canSend) return;
-    send.mutate();
+    setSentText(text);
+    send.mutate(text);
+    setText(""); // 立刻清空输入框，不等 AI 返回
   }
 
   function handleComposerKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -307,7 +380,7 @@ export function FollowUpPanel({
         renderTrigger(() => setOpen(true))
       ) : (
         <Button
-          variant={openThread ? "default" : "outline"}
+          variant={openThread ? "secondary" : "outline"}
           onClick={() => setOpen(true)}
           title={openThread ? t("followUp.openTitle") : undefined}
         >
@@ -359,8 +432,7 @@ export function FollowUpPanel({
                   className="self-start"
                   onClick={() => {
                     setActive(openThread ? openThread.id : NEW);
-                    setDraft(null);
-                    setDraftMeta(null);
+                    clearDraft();
                     setConfirmingClose(false);
                     queryClient.invalidateQueries({
                       queryKey: ["follow-up-threads", submissionId],
@@ -413,9 +485,14 @@ export function FollowUpPanel({
               </div>
             ) : null}
 
-            {viewedThread?.messages.map((m) => (
+            {viewedThread?.messages.map((m, mi, arr) => (
               <div
                 key={m.id}
+                ref={
+                  m.role === FollowUpMessageRole.ai && mi === arr.length - 1
+                    ? lastAiMsgRef
+                    : undefined
+                }
                 className={cn(
                   "flex flex-col gap-1",
                   m.role === FollowUpMessageRole.user ? "items-end" : "items-start",
@@ -443,7 +520,7 @@ export function FollowUpPanel({
               <>
                 <div className="flex flex-col items-end gap-1">
                   <div className="max-w-[85%] whitespace-pre-wrap rounded-lg bg-primary px-3 py-2 text-sm leading-relaxed text-primary-foreground opacity-70">
-                    {text}
+                    {sentText}
                   </div>
                 </div>
                 <div className="flex items-start">
@@ -456,40 +533,25 @@ export function FollowUpPanel({
               </>
             ) : null}
             {send.isError ? <ErrorBanner error={send.error} /> : null}
-            <AiLoadingState
+            <ChatWaiting
               status={preview.status}
               error={preview.error}
-              pendingHint={t("followUp.aiDrafting")}
+              hint={t("followUp.aiDrafting")}
             />
-            <AiLoadingState
-              status={close.status}
-              error={close.error}
-              pendingHint={t("followUp.saving")}
-            />
+            <ChatWaiting status={close.status} error={close.error} hint={t("followUp.saving")} />
 
             <div ref={bottomRef} />
           </SidePanelBody>
 
           {showComposer || (threads.data && threads.data.length > 0) ? (
             <SidePanelFooter className="flex-col items-stretch gap-2">
-              {showComposer && draft && draftMeta && viewedThread ? (
-                <CloseReviewDraft
-                  kind={viewedThread.kind}
-                  meta={draftMeta}
-                  draft={draft}
-                  onChange={updateDraft}
-                  committing={close.isPending}
-                  regenerating={preview.isPending}
-                  onConfirm={() => close.mutate(draft)}
-                  onRegenerate={() => preview.mutate()}
-                  onDiscard={() => {
-                    setDraft(null);
-                    setDraftMeta(null);
-                  }}
-                />
-              ) : showComposer && confirmingClose ? (
+              {showComposer && confirmingClose ? (
                 <div className="flex items-center justify-between gap-3 rounded-lg bg-warning/10 p-3 text-sm">
-                  <span>{t("followUp.confirmCloseWarning")}</span>
+                  <span>
+                    {confirmingClose === "skip"
+                      ? t("followUp.confirmCloseNoSummaryWarning")
+                      : t("followUp.confirmCloseWarning")}
+                  </span>
                   <div className="flex shrink-0 gap-2">
                     <Button size="sm" variant="outline" onClick={() => setConfirmingClose(false)}>
                       {t("common.cancel")}
@@ -498,7 +560,9 @@ export function FollowUpPanel({
                       size="sm"
                       variant="destructive"
                       disabled={close.isPending}
-                      onClick={() => close.mutate(undefined)}
+                      onClick={() =>
+                        close.mutate(confirmingClose === "skip" ? { skipSummary: true } : {})
+                      }
                     >
                       {close.isPending ? t("followUp.closing") : t("followUp.confirmClose")}
                     </Button>
@@ -553,8 +617,7 @@ export function FollowUpPanel({
                                 onClick={() => {
                                   setActive(thread.id);
                                   setConfirmingClose(false);
-                                  setDraft(null);
-                                  setDraftMeta(null);
+                                  clearDraft();
                                 }}
                                 className={cn(
                                   "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
@@ -582,8 +645,7 @@ export function FollowUpPanel({
                           setActive(NEW);
                           setText("");
                           setConfirmingClose(false);
-                          setDraft(null);
-                          setDraftMeta(null);
+                          clearDraft();
                         }}
                         className={cn(
                           "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors",
@@ -598,20 +660,53 @@ export function FollowUpPanel({
                       </button>
                     </div>
                   </TooltipProvider>
-                  {showComposer &&
-                  isViewingOpen &&
-                  !confirmingClose &&
-                  !(draft && draftMeta && viewedThread) ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={send.isPending || preview.isPending || close.isPending}
-                      onClick={() => (needsSummary ? preview.mutate() : setConfirmingClose(true))}
-                    >
-                      {viewedKind === FollowUpThreadKind.score_challenge
-                        ? t("followUp.closeRequest")
-                        : t("followUp.closeFollowUp")}
-                    </Button>
+                  {showComposer && isViewingOpen && !confirmingClose ? (
+                    draft && draftMeta && viewedThread ? (
+                      draftCollapsed ? (
+                        <div className="ml-auto flex shrink-0 items-center justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={close.isPending || preview.isPending}
+                            onClick={() => setDraftCollapsed(false)}
+                          >
+                            {t("followUp.resumeDraft")}
+                          </Button>
+                        </div>
+                      ) : null
+                    ) : (
+                      <div className="ml-auto flex shrink-0 items-center justify-end gap-2">
+                        {needsSummary ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={send.isPending || preview.isPending || close.isPending}
+                            onClick={() => setConfirmingClose("skip")}
+                          >
+                            {t("followUp.closeNoSummary")}
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={send.isPending || preview.isPending || close.isPending}
+                          onClick={() =>
+                            needsSummary ? preview.mutate() : setConfirmingClose("normal")
+                          }
+                        >
+                          {preview.isPending ? (
+                            <>
+                              <Loader2 className="size-4 animate-spin" />
+                              {t("followUp.summarizing")}
+                            </>
+                          ) : viewedKind === FollowUpThreadKind.score_challenge ? (
+                            t("followUp.closeRequest")
+                          ) : (
+                            t("followUp.closeFollowUp")
+                          )}
+                        </Button>
+                      </div>
+                    )
                   ) : null}
                 </div>
               ) : null}
@@ -619,7 +714,36 @@ export function FollowUpPanel({
           ) : null}
         </SidePanelContent>
       </SidePanel>
+
+      {/* 结算草稿：从追问面板左侧展开的等高子面板。点 X 只是临时收起（内容保留，可"继续编辑"恢复）；
+          "放弃"按钮才真正清掉草稿。都不关闭追问面板本身。 */}
+      {open && showComposer && draft && draftMeta && viewedThread && !draftCollapsed ? (
+        <CloseReviewDraft
+          kind={viewedThread.kind}
+          meta={draftMeta}
+          draft={draft}
+          onChange={updateDraft}
+          committing={close.isPending}
+          regenerating={preview.isPending}
+          onConfirm={() => close.mutate({ input: draft })}
+          onRegenerate={() => preview.mutate()}
+          onCollapse={() => setDraftCollapsed(true)}
+          onDiscard={clearDraft}
+        />
+      ) : null}
     </>
+  );
+}
+
+/** 结算草稿里的只读字段：AI 判定的部分用户不能改，只能确认 / 重新生成。 */
+function DraftReadOnly({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <p className="whitespace-pre-wrap rounded-md bg-muted/40 px-3 py-2 text-sm text-foreground">
+        {value || "—"}
+      </p>
+    </div>
   );
 }
 
@@ -630,6 +754,7 @@ function CloseReviewDraft({
   onChange,
   onConfirm,
   onRegenerate,
+  onCollapse,
   onDiscard,
   committing,
   regenerating,
@@ -640,6 +765,9 @@ function CloseReviewDraft({
   onChange: (patch: Partial<FollowUpCloseInput>) => void;
   onConfirm: () => void;
   onRegenerate: () => void;
+  /** 点 X：临时收起，保留内容。 */
+  onCollapse: () => void;
+  /** "放弃"按钮：真正丢弃草稿。 */
   onDiscard: () => void;
   committing: boolean;
   regenerating: boolean;
@@ -649,191 +777,163 @@ function CloseReviewDraft({
   const committable = inputIsCommittable(kind, draft);
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
-      <p className="text-xs font-medium text-primary">{t("followUp.draft.title")}</p>
+    <div className="fixed inset-y-0 right-[30rem] z-50 flex h-dvh w-[26rem] max-w-[calc(100vw-30rem)] flex-col bg-background text-sm shadow-2xl duration-300 animate-in slide-in-from-right">
+      <div className="flex shrink-0 items-start justify-between gap-3 px-5 py-4">
+        <p className="text-sm font-medium text-primary">{t("followUp.draft.title")}</p>
+        <button
+          type="button"
+          onClick={onCollapse}
+          aria-label={t("common.close")}
+          className="-mr-1 mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs text-muted-foreground">{t("followUp.draft.conclusion")}</span>
-        <Textarea
-          rows={4}
-          value={draft.aiResponse}
-          onChange={(e) => onChange({ aiResponse: e.target.value })}
-        />
-      </label>
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
+        {/* AI 给出的结论：只读，用户只能确认 / 重新生成，不能改写。 */}
+        <DraftReadOnly label={t("followUp.draft.conclusion")} value={draft.aiResponse} />
 
-      {isScore ? (
-        <>
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">
-              {meta.currentBand !== null
-                ? t("followUp.draft.decisionCurrentBand", { band: meta.currentBand })
-                : t("followUp.draft.decision")}
-            </span>
-            <div className="flex gap-1.5">
-              {[
-                { v: ScoreChallengeDecision.uphold, label: t("followUp.draft.uphold") },
-                { v: ScoreChallengeDecision.adjust, label: t("followUp.draft.adjust") },
-              ].map((o) => (
-                <button
-                  key={o.v}
-                  type="button"
-                  className={cn(CHIP, draft.decision === o.v ? CHIP_ON : CHIP_OFF)}
-                  onClick={() =>
-                    onChange({
-                      decision: o.v,
-                      revisedBand:
-                        o.v === ScoreChallengeDecision.adjust
-                          ? (draft.revisedBand ?? meta.currentBand ?? null)
-                          : null,
-                      revisedRationale:
-                        o.v === ScoreChallengeDecision.adjust ? draft.revisedRationale : null,
-                    })
-                  }
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {draft.decision === ScoreChallengeDecision.adjust ? (
-            <>
-              <label className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  {t("followUp.draft.revisedBand")}
-                </span>
-                <Input
-                  type="number"
-                  min={1}
-                  max={5}
-                  className="h-8 w-20"
-                  value={draft.revisedBand ?? ""}
-                  onChange={(e) =>
-                    onChange({
-                      revisedBand: e.target.value === "" ? null : Number(e.target.value),
-                    })
-                  }
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">
-                  {t("followUp.draft.revisedRationale")}
-                </span>
-                <Textarea
-                  rows={3}
-                  value={draft.revisedRationale ?? ""}
-                  onChange={(e) => onChange({ revisedRationale: e.target.value })}
-                />
-              </label>
-            </>
-          ) : null}
-        </>
-      ) : (
-        <>
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">
-              {t("followUp.draft.finalVerdict")}
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { v: FollowUpVerdict.user_correct, label: t("followUp.draft.verdictUserCorrect") },
-                { v: FollowUpVerdict.user_incorrect, label: t("followUp.draft.verdictUpheld") },
-                { v: FollowUpVerdict.partial, label: t("followUp.draft.verdictPartial") },
-                { v: null, label: t("followUp.draft.verdictNoDispute") },
-              ].map((o) => (
-                <button
-                  key={String(o.v)}
-                  type="button"
-                  className={cn(CHIP, draft.finalVerdict === o.v ? CHIP_ON : CHIP_OFF)}
-                  onClick={() =>
-                    onChange({
-                      finalVerdict: o.v,
-                      standardRevision:
-                        o.v === FollowUpVerdict.user_correct
-                          ? (draft.standardRevision ?? {
-                              scope: OverrideScope.grading_rubric,
-                              dimensionOrRule: "",
-                              originalRuleText: null,
-                              revisedRuleText: "",
-                            })
-                          : null,
-                    })
-                  }
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {draft.finalVerdict === FollowUpVerdict.user_correct && draft.standardRevision ? (
-            <div className="flex flex-col gap-2 rounded-md border border-border bg-background p-2">
-              <span className="text-xs font-medium">
-                {t("followUp.draft.standardRevisionRecord")}
+        {isScore ? (
+          <>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">
+                {meta.currentBand !== null
+                  ? t("followUp.draft.decisionCurrentBand", { band: meta.currentBand })
+                  : t("followUp.draft.decision")}
               </span>
               <div className="flex gap-1.5">
                 {[
-                  { v: OverrideScope.grading_rubric, label: t("followUp.draft.scopeRubric") },
-                  {
-                    v: OverrideScope.translation_reference,
-                    label: t("followUp.draft.scopeReference"),
-                  },
+                  { v: ScoreChallengeDecision.uphold, label: t("followUp.draft.uphold") },
+                  { v: ScoreChallengeDecision.adjust, label: t("followUp.draft.adjust") },
                 ].map((o) => (
                   <button
                     key={o.v}
                     type="button"
-                    className={cn(CHIP, draft.standardRevision!.scope === o.v ? CHIP_ON : CHIP_OFF)}
+                    className={cn(CHIP, draft.decision === o.v ? CHIP_ON : CHIP_OFF)}
                     onClick={() =>
-                      onChange({ standardRevision: { ...draft.standardRevision!, scope: o.v } })
+                      onChange({
+                        decision: o.v,
+                        revisedBand:
+                          o.v === ScoreChallengeDecision.adjust
+                            ? (draft.revisedBand ?? meta.currentBand ?? null)
+                            : null,
+                        revisedRationale:
+                          o.v === ScoreChallengeDecision.adjust ? draft.revisedRationale : null,
+                      })
                     }
                   >
                     {o.label}
                   </button>
                 ))}
               </div>
-              <Input
-                placeholder={t("followUp.draft.phDimensionOrRule")}
-                className="h-8"
-                value={draft.standardRevision.dimensionOrRule}
-                onChange={(e) =>
-                  onChange({
-                    standardRevision: {
-                      ...draft.standardRevision!,
-                      dimensionOrRule: e.target.value,
-                    },
-                  })
-                }
-              />
-              <Input
-                placeholder={t("followUp.draft.phOriginalRule")}
-                className="h-8"
-                value={draft.standardRevision.originalRuleText ?? ""}
-                onChange={(e) =>
-                  onChange({
-                    standardRevision: {
-                      ...draft.standardRevision!,
-                      originalRuleText: e.target.value || null,
-                    },
-                  })
-                }
-              />
-              <Textarea
-                rows={2}
-                placeholder={t("followUp.draft.phRevisedRule")}
-                value={draft.standardRevision.revisedRuleText}
-                onChange={(e) =>
-                  onChange({
-                    standardRevision: {
-                      ...draft.standardRevision!,
-                      revisedRuleText: e.target.value,
-                    },
-                  })
-                }
-              />
             </div>
-          ) : null}
-        </>
-      )}
+            {draft.decision === ScoreChallengeDecision.adjust ? (
+              <>
+                <label className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {t("followUp.draft.revisedBand")}
+                  </span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={5}
+                    className="h-8 w-20"
+                    value={draft.revisedBand ?? ""}
+                    onChange={(e) =>
+                      onChange({
+                        revisedBand: e.target.value === "" ? null : Number(e.target.value),
+                      })
+                    }
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {t("followUp.draft.revisedRationale")}
+                  </span>
+                  <Textarea
+                    rows={3}
+                    value={draft.revisedRationale ?? ""}
+                    onChange={(e) => onChange({ revisedRationale: e.target.value })}
+                  />
+                </label>
+              </>
+            ) : null}
+          </>
+        ) : (
+          <>
+            {/* AI 判定的最终结论：只读，label 与 value 同一行，按结论着色。 */}
+            {(() => {
+              const v = draft.finalVerdict;
+              const verdict =
+                v === FollowUpVerdict.user_correct
+                  ? { text: t("followUp.draft.verdictUserCorrect"), tone: "text-success" }
+                  : v === FollowUpVerdict.user_incorrect
+                    ? { text: t("followUp.draft.verdictUpheld"), tone: "text-destructive" }
+                    : v === FollowUpVerdict.partial
+                      ? {
+                          text: t("followUp.draft.verdictPartial"),
+                          tone: "text-warning-foreground",
+                        }
+                      : {
+                          text: t("followUp.draft.verdictNoDispute"),
+                          tone: "text-muted-foreground",
+                        };
+              return (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {t("followUp.draft.finalVerdict")}
+                  </span>
+                  <span className={cn("text-sm font-medium", verdict.tone)}>{verdict.text}</span>
+                </div>
+              );
+            })()}
+            {draft.finalVerdict === FollowUpVerdict.user_correct && draft.standardRevision ? (
+              <div className="flex flex-col gap-3">
+                {/* scope + dimensionOrRule 由 AI 判定，只读，同一行显示，不需要 label。 */}
+                <p className="text-sm">
+                  <span className="text-muted-foreground">
+                    {draft.standardRevision.scope === OverrideScope.translation_reference
+                      ? t("followUp.draft.scopeReference")
+                      : t("followUp.draft.scopeRubric")}
+                  </span>
+                  {" · "}
+                  <span className="font-medium">
+                    {draft.standardRevision.dimensionOrRule || "—"}
+                  </span>
+                </p>
+                {/* 当时套用的规则原文：AI 提供，只读，无 label 无说明。 */}
+                <p className="whitespace-pre-wrap rounded-md bg-muted/40 px-3 py-2 text-sm text-foreground">
+                  {draft.standardRevision.originalRuleText || "—"}
+                </p>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-medium">
+                    {t("followUp.draft.revisedRuleLabel")}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {t("followUp.draft.revisedRuleHelp")}
+                  </span>
+                  <Textarea
+                    rows={5}
+                    className="mt-1"
+                    value={draft.standardRevision.revisedRuleText}
+                    onChange={(e) =>
+                      onChange({
+                        standardRevision: {
+                          ...draft.standardRevision!,
+                          revisedRuleText: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                </label>
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 px-5 py-4">
         <Button variant="ghost" size="sm" disabled={committing || regenerating} onClick={onDiscard}>
           {t("followUp.draft.discard")}
         </Button>

@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpenCheck, Gavel, Loader2, RefreshCw } from "lucide-react";
+import { BookOpenCheck, ChevronDown, Gavel, Loader2, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/shared/app-shell";
 import { AiLoadingState, ErrorBanner } from "@/components/shared/ai-loading-state";
 import { GradingResultPanel } from "@/components/grading/grading-result-panel";
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getQuestionById } from "@/lib/api/questions";
 import {
   getSubmissionById,
@@ -60,6 +61,11 @@ export function SubmissionPage() {
   // 何时把任务交给后端的。null = 本次会话没发起过批改。用来区分"刚提交、等着人点批改"和
   // "已经入队、worker 还没把状态翻成 grading"这两种同样是 submitted 的情况。
   const [enqueuedAt, setEnqueuedAt] = useState<number | null>(null);
+
+  // 右栏两块可折叠：默认「核心意群」展开、「你的译文」收起。允许两块都展开，但不允许两块都收起——
+  // 收起当前唯一展开的那块时，自动把另一块展开（互换），保证任何时候至少有一块可见。
+  const [answerOpen, setAnswerOpen] = useState(false);
+  const [pointsOpen, setPointsOpen] = useState(true);
 
   const submission = useQuery({
     queryKey: ["submission", submissionId],
@@ -319,72 +325,135 @@ export function SubmissionPage() {
         </div>
 
         <div className="flex min-h-0 flex-col gap-6 lg:overflow-hidden">
-          <Card className="flex min-h-0 flex-1 flex-col border-border shadow-none">
-            <CardHeader className="shrink-0">
-              <CardTitle className="text-base">{t("submission.yourAnswer")}</CardTitle>
-            </CardHeader>
-            <CardContent className="min-h-0 flex-1 overflow-y-auto">
-              <div className="flex min-h-full flex-col justify-center">
-                {s.taskType === TaskType.B && Array.isArray(parsedContent) ? (
-                  <ul className="space-y-3">
-                    {parsedContent.map((a, i) => (
-                      <li key={i} className="rounded-md border border-border p-3 text-sm">
-                        <span className="text-numeric text-xs text-muted-foreground">
-                          [{a.positionStart}, {a.positionEnd}) · {a.errorCategory}
-                        </span>
-                        <p className="mt-1 text-primary">{a.correctedText}</p>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="source-text whitespace-pre-wrap text-sm">{String(parsedContent)}</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {question.data?.meaningCheckpoints.length ? (
-            <Card className="shrink-0 border-border shadow-none lg:max-h-[32%] lg:overflow-y-auto">
-              <CardHeader>
-                <CardTitle className="text-base">{t("submission.meaningCheckpoints")}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <TooltipProvider delayDuration={200}>
-                  <ul className="space-y-1">
-                    {question.data.meaningCheckpoints.map((c) => {
-                      const isCore = c.importance === CheckpointImportance.core;
-                      return (
-                        <li key={c.id} className="flex items-start gap-2 text-sm">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="flex h-5 shrink-0 items-center">
-                                <span
-                                  className={cn(
-                                    "block size-1.5 rounded-full",
-                                    isCore ? "bg-primary" : "bg-muted-foreground/40",
-                                  )}
-                                />
+          {(() => {
+            const hasPoints = !!question.data?.meaningCheckpoints.length;
+            // 收起「你的译文」：若它是唯一展开的一块，则把「核心意群」顶上来（互换）；没有意群块时不允许收起。
+            const toggleAnswer = (next: boolean) => {
+              if (next) return setAnswerOpen(true);
+              if (!hasPoints) return;
+              if (!pointsOpen) setPointsOpen(true);
+              setAnswerOpen(false);
+            };
+            const togglePoints = (next: boolean) => {
+              if (next) return setPointsOpen(true);
+              if (!answerOpen) setAnswerOpen(true);
+              setPointsOpen(false);
+            };
+            return (
+              <>
+                <CollapsibleSection
+                  title={t("submission.yourAnswer")}
+                  open={answerOpen || !hasPoints}
+                  onOpenChange={toggleAnswer}
+                >
+                  <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+                    <div className="flex min-h-full flex-col justify-center">
+                      {s.taskType === TaskType.B && Array.isArray(parsedContent) ? (
+                        <ul className="space-y-3">
+                          {parsedContent.map((a, i) => (
+                            <li key={i} className="rounded-md border border-border p-3 text-sm">
+                              <span className="text-numeric text-xs text-muted-foreground">
+                                [{a.positionStart}, {a.positionEnd}) · {a.errorCategory}
                               </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {CheckpointImportanceLabel[c.importance]}
-                            </TooltipContent>
-                          </Tooltip>
-                          <span className={cn(!isCore && "text-muted-foreground")}>
-                            {c.checkpointText}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </TooltipProvider>
-              </CardContent>
-            </Card>
-          ) : null}
+                              <p className="mt-1 text-primary">{a.correctedText}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="source-text whitespace-pre-wrap text-sm">
+                          {String(parsedContent)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </CollapsibleSection>
+
+                {hasPoints ? (
+                  <CollapsibleSection
+                    title={t("submission.meaningCheckpoints")}
+                    open={pointsOpen}
+                    onOpenChange={togglePoints}
+                  >
+                    <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+                      <TooltipProvider delayDuration={200}>
+                        <ul className="space-y-1">
+                          {question.data!.meaningCheckpoints.map((c) => {
+                            const isCore = c.importance === CheckpointImportance.core;
+                            return (
+                              <li key={c.id} className="flex items-start gap-2 text-sm">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="flex h-5 shrink-0 items-center">
+                                      <span
+                                        className={cn(
+                                          "block size-1.5 rounded-full",
+                                          isCore ? "bg-primary" : "bg-muted-foreground/40",
+                                        )}
+                                      />
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {CheckpointImportanceLabel[c.importance]}
+                                  </TooltipContent>
+                                </Tooltip>
+                                <span className={cn(!isCore && "text-muted-foreground")}>
+                                  {c.checkpointText}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </TooltipProvider>
+                    </div>
+                  </CollapsibleSection>
+                ) : null}
+              </>
+            );
+          })()}
 
           {/* 追问历史现在完整呈现在 FollowUpPanel（SidePanel）里，页面不再单独放一份记录卡片。 */}
         </div>
       </div>
     </AppShell>
+  );
+}
+
+/**
+ * 右栏的可折叠区块：展开时用 flex-1 吃掉剩余高度、内部滚动；收起时只剩标题条（shrink-0），
+ * 且标题条换成 muted 底色以和展开态区分。折叠状态由父组件控制（见 answerOpen / pointsOpen）。
+ */
+function CollapsibleSection({
+  title,
+  open,
+  onOpenChange,
+  children,
+}: {
+  title: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={onOpenChange}
+      className={cn(
+        "flex flex-col overflow-hidden rounded-xl bg-card text-card-foreground",
+        open ? "min-h-0 flex-1" : "shrink-0",
+      )}
+    >
+      <CollapsibleTrigger
+        className={cn(
+          "flex shrink-0 cursor-pointer items-center justify-between gap-2 px-6 py-4 text-left text-base font-semibold transition-colors [&[data-state=closed]>svg]:-rotate-90",
+          open ? "hover:bg-accent/40" : "bg-accent/60 text-accent-foreground hover:bg-accent/80",
+        )}
+      >
+        {title}
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform" />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {children}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
