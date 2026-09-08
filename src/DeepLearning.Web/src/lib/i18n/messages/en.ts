@@ -218,7 +218,7 @@ const en = {
 
   // ---- 考试管理 ----
   "examMgmt.description": "Manage and add exam types",
-  "examMgmt.col.subjectCategory": "Subject Category",
+  "examMgmt.col.subjectCategory": "Subject",
   "examMgmt.col.configuration": "Configuration",
   "examMgmt.configure": "Configure",
   "examMgmt.configTitle": "Configuration · {name}",
@@ -554,7 +554,7 @@ const en = {
   "followUp.viewOngoingChallenge": "View the ongoing re-grade request",
   "followUp.viewOngoing": "View the ongoing follow-up",
   "followUp.requestRegrade": "Request a re-grade",
-  "followUp.startFollowUp": "Disagree with the verdict / have a question? Start a follow-up",
+  "followUp.startFollowUp": "Ask AI",
   "followUp.headerChallenge": "Re-grade request · {dim}",
   "followUp.headerFollowUp": "Follow-up",
   "followUp.descChallenge":

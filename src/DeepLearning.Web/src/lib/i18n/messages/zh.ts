@@ -80,7 +80,7 @@ const zh: Record<MessageKey, string> = {
   "login.title": "登录",
   "login.subtitleSupabase": "使用 Supabase 账号登录。",
   "login.subtitleMock":
-    "Supabase Auth 还没配置（缺 NEXT_PUBLIC_SUPABASE_ANON_KEY），任意信息即可进入占位状态。",
+    "Supabase Auth 还没配置(缺 NEXT_PUBLIC_SUPABASE_ANON_KEY), 任意信息即可进入占位状态。",
   "login.email": "邮箱",
   "login.password": "密码",
   "login.submit": "登录并开始练习",

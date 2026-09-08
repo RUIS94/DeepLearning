@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, FileText, History } from "lucide-react";
+import { ArrowRight, FileText, History, Upload } from "lucide-react";
 import type { QuestionListItem } from "@/lib/types/dtos";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { DifficultyBadge, TaskTypeBadge } from "./difficulty-badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Difficulty } from "@/lib/types/enums";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import { formatDate } from "@/lib/band";
 import { useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 export function QuestionCard({
   question,
@@ -17,38 +19,65 @@ export function QuestionCard({
   onOpenRecords?: (question: QuestionListItem) => void;
 }) {
   const t = useT();
+  const { TaskTypeLabel, DifficultyLabel } = useEnumLabels();
   const practiced = question.myAttemptCount > 0;
 
   return (
     <Card className="group h-full border-border shadow-none transition-shadow hover:shadow-[var(--shadow-paper)]">
       <CardContent className="flex h-full flex-col gap-4 p-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <TaskTypeBadge taskType={question.taskType} />
-          <DifficultyBadge difficulty={question.difficulty} />
-          {question.inBank ? (
-            <Badge variant="outline" className="border-primary/30 text-primary">
-              {t("questionCard.imported")}
-            </Badge>
-          ) : null}
-          {practiced ? (
-            <Badge variant="outline" className="border-transparent bg-success/12 text-success">
-              {t("questionCard.practicedTimes", { count: question.myAttemptCount })}
-            </Badge>
-          ) : null}
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 font-semibold text-secondary">
+              {TaskTypeLabel[question.taskType]}
+            </span>
+            <span className="text-numeric inline-flex min-w-0 items-center gap-1 text-muted-foreground">
+              <FileText className="size-3.5 shrink-0" />
+              <span className="truncate">
+                {t("questionCard.words", { count: question.wordCount ?? "—" })} ·{" "}
+                {formatDate(question.createdAt)}
+              </span>
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {question.inBank ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex items-center text-muted-foreground">
+                      <Upload className="size-3.5" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("questionCard.imported")}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : null}
+            <span
+              className={cn(
+                "font-semibold",
+                question.difficulty === Difficulty.easy && "text-success",
+                question.difficulty === Difficulty.medium && "text-warning-foreground",
+                question.difficulty === Difficulty.hard && "text-destructive",
+              )}
+            >
+              {DifficultyLabel[question.difficulty]}
+            </span>
+          </div>
         </div>
+
         <h3 className="flex-1 text-base font-semibold leading-snug">{question.title}</h3>
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span className="text-numeric inline-flex items-center gap-1">
-            <FileText className="size-3.5" />
-            {t("questionCard.words", { count: question.wordCount ?? "—" })} ·{" "}
-            {formatDate(question.createdAt)}
+
+        <div className="-my-1 flex items-center justify-between gap-2 text-xs">
+          <span className="font-medium text-success">
+            {practiced
+              ? t("questionCard.practicedTimes", { count: question.myAttemptCount })
+              : null}
           </span>
-          <div className="flex items-center gap-3">
+          <div className="-mr-2 flex items-center gap-1">
             {practiced && onOpenRecords ? (
               <button
                 type="button"
                 onClick={() => onOpenRecords(question)}
-                className="inline-flex items-center gap-1 font-medium text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <History className="size-3.5" />
                 {t("questionCard.records")}
@@ -56,7 +85,7 @@ export function QuestionCard({
             ) : null}
             <Link
               href={`/practice/${question.id}`}
-              className="inline-flex items-center gap-1 font-medium text-primary"
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium text-primary transition-colors hover:bg-primary/10"
             >
               {t("questionCard.start")}
               <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />

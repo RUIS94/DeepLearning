@@ -210,14 +210,6 @@ export function SubmissionPage() {
               ) : null}
             </Badge>
           ) : null}
-          {question.data ? (
-            <Button variant="outline" asChild>
-              <Link href={`/deep-learning/${question.data.id}`}>
-                <BookOpenCheck className="size-4" />
-                {t("deepLearning.title")}
-              </Link>
-            </Button>
-          ) : null}
           {graded && !archived ? (
             <FollowUpPanel
               key={submissionId}
@@ -226,6 +218,14 @@ export function SubmissionPage() {
                 queryClient.invalidateQueries({ queryKey: ["submission", submissionId] })
               }
             />
+          ) : null}
+          {question.data ? (
+            <Button asChild>
+              <Link href={`/deep-learning/${question.data.id}`}>
+                <BookOpenCheck className="size-4" />
+                {t("deepLearning.title")}
+              </Link>
+            </Button>
           ) : null}
         </>
       }
@@ -236,7 +236,7 @@ export function SubmissionPage() {
       <div className="grid gap-6 lg:h-full lg:min-h-0 lg:grid-cols-[1fr_380px]">
         <div className="flex min-h-0 flex-col gap-6 lg:overflow-hidden">
           {!graded ? (
-            <Card className="flex min-h-0 flex-1 flex-col border-border shadow-none">
+            <Card className="flex min-h-0 flex-1 flex-col">
               <CardHeader className="shrink-0">
                 <CardTitle className="text-base">
                   {gradingInFlight
