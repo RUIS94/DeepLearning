@@ -3,10 +3,10 @@
 import { useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpenCheck, Quote } from "lucide-react";
+import { BookOpenCheck, Loader2, Quote } from "lucide-react";
 import { AppShell } from "@/components/shared/app-shell";
 import { ArticleText } from "@/components/shared/article-text";
-import { AiLoadingState, ErrorBanner } from "@/components/shared/ai-loading-state";
+import { ErrorBanner } from "@/components/shared/ai-loading-state";
 import { FollowUpPanel } from "@/components/grading/follow-up-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ import { listSubmissions } from "@/lib/api/submissions";
 import { useExamType } from "@/hooks/use-exam-config";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useT } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import type { SentencePattern, VocabExpression } from "@/lib/types/dtos";
 
 /** breakdownSteps 后端存的是 AI 返回的原始 JSON（对象 {"主干": "...", ...} 或普通字符串）——两种都兜住。 */
@@ -67,11 +68,18 @@ function ComparisonNotes({ raw }: { raw: string }) {
   return <>{raw}</>;
 }
 
-function TagRow({ tags }: { tags: (string | null | undefined)[] }) {
+/** 标签行（不着色，muted 描边）——Vocabulary 区域用，默认放在单词上方。 */
+function TagRow({
+  tags,
+  className = "mb-2",
+}: {
+  tags: (string | null | undefined)[];
+  className?: string;
+}) {
   const shown = tags.filter((t): t is string => !!t);
   if (shown.length === 0) return null;
   return (
-    <div className="mt-3 flex flex-wrap gap-2">
+    <div className={cn("flex flex-wrap gap-2", className)}>
       {shown.map((tag) => (
         <Badge key={tag} variant="outline" className="border-border text-muted-foreground">
           {tag}
@@ -81,11 +89,47 @@ function TagRow({ tags }: { tags: (string | null | undefined)[] }) {
   );
 }
 
+/** 频次标签配色：高频=primary、中频=warning、低频=muted。 */
+function freqTone(tag: string): string {
+  if (/高|high/i.test(tag)) return "border-primary/40 text-primary";
+  if (/中|mid|medium/i.test(tag)) return "border-warning/40 text-warning-foreground";
+  return "border-border text-muted-foreground";
+}
+
+/** domain / scenario / frequency 三个标签，显示在 item 右上角；频次标签按高/中/低着色。 */
+function ItemTags({
+  domain,
+  scenario,
+  freq,
+}: {
+  domain?: string | null;
+  scenario?: string | null;
+  freq?: string | null;
+}) {
+  const tags: { text: string; tone: string }[] = [];
+  if (domain) tags.push({ text: domain, tone: "border-border text-muted-foreground" });
+  if (scenario) tags.push({ text: scenario, tone: "border-border text-muted-foreground" });
+  if (freq) tags.push({ text: freq, tone: freqTone(freq) });
+  if (tags.length === 0) return null;
+  return (
+    <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+      {tags.map((tg, i) => (
+        <Badge key={i} variant="outline" className={cn("text-xs", tg.tone)}>
+          {tg.text}
+        </Badge>
+      ))}
+    </div>
+  );
+}
+
 function SentencePatternCard({ p }: { p: SentencePattern }) {
   const t = useT();
   return (
-    <div className="rounded-lg border border-border p-4">
-      <p className="text-sm font-medium">{p.patternName}</p>
+    <div className="border-b border-dashed border-border py-4 first:pt-0 last:border-0 last:pb-0">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium">{p.patternName}</p>
+        <ItemTags domain={p.domain} scenario={p.scenario} freq={p.frequencyTag} />
+      </div>
       {p.exampleSentence ? (
         <p className="mt-2 flex gap-2 text-sm text-muted-foreground">
           <Quote className="mt-0.5 size-3.5 shrink-0" />
@@ -99,7 +143,6 @@ function SentencePatternCard({ p }: { p: SentencePattern }) {
           {p.variants}
         </p>
       ) : null}
-      <TagRow tags={[p.domain, p.scenario, p.frequencyTag]} />
     </div>
   );
 }
@@ -107,7 +150,8 @@ function SentencePatternCard({ p }: { p: SentencePattern }) {
 function VocabCard({ v }: { v: VocabExpression }) {
   const t = useT();
   return (
-    <div className="rounded-lg border border-border p-4">
+    <div className="border-b border-dashed border-border py-4 last:border-0 last:pb-0">
+      <TagRow tags={[v.domain, v.scenario, v.frequencyTag]} />
       <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
         {v.englishExpr}
         {v.literalTranslatable === false ? (
@@ -120,7 +164,6 @@ function VocabCard({ v }: { v: VocabExpression }) {
       {v.contextNote ? (
         <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{v.contextNote}</p>
       ) : null}
-      <TagRow tags={[v.domain, v.scenario, v.frequencyTag]} />
     </div>
   );
 }
@@ -180,6 +223,8 @@ export function DeepLearningPage() {
     <AppShell
       title={t("deepLearning.title")}
       description={question.data?.title}
+      back
+      backHref={submissionId ? `/submissions/${submissionId}` : undefined}
       actions={
         <>
           {content.data ? (
@@ -201,7 +246,23 @@ export function DeepLearningPage() {
       }
     >
       {content.isPending ? (
-        <AiLoadingState status="pending" pendingHint={t("deepLearning.pendingHint")} />
+        // 和批改页的 loading 一致：整卡居中的大 spinner + 一句提示，页面稳定停在这里。
+        <div className="flex min-h-full flex-col">
+          <Card className="flex min-h-0 flex-1 flex-col border-border shadow-none">
+            <CardHeader className="shrink-0">
+              <CardTitle className="text-base">{t("deepLearning.generatingTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent className="min-h-0 flex-1 overflow-y-auto">
+              <div className="flex min-h-full flex-col items-center justify-center gap-3 py-10 text-center">
+                <Loader2 className="size-8 animate-spin text-primary" />
+                <p className="text-sm font-medium">{t("deepLearning.generating")}</p>
+                <p className="max-w-md text-sm text-muted-foreground">
+                  {t("deepLearning.pendingHint")}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       ) : content.isError ? (
         <ErrorBanner error={content.error} />
       ) : content.data ? (
@@ -226,7 +287,7 @@ export function DeepLearningPage() {
                     ) : null}
                     <ArticleText text={content.data.referenceText} className="text-[15px]" />
                     {content.data.comparisonNotes ? (
-                      <div className="rounded-lg border border-border bg-secondary/50 p-4 text-sm leading-relaxed">
+                      <div className="rounded-lg bg-muted p-4 text-sm leading-relaxed">
                         <p className="mb-1 font-medium">{t("deepLearning.comparisonPoints")}</p>
                         <ComparisonNotes raw={content.data.comparisonNotes} />
                       </div>
@@ -240,7 +301,7 @@ export function DeepLearningPage() {
                       {t("deepLearning.sentenceBreakdown")}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="pt-0">
                     {content.data.sentencePatterns.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
                         {t("deepLearning.noSentencePatterns")}
@@ -266,7 +327,7 @@ export function DeepLearningPage() {
                   <p className="text-sm text-muted-foreground">{t("deepLearning.noVocab")}</p>
                 ) : (
                   vocabGroups.map(([group, items]) => (
-                    <div key={group} className="space-y-3">
+                    <div key={group}>
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         {group === UNCATEGORIZED ? t("deepLearning.uncategorized") : group}
                       </p>

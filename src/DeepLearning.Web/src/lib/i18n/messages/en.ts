@@ -183,6 +183,8 @@ const en = {
   "deepLearning.title": "Deep Learning",
   "deepLearning.cached": "Served from cache",
   "deepLearning.freshlyGenerated": "Freshly generated",
+  "deepLearning.generatingTitle": "Generating",
+  "deepLearning.generating": "The AI is preparing your deep-learning material",
   "deepLearning.pendingHint":
     "The AI is generating the reference translation and study cards; the first run is slower",
   "deepLearning.referenceTranslation": "Reference Translation",
@@ -667,6 +669,7 @@ const en = {
   "grading.errorAnchor": "Error #{index} · {ref} · {category}",
   "grading.askAboutError": "Ask this error",
   "grading.dimensionScores": "Dimension Scores",
+  "grading.passLineBand": "pass line: Band {band}",
   "grading.viewOngoingChallenge": "View the ongoing re-grade request",
   "grading.challengeThisDimension": "Request a re-grade of this dimension's Band",
 

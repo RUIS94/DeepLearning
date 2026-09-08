@@ -174,6 +174,8 @@ const zh: Record<MessageKey, string> = {
   "deepLearning.title": "深入学习",
   "deepLearning.cached": "命中缓存内容",
   "deepLearning.freshlyGenerated": "本次新生成",
+  "deepLearning.generatingTitle": "正在生成",
+  "deepLearning.generating": "AI 正在准备深入学习内容",
   "deepLearning.pendingHint": "AI 正在生成参考译文与学习卡片，首次生成较慢",
   "deepLearning.referenceTranslation": "参考译文",
   "deepLearning.comparisonPoints": "对照要点",
@@ -630,6 +632,7 @@ const zh: Record<MessageKey, string> = {
   "grading.errorAnchor": "错误#{index} · {ref} · {category}",
   "grading.askAboutError": "针对这条错误提问 / 质疑",
   "grading.dimensionScores": "维度评分",
+  "grading.passLineBand": "通过线 Band {band}",
   "grading.viewOngoingChallenge": "查看进行中的改判申请",
   "grading.challengeThisDimension": "对这个维度的 Band 申请改判",
 

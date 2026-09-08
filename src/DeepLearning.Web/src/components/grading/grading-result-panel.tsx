@@ -17,6 +17,8 @@ import { useBandLabel, useEnumLabels, useErrorImpactLabel } from "@/lib/i18n/enu
 import { cn } from "@/lib/utils";
 import { FollowUpPanel } from "@/components/grading/follow-up-panel";
 import { listFollowUpThreads } from "@/lib/api/follow-up-threads";
+import { listAssessmentDimensions } from "@/lib/api/exam-config";
+import { useExamType } from "@/hooks/use-exam-config";
 
 const SEVERITY_TEXT: Record<number, string> = {
   [ErrorSeverity.minor]: "text-muted-foreground",
@@ -28,8 +30,16 @@ function humanizeCode(code: string): string {
   return code.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
+/** passThreshold 是自由文本（"2" / "Band 2" / "Band 2 or above"）——取其中第一个整数当作通过线 Band。 */
+function parsePassBand(threshold: string | null | undefined): number | null {
+  if (!threshold) return null;
+  const m = threshold.match(/\d+/);
+  return m ? Number(m[0]) : null;
+}
+
 function DimensionBandRow({
   name,
+  passBand,
   band,
   pass,
   rationale,
@@ -39,6 +49,7 @@ function DimensionBandRow({
   alternativeBand,
 }: {
   name: string;
+  passBand: number | null;
   band: number;
   pass: boolean;
   rationale: string;
@@ -57,7 +68,7 @@ function DimensionBandRow({
   // 只有在评卷阶段确实给出了另一个候选档时才提示：alternativeBand === band 表示"没有第二选择"。
   const contested = alternativeBand !== null && alternativeBand !== band;
   return (
-    <div className="space-y-2 border-b border-border py-4 last:border-0">
+    <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-3">
         <span
           className="text-numeric flex size-9 items-center justify-center rounded-md text-sm font-semibold text-primary-foreground"
@@ -66,7 +77,14 @@ function DimensionBandRow({
           {band}
         </span>
         <div className="flex-1">
-          <p className="text-sm font-medium">{name}</p>
+          <p className="text-sm font-medium">
+            {name}
+            {passBand !== null ? (
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                {t("grading.passLineBand", { band: passBand })}
+              </span>
+            ) : null}
+          </p>
           <p className="text-xs text-muted-foreground">
             Band {band} · {bandLabel(band)}
             {probability !== null
@@ -107,6 +125,17 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
   // errorList 只有 dimensionKey，没有维度名；从评分结果里按 key 取对应的展示名。
   const dimensionNameByKey = new Map(
     submission.gradingResults.map((r) => [r.dimensionKey, r.dimensionName]),
+  );
+
+  // 官方通过线 Band —— SubmissionDetail 不带，按当前 examType 拉一次 assessment-dimensions，按 key 映射。
+  const examType = useExamType();
+  const dimensions = useQuery({
+    queryKey: ["assessment-dimensions", examType.data?.id],
+    queryFn: () => listAssessmentDimensions(examType.data!.id),
+    enabled: !!examType.data?.id,
+  });
+  const passBandByKey = new Map(
+    (dimensions.data ?? []).map((d) => [d.dimensionKey, parsePassBand(d.passThreshold)]),
   );
   // 结果区在这些状态下都在（见 submission-page 的 graded 判断），改判入口的可见性再据线程情况细分。
   const resultsVisible =
@@ -282,9 +311,13 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
           {submission.gradingResults.map((r) => {
             const mode = challengeFor(r.dimensionId);
             return (
-              <div key={r.id}>
+              <div
+                key={r.id}
+                className="border-b border-dashed border-border py-4 first:pt-0 last:border-0 last:pb-0"
+              >
                 <DimensionBandRow
                   name={r.dimensionName}
+                  passBand={passBandByKey.get(r.dimensionKey) ?? null}
                   band={r.band}
                   pass={r.passBool}
                   rationale={r.rationale}
@@ -293,8 +326,8 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
                   confidence={r.confidence}
                   alternativeBand={r.alternativeBand}
                 />
-                {/* 始终挂载；是否给出可点的入口由 renderTrigger 决定，这样 popup 打开后线程状态变化不会卸载它。 */}
-                <div className={mode ? "-mt-1 pb-3" : undefined}>
+                {/* 改判入口：每个维度右下角，虚线之上。始终挂载 FollowUpPanel，是否给出可点入口由 renderTrigger 决定。 */}
+                <div className={cn("flex justify-end", mode && "mt-2")}>
                   <FollowUpPanel
                     submissionId={submission.id}
                     scoreChallenge={{ dimensionId: r.dimensionId, dimensionKey: r.dimensionKey }}
@@ -303,12 +336,7 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
                         <button
                           type="button"
                           onClick={openPanel}
-                          className={cn(
-                            "inline-flex items-center gap-1 text-xs underline underline-offset-2",
-                            mode === "reopen"
-                              ? "text-primary hover:text-primary/80"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
+                          className="inline-flex items-center gap-1 text-xs cursor-pointer text-secondary hover:text-secondary/80"
                         >
                           {mode === "reopen" ? (
                             <MessageSquare className="size-3" />

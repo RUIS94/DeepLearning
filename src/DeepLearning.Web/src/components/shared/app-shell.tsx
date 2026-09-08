@@ -19,8 +19,8 @@ export function AppShell({
   title: string;
   description?: string | undefined;
   actions?: ReactNode;
-  back?: boolean;
-  backHref?: string;
+  back?: boolean | undefined;
+  backHref?: string | undefined;
   children: ReactNode;
 }) {
   return (
