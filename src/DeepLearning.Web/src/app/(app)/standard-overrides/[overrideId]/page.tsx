@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { OverrideDetailPage } from "./override-detail-page";
 
 export const metadata: Metadata = {
-  title: "标准修正详情",
+  title: "Standard Revision Detail",
 };
 
 export default function Page() {

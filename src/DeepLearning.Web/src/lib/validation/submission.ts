@@ -6,21 +6,23 @@ import { z } from "zod";
  * 每项含 positionStart/positionEnd(number)、errorCategory(非空字符串)、correctedText(字符串)。
  */
 
-export const taskAContentSchema = z.string().trim().min(1, "译文不能为空");
+export const taskAContentSchema = z.string().trim().min(1, "Translation is required");
 
 export const taskBAnnotationSchema = z
   .object({
     positionStart: z.number().int().nonnegative(),
     positionEnd: z.number().int().nonnegative(),
-    errorCategory: z.string().min(1, "请选择错误类型"),
-    correctedText: z.string().min(1, "请填写修正后的文本"),
+    errorCategory: z.string().min(1, "Select an error type"),
+    correctedText: z.string().min(1, "Enter the corrected text"),
   })
   .refine((a) => a.positionEnd > a.positionStart, {
-    message: "选区结束位置必须大于起始位置",
+    message: "Selection end must be greater than start",
     path: ["positionEnd"],
   });
 
-export const taskBContentSchema = z.array(taskBAnnotationSchema).min(1, "至少标注一处错误才能提交");
+export const taskBContentSchema = z
+  .array(taskBAnnotationSchema)
+  .min(1, "Annotate at least one error before submitting");
 
 export type TaskBAnnotationInput = z.infer<typeof taskBAnnotationSchema>;
 

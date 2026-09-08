@@ -20,8 +20,8 @@ describe("bandToColor", () => {
 
 describe("bandLabel", () => {
   it("labels Band 1 as excellent and Band 5 as weak", () => {
-    expect(bandLabel(1)).toBe("优秀");
-    expect(bandLabel(5)).toBe("薄弱");
+    expect(bandLabel(1)).toBe("Excellent");
+    expect(bandLabel(5)).toBe("Very weak");
   });
 
   it("clamps out-of-range bands the same way bandToColor does", () => {

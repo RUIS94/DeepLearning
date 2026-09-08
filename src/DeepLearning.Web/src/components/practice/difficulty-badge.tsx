@@ -1,8 +1,12 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
-import { Difficulty, DifficultyLabel, TaskTypeLabel } from "@/lib/types/enums";
+import { Difficulty } from "@/lib/types/enums";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import { cn } from "@/lib/utils";
 
 export function DifficultyBadge({ difficulty }: { difficulty: number }) {
+  const { DifficultyLabel } = useEnumLabels();
   return (
     <Badge
       variant="outline"
@@ -19,6 +23,7 @@ export function DifficultyBadge({ difficulty }: { difficulty: number }) {
 }
 
 export function TaskTypeBadge({ taskType }: { taskType: number }) {
+  const { TaskTypeLabel } = useEnumLabels();
   return (
     <Badge variant="outline" className="border-border bg-secondary text-secondary-foreground">
       {TaskTypeLabel[taskType]}

@@ -10,8 +10,10 @@ import { listWeakPoints, reclassifyWeakPoint } from "@/lib/api/weak-points";
 import { listWeakPointCatalog } from "@/lib/api/exam-config";
 import { WeakPointCatalogStatus } from "@/lib/types/enums";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useT } from "@/lib/i18n";
 
 export function WeakPointsPanel({ status }: { status: number | "all" }) {
+  const t = useT();
   const currentUser = useCurrentUser();
   const queryClient = useQueryClient();
 
@@ -39,14 +41,16 @@ export function WeakPointsPanel({ status }: { status: number | "all" }) {
     onSuccess: (res) => {
       showToast({
         variant: "success",
-        title: res.mergedIntoExisting ? "Merged into an existing weak area in this category" : "Classification Updated",
+        title: res.mergedIntoExisting
+          ? t("weakPoints.mergedIntoExisting")
+          : t("weakPoints.classificationUpdated"),
       });
       queryClient.invalidateQueries({ queryKey: ["weak-points"] });
     },
     onError: (err) =>
       showToast({
         variant: "error",
-        title: "Classification Failed",
+        title: t("weakPoints.classificationFailed"),
         description: err instanceof ApiError ? (err.problem?.title ?? "") : "",
       }),
     onSettled: () => setPendingId(null),
@@ -74,7 +78,7 @@ export function WeakPointsPanel({ status }: { status: number | "all" }) {
         </div>
       ) : (
         <p className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
-          No weak points yet. Keep practicing and AI will automatically identify and categorize them.
+          {t("weakPoints.empty")}
         </p>
       )}
     </div>

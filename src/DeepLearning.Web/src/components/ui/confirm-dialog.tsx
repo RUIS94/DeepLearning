@@ -5,6 +5,7 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { AlertTriangle, HelpCircle, Info, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n";
 
 /** 弹窗性质:通知 / 警告 / 询问。决定 icon、icon 颜色与主按钮颜色。 */
 export type ConfirmTone = "info" | "warning" | "question";
@@ -48,8 +49,8 @@ export function ConfirmDialog({
   tone = "question",
   title,
   description,
-  confirmLabel = "确定",
-  cancelLabel = "取消",
+  confirmLabel,
+  cancelLabel,
   onConfirm,
   onCancel,
 }: {
@@ -63,6 +64,7 @@ export function ConfirmDialog({
   onConfirm: () => void | Promise<void>;
   onCancel?: () => void;
 }) {
+  const t = useT();
   const [pending, setPending] = React.useState(false);
   const { icon: Icon, iconWrap, confirmVariant } = TONE[tone];
 
@@ -125,12 +127,12 @@ export function ConfirmDialog({
           <div className="mt-6 flex items-center justify-end gap-2">
             <AlertDialogPrimitive.Cancel asChild>
               <Button variant="outline" size="sm" disabled={pending}>
-                {cancelLabel}
+                {cancelLabel ?? t("common.cancel")}
               </Button>
             </AlertDialogPrimitive.Cancel>
             <Button variant={confirmVariant} size="sm" disabled={pending} onClick={handleConfirm}>
               {pending ? <Loader2 className="size-4 animate-spin" /> : null}
-              {confirmLabel}
+              {confirmLabel ?? t("common.ok")}
             </Button>
           </div>
         </AlertDialogPrimitive.Content>

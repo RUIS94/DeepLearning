@@ -1,5 +1,6 @@
 import { BookOpen, GraduationCap, LibraryBig, LineChart } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
 /**
  * 左侧导航项。"AI 出题"和"导入题目"都不在这里 —— 它们是题库页里的按钮触发的 SidePanel,
@@ -13,7 +14,7 @@ import type { LucideIcon } from "lucide-react";
 export type NavItem = {
   kind: "link";
   key: string;
-  label: string;
+  labelKey: MessageKey;
   href: string;
   icon: LucideIcon;
   match: string;
@@ -23,7 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     kind: "link",
     key: "practice",
-    label: "Question Bank",
+    labelKey: "nav.practice",
     href: "/practice",
     icon: BookOpen,
     match: "/practice",
@@ -31,7 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     kind: "link",
     key: "exam-management",
-    label: "Management",
+    labelKey: "nav.examManagement",
     href: "/exam-management",
     icon: GraduationCap,
     match: "/exam-management",
@@ -39,7 +40,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     kind: "link",
     key: "review",
-    label: "Review",
+    labelKey: "nav.review",
     href: "/review",
     icon: LibraryBig,
     match: "/review",
@@ -47,7 +48,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     kind: "link",
     key: "progress",
-    label: "Progress",
+    labelKey: "nav.progress",
     href: "/progress",
     icon: LineChart,
     match: "/progress",

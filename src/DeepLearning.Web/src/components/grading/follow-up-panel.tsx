@@ -25,6 +25,7 @@ import {
 } from "@/lib/api/follow-up-threads";
 import { useExamType } from "@/hooks/use-exam-config";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useT, type TranslateFn } from "@/lib/i18n";
 import {
   FollowUpMessageRole,
   FollowUpThreadKind,
@@ -44,23 +45,29 @@ import type {
 
 const NEW = "__new__";
 
-function verdictLabel(v: number | null): string {
+function verdictLabel(translate: TranslateFn, v: number | null): string {
   switch (v) {
     case FollowUpVerdict.user_correct:
-      return "用户判断正确";
+      return translate("followUp.verdict.userCorrect");
     case FollowUpVerdict.user_incorrect:
-      return "维持原判";
+      return translate("followUp.verdict.upheld");
     case FollowUpVerdict.partial:
-      return "部分成立";
+      return translate("followUp.verdict.partial");
     default:
-      return "已答复";
+      return translate("followUp.verdict.answered");
   }
 }
 
-function threadRowLabel(t: FollowUpThreadSummary): string {
-  const prefix = t.kind === FollowUpThreadKind.score_challenge ? "改判 · " : "";
+function threadRowLabel(translate: TranslateFn, thread: FollowUpThreadSummary): string {
+  const prefix =
+    thread.kind === FollowUpThreadKind.score_challenge
+      ? translate("followUp.rowPrefixChallenge")
+      : "";
   return (
-    prefix + (t.status === FollowUpThreadStatus.open ? "进行中" : verdictLabel(t.finalVerdict))
+    prefix +
+    (thread.status === FollowUpThreadStatus.open
+      ? translate("followUp.rowInProgress")
+      : verdictLabel(translate, thread.finalVerdict))
   );
 }
 
@@ -123,6 +130,7 @@ export function FollowUpPanel({
   disputeAnchor?: DisputeAnchor | null;
   renderTrigger?: (openPanel: () => void) => ReactNode;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<string | null>(null); // thread id | NEW | null(未初始化)
   const [text, setText] = useState("");
@@ -142,7 +150,7 @@ export function FollowUpPanel({
     enabled: open || renderTrigger === undefined,
   });
 
-  const openThread = threads.data?.find((t) => t.status === FollowUpThreadStatus.open) ?? null;
+  const openThread = threads.data?.find((th) => th.status === FollowUpThreadStatus.open) ?? null;
 
   useEffect(() => {
     if (open && active === null && threads.data) {
@@ -159,7 +167,7 @@ export function FollowUpPanel({
       threads.data &&
       active !== null &&
       active !== NEW &&
-      !threads.data.some((t) => t.id === active)
+      !threads.data.some((th) => th.id === active)
     ) {
       setActive(openThread ? openThread.id : NEW);
       setText("");
@@ -254,7 +262,7 @@ export function FollowUpPanel({
         <Button
           variant={openThread ? "default" : "outline"}
           onClick={() => setOpen(true)}
-          title={openThread ? "本提交有一条进行中的追问" : undefined}
+          title={openThread ? t("followUp.openTitle") : undefined}
         >
           {isScoreChallenge ? (
             <Scale className="size-4" />
@@ -263,23 +271,27 @@ export function FollowUpPanel({
           )}
           {openThread
             ? openThread.kind === FollowUpThreadKind.score_challenge
-              ? "查看进行中的改判申请"
-              : "查看进行中的追问"
+              ? t("followUp.viewOngoingChallenge")
+              : t("followUp.viewOngoing")
             : isScoreChallenge
-              ? "申请改判"
-              : "对判定有异议 / 有疑问？发起追问"}
+              ? t("followUp.requestRegrade")
+              : t("followUp.startFollowUp")}
         </Button>
       )}
       <SidePanel open={open} onOpenChange={setOpen}>
         <SidePanelContent width="30rem">
           <SidePanelHeader
-            title={isScoreChallenge ? `申请改判 · ${scoreChallenge!.dimensionKey}` : "追问"}
+            title={
+              isScoreChallenge
+                ? t("followUp.headerChallenge", { dim: scoreChallenge!.dimensionKey })
+                : t("followUp.headerFollowUp")
+            }
             description={
               isScoreChallenge
-                ? "说明这个维度的 Band 为什么应当调整；结束申请后由你确认 AI 结算草稿再落库。"
+                ? t("followUp.descChallenge")
                 : disputeAnchor
-                  ? `针对「${disputeAnchor.label}」提出异议或疑问。`
-                  : "请在此处提出任何疑问。"
+                  ? t("followUp.descDispute", { label: disputeAnchor.label })
+                  : t("followUp.descDefault")
             }
           />
           <SidePanelBody className="flex flex-col gap-4">
@@ -288,28 +300,28 @@ export function FollowUpPanel({
                 {threads.data
                   .slice()
                   .reverse()
-                  .map((t, i) => (
+                  .map((thread, i) => (
                     <button
-                      key={t.id}
+                      key={thread.id}
                       type="button"
                       onClick={() => {
-                        setActive(t.id);
+                        setActive(thread.id);
                         setConfirmingClose(false);
                         setDraft(null);
                         setDraftMeta(null);
                       }}
                       className={cn(
                         "rounded-full border px-2.5 py-1 text-xs transition-colors",
-                        active === t.id ? CHIP_ON : CHIP_OFF,
+                        active === thread.id ? CHIP_ON : CHIP_OFF,
                       )}
                     >
-                      #{i + 1} · {threadRowLabel(t)}
+                      #{i + 1} · {threadRowLabel(t, thread)}
                     </button>
                   ))}
                 <button
                   type="button"
                   disabled={!canStartNew}
-                  title={canStartNew ? undefined : "结束当前追问后才能发起新的"}
+                  title={canStartNew ? undefined : t("followUp.startNewAfterClose")}
                   onClick={() => {
                     setActive(NEW);
                     setText("");
@@ -326,7 +338,7 @@ export function FollowUpPanel({
                   )}
                 >
                   <Plus className="size-3" />
-                  新追问
+                  {t("followUp.newThread")}
                 </button>
               </div>
             ) : null}
@@ -334,14 +346,14 @@ export function FollowUpPanel({
             {composing ? (
               <p className="text-sm text-muted-foreground">
                 {threads.data && threads.data.length > 0
-                  ? "开始一次新的追问，可以和之前的追问无关。"
-                  : "说明你的疑问——可以是对某条判定的异议，也可以是想弄懂的知识点。"}
+                  ? t("followUp.newThreadHintHasPrev")
+                  : t("followUp.newThreadHintFirst")}
               </p>
             ) : null}
 
             {viewingThreadId && detail.isError ? (
               <div className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
-                <span>这条追问线程已不存在（可能已在别处关闭，或本地数据被重置）。</span>
+                <span>{t("followUp.threadGone")}</span>
                 <Button
                   size="sm"
                   variant="outline"
@@ -356,7 +368,7 @@ export function FollowUpPanel({
                     });
                   }}
                 >
-                  {openThread ? "打开进行中的追问" : "发起新的追问"}
+                  {openThread ? t("followUp.openInProgress") : t("followUp.startNew")}
                 </Button>
               </div>
             ) : null}
@@ -373,8 +385,8 @@ export function FollowUpPanel({
                     }
                   >
                     {viewedThread.submissionStatus === SubmissionStatus.regraded
-                      ? "已改判：该维度分数已调整"
-                      : "维持原判：分数未变"}
+                      ? t("followUp.regradedBadge")
+                      : t("followUp.upheldBadge")}
                   </Badge>
                 ) : (
                   <>
@@ -387,12 +399,14 @@ export function FollowUpPanel({
                       }
                     >
                       {viewedThread.finalVerdict === null
-                        ? "已答复（未涉及评判争议）"
-                        : `最终结论：${verdictLabel(viewedThread.finalVerdict)}`}
+                        ? t("followUp.answeredNoDispute")
+                        : t("followUp.finalVerdictPrefix", {
+                            verdict: verdictLabel(t, viewedThread.finalVerdict),
+                          })}
                     </Badge>
                     {viewedThread.standardOverrideStatus !== null ? (
                       <Badge variant="outline" className="border-primary/30 text-primary">
-                        已生成评分标准修正记录
+                        {t("followUp.standardRevisionGenerated")}
                       </Badge>
                     ) : null}
                   </>
@@ -420,7 +434,7 @@ export function FollowUpPanel({
                 </div>
                 {m.role === FollowUpMessageRole.ai && m.verdict !== null ? (
                   <Badge variant="outline" className="border-border text-xs text-muted-foreground">
-                    {verdictLabel(m.verdict)}
+                    {verdictLabel(t, m.verdict)}
                   </Badge>
                 ) : null}
               </div>
@@ -429,14 +443,18 @@ export function FollowUpPanel({
             <AiLoadingState
               status={send.status}
               error={send.error}
-              pendingHint="AI 正在回复，可能需要几秒到十几秒"
+              pendingHint={t("followUp.aiReplying")}
             />
             <AiLoadingState
               status={preview.status}
               error={preview.error}
-              pendingHint="AI 正在综合整个对话生成结算草稿"
+              pendingHint={t("followUp.aiDrafting")}
             />
-            <AiLoadingState status={close.status} error={close.error} pendingHint="正在落库…" />
+            <AiLoadingState
+              status={close.status}
+              error={close.error}
+              pendingHint={t("followUp.saving")}
+            />
 
             <div ref={bottomRef} />
           </SidePanelBody>
@@ -460,17 +478,17 @@ export function FollowUpPanel({
                 />
               ) : confirmingClose ? (
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
-                  <span>结束后这条追问不能再继续，确定吗？</span>
+                  <span>{t("followUp.confirmCloseWarning")}</span>
                   <div className="flex shrink-0 gap-2">
                     <Button size="sm" variant="outline" onClick={() => setConfirmingClose(false)}>
-                      取消
+                      {t("common.cancel")}
                     </Button>
                     <Button
                       size="sm"
                       disabled={close.isPending}
                       onClick={() => close.mutate(undefined)}
                     >
-                      {close.isPending ? "结束中…" : "确认结束"}
+                      {close.isPending ? t("followUp.closing") : t("followUp.confirmClose")}
                     </Button>
                   </div>
                 </div>
@@ -483,9 +501,9 @@ export function FollowUpPanel({
                     placeholder={
                       composing
                         ? isScoreChallenge
-                          ? "例如：这个维度只有 1 处 Minor，按官方 Band 描述不该扣到 Band 3。"
-                          : "例如：「语域不当」这条我不认同；或者：carer 在澳洲语境一般怎么翻译？"
-                        : "继续追问……"
+                          ? t("followUp.composerPlaceholderChallenge")
+                          : t("followUp.composerPlaceholderNew")
+                        : t("followUp.composerPlaceholderContinue")
                     }
                   />
                   <div className="flex items-center justify-between gap-2">
@@ -497,8 +515,8 @@ export function FollowUpPanel({
                         onClick={() => (needsSummary ? preview.mutate() : setConfirmingClose(true))}
                       >
                         {viewedKind === FollowUpThreadKind.score_challenge
-                          ? "结束申请"
-                          : "结束追问"}
+                          ? t("followUp.closeRequest")
+                          : t("followUp.closeFollowUp")}
                       </Button>
                     ) : (
                       <span />
@@ -514,7 +532,7 @@ export function FollowUpPanel({
                       onClick={() => send.mutate()}
                     >
                       <Send className="size-4" />
-                      {send.isPending ? "发送中…" : "发送"}
+                      {send.isPending ? t("followUp.sending") : t("followUp.send")}
                     </Button>
                   </div>
                 </>
@@ -548,15 +566,16 @@ function CloseReviewDraft({
   committing: boolean;
   regenerating: boolean;
 }) {
+  const t = useT();
   const isScore = kind === FollowUpThreadKind.score_challenge;
   const committable = inputIsCommittable(kind, draft);
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
-      <p className="text-xs font-medium text-primary">AI 结算草稿 —— 确认或修改后再落库</p>
+      <p className="text-xs font-medium text-primary">{t("followUp.draft.title")}</p>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs text-muted-foreground">结论说明</span>
+        <span className="text-xs text-muted-foreground">{t("followUp.draft.conclusion")}</span>
         <Textarea
           rows={4}
           value={draft.aiResponse}
@@ -568,12 +587,14 @@ function CloseReviewDraft({
         <>
           <div className="flex flex-col gap-1">
             <span className="text-xs text-muted-foreground">
-              裁决{meta.currentBand !== null ? `（当前 Band ${meta.currentBand}）` : ""}
+              {meta.currentBand !== null
+                ? t("followUp.draft.decisionCurrentBand", { band: meta.currentBand })
+                : t("followUp.draft.decision")}
             </span>
             <div className="flex gap-1.5">
               {[
-                { v: ScoreChallengeDecision.uphold, label: "维持原判" },
-                { v: ScoreChallengeDecision.adjust, label: "改判" },
+                { v: ScoreChallengeDecision.uphold, label: t("followUp.draft.uphold") },
+                { v: ScoreChallengeDecision.adjust, label: t("followUp.draft.adjust") },
               ].map((o) => (
                 <button
                   key={o.v}
@@ -599,7 +620,9 @@ function CloseReviewDraft({
           {draft.decision === ScoreChallengeDecision.adjust ? (
             <>
               <label className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">改判后 Band</span>
+                <span className="text-xs text-muted-foreground">
+                  {t("followUp.draft.revisedBand")}
+                </span>
                 <Input
                   type="number"
                   min={1}
@@ -614,7 +637,9 @@ function CloseReviewDraft({
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">改判依据</span>
+                <span className="text-xs text-muted-foreground">
+                  {t("followUp.draft.revisedRationale")}
+                </span>
                 <Textarea
                   rows={3}
                   value={draft.revisedRationale ?? ""}
@@ -627,13 +652,15 @@ function CloseReviewDraft({
       ) : (
         <>
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">最终结论</span>
+            <span className="text-xs text-muted-foreground">
+              {t("followUp.draft.finalVerdict")}
+            </span>
             <div className="flex flex-wrap gap-1.5">
               {[
-                { v: FollowUpVerdict.user_correct, label: "用户正确" },
-                { v: FollowUpVerdict.user_incorrect, label: "维持原判" },
-                { v: FollowUpVerdict.partial, label: "部分成立" },
-                { v: null, label: "无争议" },
+                { v: FollowUpVerdict.user_correct, label: t("followUp.draft.verdictUserCorrect") },
+                { v: FollowUpVerdict.user_incorrect, label: t("followUp.draft.verdictUpheld") },
+                { v: FollowUpVerdict.partial, label: t("followUp.draft.verdictPartial") },
+                { v: null, label: t("followUp.draft.verdictNoDispute") },
               ].map((o) => (
                 <button
                   key={String(o.v)}
@@ -661,11 +688,16 @@ function CloseReviewDraft({
           </div>
           {draft.finalVerdict === FollowUpVerdict.user_correct && draft.standardRevision ? (
             <div className="flex flex-col gap-2 rounded-md border border-border bg-background p-2">
-              <span className="text-xs font-medium">评分标准修正记录</span>
+              <span className="text-xs font-medium">
+                {t("followUp.draft.standardRevisionRecord")}
+              </span>
               <div className="flex gap-1.5">
                 {[
-                  { v: OverrideScope.grading_rubric, label: "评分维度" },
-                  { v: OverrideScope.translation_reference, label: "原文/参考译文" },
+                  { v: OverrideScope.grading_rubric, label: t("followUp.draft.scopeRubric") },
+                  {
+                    v: OverrideScope.translation_reference,
+                    label: t("followUp.draft.scopeReference"),
+                  },
                 ].map((o) => (
                   <button
                     key={o.v}
@@ -680,7 +712,7 @@ function CloseReviewDraft({
                 ))}
               </div>
               <Input
-                placeholder="dimensionOrRule（维度 key 或问题标识）"
+                placeholder={t("followUp.draft.phDimensionOrRule")}
                 className="h-8"
                 value={draft.standardRevision.dimensionOrRule}
                 onChange={(e) =>
@@ -693,7 +725,7 @@ function CloseReviewDraft({
                 }
               />
               <Input
-                placeholder="originalRuleText（这次错在哪，可留空）"
+                placeholder={t("followUp.draft.phOriginalRule")}
                 className="h-8"
                 value={draft.standardRevision.originalRuleText ?? ""}
                 onChange={(e) =>
@@ -707,7 +739,7 @@ function CloseReviewDraft({
               />
               <Textarea
                 rows={2}
-                placeholder="revisedRuleText（以后该如何判）"
+                placeholder={t("followUp.draft.phRevisedRule")}
                 value={draft.standardRevision.revisedRuleText}
                 onChange={(e) =>
                   onChange({
@@ -725,7 +757,7 @@ function CloseReviewDraft({
 
       <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
         <Button variant="ghost" size="sm" disabled={committing || regenerating} onClick={onDiscard}>
-          放弃
+          {t("followUp.draft.discard")}
         </Button>
         <Button
           variant="outline"
@@ -733,10 +765,10 @@ function CloseReviewDraft({
           disabled={committing || regenerating}
           onClick={onRegenerate}
         >
-          {regenerating ? "重新生成…" : "重新生成"}
+          {regenerating ? t("followUp.draft.regenerating") : t("followUp.draft.regenerate")}
         </Button>
         <Button size="sm" disabled={committing || regenerating || !committable} onClick={onConfirm}>
-          {committing ? "落库中…" : "确认并结束"}
+          {committing ? t("followUp.draft.committing") : t("followUp.draft.confirmAndClose")}
         </Button>
       </div>
     </div>

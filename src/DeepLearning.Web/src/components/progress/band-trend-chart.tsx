@@ -10,14 +10,16 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import type { ProgressSnapshot } from "@/lib/types/dtos";
-
-const config = {
-  meaningTransfer: { label: "意义传递", color: "var(--chart-1)" },
-  textualNorms: { label: "语篇规范", color: "var(--chart-2)" },
-  languageProficiency: { label: "语言能力", color: "var(--chart-3)" },
-} satisfies ChartConfig;
+import { useT } from "@/lib/i18n";
 
 export function BandTrendChart({ snapshots }: { snapshots: ProgressSnapshot[] }) {
+  const t = useT();
+  const config = {
+    meaningTransfer: { label: t("progress.dim.meaningTransfer"), color: "var(--chart-1)" },
+    textualNorms: { label: t("progress.dim.textualNorms"), color: "var(--chart-2)" },
+    languageProficiency: { label: t("progress.dim.languageProficiency"), color: "var(--chart-3)" },
+  } satisfies ChartConfig;
+
   const data = snapshots.map((s) => ({
     period: s.periodEnd,
     meaningTransfer: s.avgBandMeaningTransfer,

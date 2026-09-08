@@ -19,15 +19,20 @@ import {
 } from "@/components/ui/sidebar";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { getSupabaseBrowserClient } from "@/lib/auth/supabase-client";
+import { useT } from "@/lib/i18n";
 
 /** nav 栏底部:头像 + 人名,点击展开 submenu(个人资料 / 设置 / 退出登录)。 */
 export function UserMenu() {
+  const t = useT();
   const router = useRouter();
   const { state } = useSidebar();
   const currentUser = useCurrentUser();
   const [logoutOpen, setLogoutOpen] = useState(false);
 
-  const name = currentUser.data?.displayName ?? currentUser.data?.email?.split("@")[0] ?? "未登录";
+  const name =
+    currentUser.data?.displayName ??
+    currentUser.data?.email?.split("@")[0] ??
+    t("userMenu.notLoggedIn");
   const email = currentUser.data?.email ?? "";
   const initial = (name || "?").slice(0, 1).toUpperCase();
 
@@ -67,11 +72,11 @@ export function UserMenu() {
             >
               <DropdownMenuItem onSelect={() => router.push("/profile")}>
                 <User className="size-4" />
-                Profile
+                {t("userMenu.profile")}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => router.push("/settings")}>
                 <Settings className="size-4" />
-                Settings
+                {t("userMenu.settings")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -81,7 +86,7 @@ export function UserMenu() {
                 }}
               >
                 <LogOut className="size-4" />
-                Log Out
+                {t("userMenu.logout")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -92,10 +97,10 @@ export function UserMenu() {
         open={logoutOpen}
         onOpenChange={setLogoutOpen}
         tone="warning"
-        title="Log Out?"
-        description="This will end your current session and you'll need to log in again to continue practicing."
-        confirmLabel="Log Out"
-        cancelLabel="Cancel"
+        title={t("userMenu.logoutConfirmTitle")}
+        description={t("userMenu.logoutConfirmDescription")}
+        confirmLabel={t("userMenu.logout")}
+        cancelLabel={t("common.cancel")}
         onConfirm={handleLogout}
       />
     </>

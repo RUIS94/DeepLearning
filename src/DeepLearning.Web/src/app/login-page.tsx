@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { getSupabaseBrowserClient } from "@/lib/auth/supabase-client";
+import { useT } from "@/lib/i18n";
 
 export function LoginPage() {
+  const t = useT();
   const router = useRouter();
   const supabase = getSupabaseBrowserClient();
   const [email, setEmail] = useState(supabase ? "" : "learner@example.com");
@@ -73,50 +75,43 @@ export function LoginPage() {
       <div className="hidden flex-col justify-between bg-primary p-12 text-primary-foreground lg:flex">
         <div className="flex items-center gap-2 font-serif text-lg font-semibold">
           <GraduationCap className="size-6" />
-          译练
+          {t("login.brand")}
         </div>
         <div className="space-y-6">
           <h2 className="font-serif text-4xl leading-snug text-primary-foreground">
-            把每一次批改
-            <br />
-            变成一条可追溯的成长线
+            {t("login.heroTitle")}
           </h2>
-          <p className="max-w-md text-sm leading-relaxed opacity-80">
-            NAATI 中英笔译真题与 AI 生成题目、三维度 Band 评分、错误清单、对判定的追问复核，
-            以及跨题目沉淀的句型与词汇复习库。
-          </p>
+          <p className="max-w-md text-sm leading-relaxed opacity-80">{t("login.heroBody")}</p>
           <dl className="grid grid-cols-3 gap-6 border-t border-primary-foreground/20 pt-6 text-sm">
             <div>
-              <dt className="opacity-70">评分维度</dt>
+              <dt className="opacity-70">{t("login.statDimensions")}</dt>
               <dd className="text-numeric mt-1 text-2xl font-semibold">3</dd>
             </div>
             <div>
-              <dt className="opacity-70">任务类型</dt>
+              <dt className="opacity-70">{t("login.statTaskTypes")}</dt>
               <dd className="text-numeric mt-1 text-2xl font-semibold">2</dd>
             </div>
             <div>
-              <dt className="opacity-70">Band 量表</dt>
+              <dt className="opacity-70">{t("login.statBandScale")}</dt>
               <dd className="text-numeric mt-1 text-2xl font-semibold">1–5</dd>
             </div>
           </dl>
         </div>
         <p className="text-xs opacity-60">
-          {supabase ? "数据来自真实后端" : "UI 原型 · 数据为演示用 Mock"}
+          {supabase ? t("login.footerRealBackend") : t("login.footerMock")}
         </p>
       </div>
 
       <div className="flex items-center justify-center p-6">
         <Card className="w-full max-w-sm border-border shadow-none">
           <CardContent className="p-8">
-            <h1 className="text-2xl font-semibold">登录</h1>
+            <h1 className="text-2xl font-semibold">{t("login.title")}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {supabase
-                ? "使用 Supabase 账号登录。"
-                : "Supabase Auth 还没配置（缺 NEXT_PUBLIC_SUPABASE_ANON_KEY），任意信息即可进入占位状态。"}
+              {supabase ? t("login.subtitleSupabase") : t("login.subtitleMock")}
             </p>
             <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-2">
-                <Label htmlFor="email">邮箱</Label>
+                <Label htmlFor="email">{t("login.email")}</Label>
                 <Input
                   id="email"
                   type="email"
@@ -126,7 +121,7 @@ export function LoginPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">密码</Label>
+                <Label htmlFor="password">{t("login.password")}</Label>
                 <Input
                   id="password"
                   type="password"
@@ -138,14 +133,14 @@ export function LoginPage() {
               {error ? <p className="text-xs text-destructive">{error}</p> : null}
               <Button type="submit" className="w-full" disabled={pending}>
                 {pending ? <Loader2 className="size-4 animate-spin" /> : null}
-                {pending ? "登录中…" : "登录并开始练习"}
+                {pending ? t("login.submitting") : t("login.submit")}
               </Button>
             </form>
             {!supabase ? (
               <p className="mt-4 text-center text-xs text-muted-foreground">
-                也可以直接
+                {t("login.browsePrefix")}
                 <Link href="/practice" className="ml-1 text-primary underline underline-offset-2">
-                  浏览题库
+                  {t("login.browseLink")}
                 </Link>
               </p>
             ) : null}

@@ -5,6 +5,7 @@ namespace DeepLearning.Application.Features.Users.Queries.GetUserById
         string Username,
         string Email,
         string? DisplayName,
+        string LanguagePreference,
         DateTimeOffset CreatedAt,
         DateTimeOffset? LastLoginAt);
 }

@@ -18,20 +18,21 @@ const columns: CrudColumn<ErrorTaxonomy>[] = [
     header: "Key",
     render: (t) => <span className="font-mono text-xs">{t.categoryKey}</span>,
   },
-  { key: "categoryName", header: "名称", render: (t) => t.categoryName },
-  { key: "description", header: "说明", render: (t) => t.description ?? "—" },
-  { key: "exampleCases", header: "边界案例", render: (t) => t.exampleCases ?? "—" },
+  { key: "categoryName", header: "Name", render: (t) => t.categoryName },
+  { key: "description", header: "Description", render: (t) => t.description ?? "—" },
+  { key: "exampleCases", header: "Edge cases", render: (t) => t.exampleCases ?? "—" },
 ];
 
 const fields: CrudField<ErrorTaxonomyFormInput>[] = [
   { name: "categoryKey", label: "Category Key", kind: "text", placeholder: "distortion" },
-  { name: "categoryName", label: "名称", kind: "text", placeholder: "意义扭曲" },
-  { name: "description", label: "说明（可选）", kind: "textarea" },
+  { name: "categoryName", label: "Name", kind: "text", placeholder: "Meaning distortion" },
+  { name: "description", label: "Description (optional)", kind: "textarea" },
   {
     name: "exampleCases",
-    label: "边界案例（可选）",
+    label: "Edge cases (optional)",
     kind: "textarea",
-    description: "尤其是容易混淆的类别之间的区分举例，会作为 few-shot 渲染进 prompt。",
+    description:
+      "Especially examples distinguishing easily-confused categories; rendered into the prompt as few-shot.",
   },
 ];
 
@@ -68,7 +69,7 @@ export function ErrorTaxonomiesPanel({
       schema={errorTaxonomyFormSchema}
       fields={fields}
       defaultValues={defaultValues}
-      dialogTitle="新建错误分类"
+      dialogTitle="New error taxonomy"
       onCreate={(values) =>
         createErrorTaxonomy(examTypeId, {
           ...values,

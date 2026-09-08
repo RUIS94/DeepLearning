@@ -15,8 +15,10 @@ import { CategoriesPanel } from "@/components/exam-management/categories-panel";
 import { PromptTemplatesPanel } from "@/components/exam-management/prompt-templates-panel";
 import { StandardOverridesPanel } from "@/components/exam-management/standard-overrides-panel";
 import { WeakPointCatalogPanel } from "@/components/exam-management/weak-point-catalog-panel";
+import { useT } from "@/lib/i18n";
 
 export function ExamTypeConfigPage() {
+  const t = useT();
   const { examTypeId } = useParams<{ examTypeId: string }>();
   const examType = useQuery({
     queryKey: ["admin", "exam-type", examTypeId],
@@ -34,18 +36,25 @@ export function ExamTypeConfigPage() {
     string,
     { label: string; ref: React.RefObject<CrudCreateHandle | null> }
   > = {
-    dimensions: { label: "Add Dimension", ref: dimensionsCreate },
-    "error-taxonomies": { label: "Add Error Taxonomy", ref: taxonomiesCreate },
-    categories: { label: "Add Question Category", ref: categoriesCreate },
-    "prompt-templates": { label: "Add Prompt Template", ref: promptCreate },
-    "weak-point-catalog": { label: "Add Weak Point Category", ref: weakPointCatalogCreate },
+    dimensions: { label: t("examMgmt.add.dimension"), ref: dimensionsCreate },
+    "error-taxonomies": { label: t("examMgmt.add.errorTaxonomy"), ref: taxonomiesCreate },
+    categories: { label: t("examMgmt.add.questionCategory"), ref: categoriesCreate },
+    "prompt-templates": { label: t("examMgmt.add.promptTemplate"), ref: promptCreate },
+    "weak-point-catalog": {
+      label: t("examMgmt.add.weakPointCategory"),
+      ref: weakPointCatalogCreate,
+    },
   };
   const activeCreate = createActions[tab];
 
   return (
     <PageShell
-      title={examType.data ? `Configuration · ${examType.data.name}` : "Exam Configuration"}
-      description="Scoring Dimensions, Error Taxonomies, Question Categories, Prompt Templates, Weak Point Catalog, and Standard Overrides."
+      title={
+        examType.data
+          ? t("examMgmt.configTitle", { name: examType.data.name })
+          : t("examMgmt.configTitleFallback")
+      }
+      description={t("examMgmt.configDescription")}
       back
       backHref="/exam-management"
     >
@@ -58,12 +67,16 @@ export function ExamTypeConfigPage() {
       >
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
           <TabsList className="flex-wrap">
-            <TabsTrigger value="dimensions">Scoring Dimensions</TabsTrigger>
-            <TabsTrigger value="error-taxonomies">Error Taxonomies</TabsTrigger>
-            <TabsTrigger value="categories">Question Categories</TabsTrigger>
-            <TabsTrigger value="prompt-templates">Prompt Templates</TabsTrigger>
-            <TabsTrigger value="weak-point-catalog">Weak Point Catalog</TabsTrigger>
-            <TabsTrigger value="standard-overrides">Standard Overrides</TabsTrigger>
+            <TabsTrigger value="dimensions">{t("examMgmt.tab.dimensions")}</TabsTrigger>
+            <TabsTrigger value="error-taxonomies">{t("examMgmt.tab.errorTaxonomies")}</TabsTrigger>
+            <TabsTrigger value="categories">{t("examMgmt.tab.categories")}</TabsTrigger>
+            <TabsTrigger value="prompt-templates">{t("examMgmt.tab.promptTemplates")}</TabsTrigger>
+            <TabsTrigger value="weak-point-catalog">
+              {t("examMgmt.tab.weakPointCatalog")}
+            </TabsTrigger>
+            <TabsTrigger value="standard-overrides">
+              {t("examMgmt.tab.standardOverrides")}
+            </TabsTrigger>
           </TabsList>
           {activeCreate ? (
             <Button onClick={() => activeCreate.ref.current?.openCreate()}>

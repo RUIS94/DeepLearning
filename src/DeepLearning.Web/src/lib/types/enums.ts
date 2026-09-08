@@ -37,10 +37,10 @@ export const WeakPointGenerationStatus = {
 } as const;
 
 export const WeakPointGenerationStatusLabel: Record<number, string> = {
-  [WeakPointGenerationStatus.pending]: "薄弱点待生成",
-  [WeakPointGenerationStatus.running]: "正在生成薄弱点",
-  [WeakPointGenerationStatus.succeeded]: "薄弱点已生成",
-  [WeakPointGenerationStatus.failed]: "薄弱点生成失败",
+  [WeakPointGenerationStatus.pending]: "Weak points pending",
+  [WeakPointGenerationStatus.running]: "Generating weak points",
+  [WeakPointGenerationStatus.succeeded]: "Weak points generated",
+  [WeakPointGenerationStatus.failed]: "Weak point generation failed",
 };
 
 export const OverrideScope = { grading_rubric: 0, translation_reference: 1 } as const;
@@ -100,9 +100,9 @@ export const FollowUpMessageRole = { user: 0, ai: 1 } as const;
 // score_challenge = 从分数区对某个维度的 Band 发起改判申请（结算时可真正改分）。
 export const FollowUpThreadKind = { knowledge: 0, dispute: 1, score_challenge: 2 } as const;
 export const FollowUpThreadKindLabel: Record<number, string> = {
-  [FollowUpThreadKind.knowledge]: "知识追问",
-  [FollowUpThreadKind.dispute]: "评判质疑",
-  [FollowUpThreadKind.score_challenge]: "分数改判申请",
+  [FollowUpThreadKind.knowledge]: "Knowledge Follow-up",
+  [FollowUpThreadKind.dispute]: "Verdict Dispute",
+  [FollowUpThreadKind.score_challenge]: "Score Challenge",
 };
 // score_challenge_summary 的 decision（后端 ScoreChallengeDecision）——JSON 里是字符串，不是序数。
 export const ScoreChallengeDecision = { uphold: "uphold", adjust: "adjust" } as const;
@@ -199,8 +199,8 @@ export function errorImpactLabel(severity: number): {
   text: string;
   tone: "danger" | "muted";
 } {
-  if (severity === ErrorSeverity.major) return { text: "影响理解", tone: "danger" };
-  return { text: "仅精度损失", tone: "muted" };
+  if (severity === ErrorSeverity.major) return { text: "Affects understanding", tone: "danger" };
+  return { text: "Accuracy loss only", tone: "muted" };
 }
 
 export const AiOperationTypeLabel: Record<number, string> = {

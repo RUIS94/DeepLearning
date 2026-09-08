@@ -33,25 +33,47 @@ import { showToast } from "@/components/ui/toast";
 import { importUserQuestion } from "@/lib/api/questions";
 import { listCategories, tagQuestionWithCategory } from "@/lib/api/exam-config";
 import { useErrorTaxonomies, useExamType } from "@/hooks/use-exam-config";
-import {
-  CheckpointImportanceLabel,
-  DifficultyLabel,
-  TaskType,
-  TaskTypeLabel,
-  Visibility,
-} from "@/lib/types/enums";
+import { TaskType, Visibility } from "@/lib/types/enums";
 import {
   importUserQuestionSchema,
   type ImportUserQuestionFormInput,
 } from "@/lib/validation/question-import";
+import { useT } from "@/lib/i18n";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
-/** 后端 brief（jsonb）的四个可选子字段；`key` 是拼进 JSON 时用的键名，与答题页 parseBrief 对齐。 */
+/** 后端 brief（jsonb）的四个可选子字段；`key` 是拼进 JSON 时用的键名，与答题页 parseBrief 对齐，不可改。 */
 const BRIEF_FIELDS = [
-  { name: "domain", key: "领域", label: "领域", placeholder: "公共卫生" },
-  { name: "textType", key: "文本类型", label: "文本类型", placeholder: "通知" },
-  { name: "purpose", key: "目的", label: "目的", placeholder: "告知公众疫苗接种安排" },
-  { name: "audience", key: "受众", label: "受众", placeholder: "社区居民" },
-] as const;
+  {
+    name: "domain",
+    key: "领域",
+    labelKey: "answer.brief.domain",
+    placeholderKey: "import.brief.domainPh",
+  },
+  {
+    name: "textType",
+    key: "文本类型",
+    labelKey: "answer.brief.textType",
+    placeholderKey: "import.brief.textTypePh",
+  },
+  {
+    name: "purpose",
+    key: "目的",
+    labelKey: "answer.brief.purpose",
+    placeholderKey: "import.brief.purposePh",
+  },
+  {
+    name: "audience",
+    key: "受众",
+    labelKey: "answer.brief.audience",
+    placeholderKey: "import.brief.audiencePh",
+  },
+] as const satisfies readonly {
+  name: string;
+  key: string;
+  labelKey: MessageKey;
+  placeholderKey: MessageKey;
+}[];
 
 /** 把非空子字段拼成后端 brief 的 JSON 字符串；全空则回 null。 */
 function buildBrief(brief: ImportUserQuestionFormInput["brief"]): string | null {
@@ -90,6 +112,8 @@ export function useImportPanel() {
  * 避免同一份数据被重复插入。
  */
 export function ImportPanelProvider({ children }: { children: ReactNode }) {
+  const t = useT();
+  const { CheckpointImportanceLabel, DifficultyLabel, TaskTypeLabel } = useEnumLabels();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -154,7 +178,11 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: (question) => {
       setSubmitted(true);
-      showToast({ variant: "success", title: "题目已导入", description: "正在进入答题页…" });
+      showToast({
+        variant: "success",
+        title: t("import.imported.title"),
+        description: t("practice.generated.description"),
+      });
       queryClient.invalidateQueries({ queryKey: ["questions"] });
       clearAll();
       setOpen(false);
@@ -179,8 +207,8 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
       <SidePanel open={open} onOpenChange={setOpen}>
         <SidePanelContent width="38rem">
           <SidePanelHeader
-            title="导入题目"
-            description="手工录入题目或真题种子。TaskB 需要含错译文并至少标注一条错误。"
+            title={t("practice.importQuestion")}
+            description={t("import.description")}
           />
 
           <SidePanelBody>
@@ -191,12 +219,12 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
             >
               <Card className="shadow-none">
                 <CardHeader>
-                  <CardTitle className="text-base">基本信息</CardTitle>
+                  <CardTitle className="text-base">{t("import.basicInfo")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>任务类型</Label>
+                      <Label>{t("practice.filter.taskType")}</Label>
                       <Controller
                         control={form.control}
                         name="taskType"
@@ -220,7 +248,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>难度</Label>
+                      <Label>{t("practice.filter.difficulty")}</Label>
                       <Controller
                         control={form.control}
                         name="difficulty"
@@ -246,8 +274,8 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>标题</Label>
-                    <Input {...form.register("title")} placeholder="社区健康中心疫苗接种通知" />
+                    <Label>{t("import.titleLabel")}</Label>
+                    <Input {...form.register("title")} placeholder={t("import.titlePh")} />
                     {form.formState.errors.title ? (
                       <p className="text-xs text-destructive">
                         {form.formState.errors.title.message}
@@ -256,16 +284,16 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>简介（可选）</Label>
+                    <Label>{t("import.briefLabel")}</Label>
                     <div className="grid gap-4 sm:grid-cols-2">
                       {BRIEF_FIELDS.map((f) => (
                         <div key={f.name} className="space-y-1.5">
                           <Label className="text-xs font-normal text-muted-foreground">
-                            {f.label}
+                            {t(f.labelKey)}
                           </Label>
                           <Input
                             {...form.register(`brief.${f.name}` as const)}
-                            placeholder={f.placeholder}
+                            placeholder={t(f.placeholderKey)}
                           />
                           {form.formState.errors.brief?.[f.name] ? (
                             <p className="text-xs text-destructive">
@@ -278,7 +306,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>原文</Label>
+                    <Label>{t("answer.sourceText")}</Label>
                     <Textarea rows={6} className="source-text" {...form.register("sourceText")} />
                     {form.formState.errors.sourceText ? (
                       <p className="text-xs text-destructive">
@@ -288,10 +316,8 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>题材分类（可选，可多选）</Label>
-                    <p className="text-xs text-muted-foreground">
-                      在「题库」页可按这些分类筛选到本题；分类在「考试管理 · 分类」维护。
-                    </p>
+                    <Label>{t("import.categoriesLabel")}</Label>
+                    <p className="text-xs text-muted-foreground">{t("import.categoriesHint")}</p>
                     {categories.data?.length ? (
                       <div className="flex flex-wrap gap-2 pt-1">
                         {categories.data.map((c) => {
@@ -317,16 +343,14 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                         })}
                       </div>
                     ) : (
-                      <p className="text-xs text-muted-foreground">暂无分类可选。</p>
+                      <p className="text-xs text-muted-foreground">{t("import.noCategories")}</p>
                     )}
                   </div>
 
                   <div className="flex items-center justify-between rounded-lg border border-border p-3">
                     <div>
-                      <p className="text-sm font-medium">标记为真题种子</p>
-                      <p className="text-xs text-muted-foreground">
-                        供 AI 出题时作为 few-shot 参考样本检索。
-                      </p>
+                      <p className="text-sm font-medium">{t("import.markSeed")}</p>
+                      <p className="text-xs text-muted-foreground">{t("import.markSeedHint")}</p>
                     </div>
                     <Controller
                       control={form.control}
@@ -341,7 +365,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
 
               <Card className="border-border shadow-none">
                 <CardHeader className="flex-row items-center justify-between space-y-0">
-                  <CardTitle className="text-base">核心意义点（可选）</CardTitle>
+                  <CardTitle className="text-base">{t("import.meaningPoints")}</CardTitle>
                   <Button
                     type="button"
                     size="sm"
@@ -355,7 +379,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                     }
                   >
                     <PlusCircle className="size-4" />
-                    添加
+                    {t("common.add")}
                   </Button>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -366,7 +390,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                     >
                       <div className="flex-1 space-y-2">
                         <Input
-                          placeholder="该信息点的具体内容"
+                          placeholder={t("import.meaningPointPh")}
                           {...form.register(`meaningCheckpoints.${i}.checkpointText` as const)}
                         />
                         <Controller
@@ -402,7 +426,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                     </div>
                   ))}
                   {checkpoints.fields.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">尚未添加意义点。</p>
+                    <p className="text-sm text-muted-foreground">{t("import.noMeaningPoints")}</p>
                   ) : null}
                 </CardContent>
               </Card>
@@ -410,11 +434,11 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
               {taskType === TaskType.B ? (
                 <Card className="border-border shadow-none">
                   <CardHeader>
-                    <CardTitle className="text-base">TaskB：含错译文与种子错误</CardTitle>
+                    <CardTitle className="text-base">{t("import.taskBCard")}</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <Label>含错译文全文</Label>
+                      <Label>{t("import.flawedFullText")}</Label>
                       <Textarea
                         rows={5}
                         className="source-text"
@@ -424,7 +448,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
 
                     {flawedText ? (
                       <div className="space-y-3">
-                        <Label>拖选标注种子错误</Label>
+                        <Label>{t("import.dragToAnnotate")}</Label>
                         <SelectableSourceText
                           text={flawedText}
                           highlightRanges={seededErrors.fields.map((f) => ({
@@ -443,16 +467,16 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                     {draft ? (
                       <div className="space-y-3 rounded-lg border border-primary/40 bg-primary/5 p-4">
                         <p className="text-numeric text-xs text-muted-foreground">
-                          选区 [{draft.start}, {draft.end})
+                          {t("import.selection", { start: draft.start, end: draft.end })}
                         </p>
                         <Select value={selectedDraftTaxonomyId} onValueChange={setDraftTaxonomyId}>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {(errorTaxonomies.data ?? []).map((t) => (
-                              <SelectItem key={t.id} value={t.id}>
-                                {t.categoryName}
+                            {(errorTaxonomies.data ?? []).map((tax) => (
+                              <SelectItem key={tax.id} value={tax.id}>
+                                {tax.categoryName}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -460,7 +484,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                         <Input
                           value={draftCorrected}
                           onChange={(e) => setDraftCorrected(e.target.value)}
-                          placeholder="正确译法"
+                          placeholder={t("import.correctTranslationPh")}
                         />
                         <div className="flex gap-2">
                           <Button
@@ -477,7 +501,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                               setDraft(null);
                             }}
                           >
-                            添加种子错误
+                            {t("import.addSeededError")}
                           </Button>
                           <Button
                             type="button"
@@ -485,7 +509,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                             variant="ghost"
                             onClick={() => setDraft(null)}
                           >
-                            取消
+                            {t("common.cancel")}
                           </Button>
                         </div>
                       </div>
@@ -493,7 +517,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
 
                     <div className="space-y-2">
                       <p className="text-numeric text-xs font-medium text-muted-foreground">
-                        已标注 {seededErrors.fields.length} 处
+                        {t("answer.annotatedCount", { count: seededErrors.fields.length })}
                       </p>
                       {seededErrors.fields.map((f, i) => (
                         <div
@@ -504,7 +528,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                             <div className="flex items-center gap-2">
                               <Badge variant="outline" className="border-accent/40 text-accent">
                                 {
-                                  errorTaxonomies.data?.find((t) => t.id === f.errorTaxonomyId)
+                                  errorTaxonomies.data?.find((tax) => tax.id === f.errorTaxonomyId)
                                     ?.categoryName
                                 }
                               </Badge>
@@ -534,7 +558,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                     {form.formState.errors.taskB ? (
                       <p className="text-xs text-destructive">
                         {(form.formState.errors.taskB as { message?: string }).message ??
-                          "请检查种子错误的区间与分类填写是否完整"}
+                          t("import.taskBError")}
                       </p>
                     ) : null}
                   </CardContent>
@@ -555,10 +579,10 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
               onClick={clearAll}
             >
               <Eraser className="size-4" />
-              清空
+              {t("common.clear")}
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>
-              取消
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
@@ -567,7 +591,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
               disabled={submit.isPending || submitted}
             >
               <Send className="size-4" />
-              {submit.isPending ? "导入中…" : "导入题目"}
+              {submit.isPending ? t("import.importing") : t("practice.importQuestion")}
             </Button>
           </SidePanelFooter>
         </SidePanelContent>

@@ -1,3 +1,5 @@
+"use client";
+
 import { AlertTriangle, CheckCircle2, History } from "lucide-react";
 import type { WeakPoint } from "@/lib/types/dtos";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,7 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PriorityLabel, WeakPointStatus, WeakPointStatusLabel } from "@/lib/types/enums";
+import { WeakPointStatus } from "@/lib/types/enums";
+import { useT } from "@/lib/i18n";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/band";
 
@@ -25,6 +29,8 @@ export function WeakPointCard({
   onReclassify?: (catalogId: string) => void;
   reclassifyPending?: boolean;
 }) {
+  const t = useT();
+  const { WeakPointStatusLabel, PriorityLabel } = useEnumLabels();
   const resolved = weakPoint.status === WeakPointStatus.resolved;
 
   return (
@@ -48,19 +54,21 @@ export function WeakPointCard({
               {WeakPointStatusLabel[weakPoint.status]}
             </Badge>
             <Badge variant="outline" className="border-border text-muted-foreground">
-              {PriorityLabel[weakPoint.priority]}优先级
+              {t("weakPointCard.priority", { priority: PriorityLabel[weakPoint.priority] ?? "" })}
             </Badge>
           </div>
           {weakPoint.patternSummary ? (
-            <p className="text-sm leading-relaxed text-muted-foreground">{weakPoint.patternSummary}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {weakPoint.patternSummary}
+            </p>
           ) : null}
           <div className="text-numeric flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <History className="size-3.5" />
-              首次发现 {formatDate(weakPoint.firstDetectedAt)}
+              {t("weakPointCard.firstDetected", { date: formatDate(weakPoint.firstDetectedAt) })}
             </span>
-            <span>最近一次 {formatDate(weakPoint.lastSeenAt)}</span>
-            <span>累计出现 {weakPoint.recurrenceCount} 次</span>
+            <span>{t("weakPointCard.lastSeen", { date: formatDate(weakPoint.lastSeenAt) })}</span>
+            <span>{t("weakPointCard.recurrence", { count: weakPoint.recurrenceCount })}</span>
           </div>
         </div>
 
@@ -71,7 +79,7 @@ export function WeakPointCard({
             onValueChange={(catalogId) => onReclassify(catalogId)}
           >
             <SelectTrigger className="h-8 w-40 text-xs">
-              <SelectValue placeholder="重新归类到…" />
+              <SelectValue placeholder={t("weakPointCard.reclassifyPlaceholder")} />
             </SelectTrigger>
             <SelectContent>
               {catalogOptions.map((o) => (

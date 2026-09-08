@@ -63,7 +63,7 @@ import type {
 export const MOCK_USER = {
   id: "11111111-1111-4111-8111-111111111111",
   email: "learner@example.com",
-  name: "练习者",
+  name: "Learner",
 };
 
 /** 对应后端 GET /users/{id}（GetUserByIdQuery）——目前只有 MOCK_USER 这一个用户。 */
@@ -76,6 +76,7 @@ export async function getUserById(id: string): Promise<UserProfile> {
     username: MOCK_USER.email,
     email: MOCK_USER.email,
     displayName: MOCK_USER.name,
+    languagePreference: "en",
     createdAt: "2026-01-08T02:00:00Z",
     lastLoginAt: new Date().toISOString(),
   };

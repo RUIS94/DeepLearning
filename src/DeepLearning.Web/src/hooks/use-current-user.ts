@@ -18,12 +18,15 @@ export interface CurrentUser {
   id: string;
   email: string;
   displayName: string | null;
+  /** 界面语言偏好："en"（默认）或 "zh"。未登录 / profile 拉取失败时为 null，由 I18nProvider fallback。 */
+  languagePreference: string | null;
 }
 
 const FALLBACK_USER: CurrentUser = {
   id: FALLBACK_USER_ID,
   email: "learner@example.com",
-  displayName: "练习者",
+  displayName: "Learner",
+  languagePreference: null,
 };
 
 /**
@@ -48,9 +51,19 @@ export function useCurrentUser() {
 
       try {
         const profile = await getUserById(user.id);
-        return { id: profile.id, email: profile.email, displayName: profile.displayName };
+        return {
+          id: profile.id,
+          email: profile.email,
+          displayName: profile.displayName,
+          languagePreference: profile.languagePreference,
+        };
       } catch {
-        return { id: user.id, email: user.email ?? "", displayName: null };
+        return {
+          id: user.id,
+          email: user.email ?? "",
+          displayName: null,
+          languagePreference: null,
+        };
       }
     },
   });

@@ -22,31 +22,33 @@ import type { PromptTemplate } from "@/lib/types/dtos";
 
 // 「用途」不再单独成列——每个 templateType 拆成一张独立的表，用途写在小标题上。
 const buildColumns = (examTypeName: (id: string) => string): CrudColumn<PromptTemplate>[] => [
-  { key: "layer", header: "层级", render: (t) => TemplateLayerLabel[t.layer] },
+  { key: "layer", header: "Layer", render: (t) => TemplateLayerLabel[t.layer] },
   {
     key: "examType",
-    header: "考试类型",
+    header: "Exam type",
     render: (t) =>
       t.examTypeId ? examTypeName(t.examTypeId) : <span className="text-muted-foreground">—</span>,
   },
   {
     key: "scope",
-    header: "关联",
+    header: "Association",
     render: (t) =>
-      t.examTypeId ? "考试类型专属" : `学科：${SubjectCategoryLabel[t.subjectCategory ?? 0]}`,
+      t.examTypeId
+        ? "Exam-type specific"
+        : `Subject: ${SubjectCategoryLabel[t.subjectCategory ?? 0]}`,
   },
-  { key: "version", header: "版本", render: (t) => `v${t.version}` },
+  { key: "version", header: "Version", render: (t) => `v${t.version}` },
   {
     key: "isActive",
-    header: "状态",
+    header: "Status",
     render: (t) =>
       t.isActive ? (
         <Badge variant="outline" className="border-transparent bg-success/12 text-success">
-          生效中
+          Active
         </Badge>
       ) : (
         <Badge variant="outline" className="text-muted-foreground">
-          已停用
+          Disabled
         </Badge>
       ),
   },
@@ -86,45 +88,46 @@ export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreate
   const fields: CrudField<PromptTemplateFormInput>[] = [
     {
       name: "examTypeId",
-      label: "关联考试类型（与学科二选一，编辑不生效）",
+      label: "Associated exam type (choose either this or subject; not editable)",
       kind: "select",
       options: [
-        { value: "", label: "不关联（按学科共享）" },
+        { value: "", label: "None (shared by subject)" },
         ...(examTypes.data ?? []).map((e) => ({ value: e.id, label: e.name })),
       ],
     },
     {
       name: "subjectCategory",
-      label: "关联学科类别（与考试类型二选一，编辑不生效）",
+      label: "Associated subject category (choose either this or exam type; not editable)",
       kind: "select",
       valueType: "number",
       options: [
-        { value: "-1", label: "不关联（考试类型专属）" },
+        { value: "-1", label: "None (exam-type specific)" },
         ...Object.entries(SubjectCategoryLabel).map(([v, l]) => ({ value: v, label: l })),
       ],
     },
     {
       name: "templateType",
-      label: "模板用途（编辑不生效）",
+      label: "Template purpose (not editable)",
       kind: "select",
       valueType: "number",
       options: Object.entries(AiOperationTypeLabel).map(([v, l]) => ({ value: v, label: l })),
     },
     {
       name: "layer",
-      label: "分层（编辑不生效）",
+      label: "Layer (not editable)",
       kind: "select",
       valueType: "number",
       options: Object.entries(TemplateLayerLabel).map(([v, l]) => ({ value: v, label: l })),
     },
-    { name: "templateContent", label: "模板正文（Scriban）", kind: "textarea", rows: 8 },
+    { name: "templateContent", label: "Template content (Scriban)", kind: "textarea", rows: 8 },
     {
       name: "version",
-      label: "版本号",
+      label: "Version",
       kind: "number",
-      description: "后端不自动递增；同一关联 + 用途 + 分层下需自行保证递增。",
+      description:
+        "The backend does not auto-increment; you must keep versions increasing within the same association + purpose + layer.",
     },
-    { name: "isActive", label: "启用", kind: "switch" },
+    { name: "isActive", label: "Enabled", kind: "switch" },
   ];
 
   const allTemplates = templates.data;
@@ -149,7 +152,7 @@ export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreate
         schema={promptTemplateFormSchema}
         fields={fields}
         defaultValues={defaultValues}
-        dialogTitle="新建 Prompt 模板"
+        dialogTitle="New prompt template"
         onCreate={createTemplate}
         onChanged={invalidate}
       />
@@ -172,8 +175,8 @@ export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreate
             // 关联与用途/分层改了也不会生效——编辑时置灰，避免用户白改一场。
             lockOnEdit={["examTypeId", "subjectCategory", "templateType", "layer"]}
             defaultValues={{ ...defaultValues, templateType: group.value }}
-            dialogTitle={`新建 ${group.label} Prompt 模板`}
-            emptyMessage={`暂无「${group.label}」模板`}
+            dialogTitle={`New ${group.label} prompt template`}
+            emptyMessage={`No "${group.label}" templates yet`}
             onCreate={createTemplate}
             toFormValues={(t) => ({
               examTypeId: t.examTypeId ?? "",
@@ -193,8 +196,9 @@ export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreate
             }
             onDelete={(id) => deletePromptTemplate(id)}
             deleteConfirm={() => ({
-              title: "删除这条 Prompt 模板？",
-              description: "硬删除，不可撤销。若只是想停用，改用「编辑」把「启用」关掉。",
+              title: "Delete this prompt template?",
+              description:
+                "Hard delete, irreversible. To just deactivate, use Edit and turn off Enabled.",
             })}
             onChanged={invalidate}
           />

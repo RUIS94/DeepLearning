@@ -733,6 +733,8 @@ export interface UserProfile {
   username: string;
   email: string;
   displayName: string | null;
+  /** UI 显示语言偏好："en"（默认）或 "zh"。仅影响前端界面语言，不影响任何存储内容。 */
+  languagePreference: string;
   createdAt: string;
   lastLoginAt: string | null;
 }

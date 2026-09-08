@@ -4,6 +4,7 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 
 /**
  * SidePanel —— 从右向中间展开的通用面板（需求里称“popup 右”）。
@@ -69,6 +70,7 @@ function SidePanelHeader({
   children?: React.ReactNode;
   showClose?: boolean;
 }) {
+  const t = useT();
   return (
     <div className={cn("flex shrink-0 items-start justify-between gap-4 px-6 py-4", className)}>
       <div className="min-w-0 space-y-1">
@@ -85,7 +87,7 @@ function SidePanelHeader({
       {showClose ? (
         <DialogPrimitive.Close
           className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          aria-label="关闭"
+          aria-label={t("common.close")}
         >
           <X className="size-4" />
         </DialogPrimitive.Close>

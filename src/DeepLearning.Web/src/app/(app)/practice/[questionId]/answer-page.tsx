@@ -31,23 +31,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { QuestionOrigin, TaskType } from "@/lib/types/enums";
 import type { TaskBAnnotation } from "@/lib/types/dtos";
 import { taskAContentSchema, taskBContentSchema } from "@/lib/validation/submission";
-
-/**
- * brief 落在后端 jsonb 列（设计文档 §6.2：领域/文本类型/目的/受众），存的是一段 JSON 字符串。
- * 答题页不再把原始 JSON 丢给用户，而是拆成「label: value」两条一行展示。
- * 键可能是英文（domain/textType/purpose/audience）也可能是中文（领域/文本类型/目的/受众）。
- */
-const BRIEF_LABELS: Record<string, string> = {
-  domain: "Domain / Topic",
-  topic: "Domain / Topic",
-  领域: "Domain / Topic",
-  textType: "Text type",
-  文本类型: "Text type",
-  purpose: "Purpose",
-  目的: "Purpose",
-  audience: "Audience",
-  受众: "Audience",
-};
+import { useT } from "@/lib/i18n";
 
 // 展示顺序：grid 逐行填充，两列 —— 第一行 Domain / Topic、Purpose，第二行 Text type、Audience。
 const BRIEF_ORDER = [
@@ -62,7 +46,16 @@ const BRIEF_ORDER = [
   "受众",
 ];
 
-function parseBrief(brief: string | null): { label: string; value: string }[] | null {
+/**
+ * brief 落在后端 jsonb 列（设计文档 §6.2：领域/文本类型/目的/受众），存的是一段 JSON 字符串。
+ * 答题页不再把原始 JSON 丢给用户，而是拆成「label: value」两条一行展示。
+ * 键可能是英文（domain/textType/purpose/audience）也可能是中文（领域/文本类型/目的/受众）；
+ * labels 由调用方按当前界面语言传入。
+ */
+function parseBrief(
+  brief: string | null,
+  labels: Record<string, string>,
+): { label: string; value: string }[] | null {
   if (!brief) return null;
   let parsed: unknown;
   try {
@@ -78,11 +71,12 @@ function parseBrief(brief: string | null): { label: string; value: string }[] | 
   const entries = Object.entries(parsed as Record<string, unknown>)
     .filter(([, v]) => v != null && String(v).trim() !== "")
     .sort(([a], [b]) => rank(a) - rank(b))
-    .map(([k, v]) => ({ label: BRIEF_LABELS[k] ?? k, value: String(v) }));
+    .map(([k, v]) => ({ label: labels[k] ?? k, value: String(v) }));
   return entries.length ? entries : null;
 }
 
 export function AnswerPage() {
+  const t = useT();
   const { questionId } = useParams<{ questionId: string }>();
   const router = useRouter();
   const examType = useExamType();
@@ -121,9 +115,21 @@ export function AnswerPage() {
     onSuccess: (submission) => router.push(`/submissions/${submission.id}`),
   });
 
+  const briefLabels: Record<string, string> = {
+    domain: t("answer.brief.domain"),
+    topic: t("answer.brief.domain"),
+    领域: t("answer.brief.domain"),
+    textType: t("answer.brief.textType"),
+    文本类型: t("answer.brief.textType"),
+    purpose: t("answer.brief.purpose"),
+    目的: t("answer.brief.purpose"),
+    audience: t("answer.brief.audience"),
+    受众: t("answer.brief.audience"),
+  };
+
   if (question.isPending) {
     return (
-      <PageShell title="答题">
+      <PageShell title={t("answer.title")}>
         <Skeleton className="h-96 w-full rounded-xl" />
       </PageShell>
     );
@@ -131,7 +137,7 @@ export function AnswerPage() {
 
   if (question.isError || !question.data) {
     return (
-      <PageShell title="答题">
+      <PageShell title={t("answer.title")}>
         <ErrorBanner error={question.error} />
       </PageShell>
     );
@@ -140,7 +146,7 @@ export function AnswerPage() {
   const q = question.data;
   const isTaskB = q.taskType === TaskType.B;
   const flawed = q.taskB?.flawedTranslationText ?? "";
-  const briefEntries = parseBrief(q.brief);
+  const briefEntries = parseBrief(q.brief, briefLabels);
   const wordCount = q.wordCount ?? q.sourceText.trim().split(/\s+/).filter(Boolean).length;
   // 提交前的前端校验镜像后端 CreateSubmissionValidator（方案 §11），提前拦截而非等后端 400。
   const contentValidation = isTaskB
@@ -174,7 +180,7 @@ export function AnswerPage() {
           <TaskTypeBadge taskType={q.taskType} />
           <DifficultyBadge difficulty={q.difficulty} />
           <Badge variant="outline" className="text-numeric border-border text-muted-foreground">
-            {wordCount} 词
+            {t("questionCard.words", { count: wordCount })}
           </Badge>
         </>
       }
@@ -183,7 +189,7 @@ export function AnswerPage() {
         <div className="flex min-h-0 flex-col gap-6 lg:overflow-hidden">
           <Card className="flex min-h-0 flex-1 flex-col border-border shadow-none">
             <CardHeader className="shrink-0">
-              <CardTitle className="text-base">原文</CardTitle>
+              <CardTitle className="text-base">{t("answer.sourceText")}</CardTitle>
             </CardHeader>
             <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto">
               {q.title?.trim() ? (
@@ -198,7 +204,7 @@ export function AnswerPage() {
           {seedReferences.data?.length ? (
             <Card className="border-border shadow-none lg:max-h-[38%] lg:shrink-0 lg:overflow-y-auto">
               <CardHeader>
-                <CardTitle className="text-base">参考真题</CardTitle>
+                <CardTitle className="text-base">{t("answer.referenceQuestions")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {seedReferences.data.map((r) => (
@@ -225,7 +231,7 @@ export function AnswerPage() {
               <CardHeader className="shrink-0">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Highlighter className="size-4 text-accent" />
-                  待检译文（拖选文字进行标注）
+                  {t("answer.flawedTranslation")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto">
@@ -245,25 +251,29 @@ export function AnswerPage() {
                 {draft ? (
                   <div className="space-y-3 rounded-lg border border-primary/40 bg-primary/5 p-4">
                     <p className="text-numeric text-xs text-muted-foreground">
-                      选区 [{draft.start}, {draft.end}) ·「{flawed.slice(draft.start, draft.end)}」
+                      {t("answer.selection", {
+                        start: draft.start,
+                        end: draft.end,
+                        text: flawed.slice(draft.start, draft.end),
+                      })}
                     </p>
                     <div className="space-y-2">
-                      <Label>错误类型</Label>
+                      <Label>{t("answer.errorType")}</Label>
                       <Select value={selectedDraftCategory} onValueChange={setDraftCategory}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {(errorTaxonomies.data ?? []).map((t) => (
-                            <SelectItem key={t.id} value={t.categoryKey}>
-                              {t.categoryName}
+                          {(errorTaxonomies.data ?? []).map((tax) => (
+                            <SelectItem key={tax.id} value={tax.categoryKey}>
+                              {tax.categoryName}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>修正后的文本</Label>
+                      <Label>{t("answer.correctedText")}</Label>
                       <Input
                         value={draftCorrected}
                         onChange={(e) => setDraftCorrected(e.target.value)}
@@ -286,10 +296,10 @@ export function AnswerPage() {
                           setDraft(null);
                         }}
                       >
-                        添加标注
+                        {t("answer.addAnnotation")}
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
-                        取消
+                        {t("common.cancel")}
                       </Button>
                     </div>
                   </div>
@@ -297,7 +307,7 @@ export function AnswerPage() {
 
                 <div className="space-y-2">
                   <p className="text-numeric text-xs font-medium text-muted-foreground">
-                    已标注 {annotations.length} 处
+                    {t("answer.annotatedCount", { count: annotations.length })}
                   </p>
                   {annotations.map((a, i) => (
                     <div
@@ -307,8 +317,9 @@ export function AnswerPage() {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="border-accent/40 text-accent">
-                            {errorTaxonomies.data?.find((t) => t.categoryKey === a.errorCategory)
-                              ?.categoryName ?? a.errorCategory}
+                            {errorTaxonomies.data?.find(
+                              (tax) => tax.categoryKey === a.errorCategory,
+                            )?.categoryName ?? a.errorCategory}
                           </Badge>
                           <span className="text-numeric text-xs text-muted-foreground">
                             [{a.positionStart}, {a.positionEnd})
@@ -337,18 +348,18 @@ export function AnswerPage() {
           ) : (
             <Card className="flex min-h-0 flex-1 flex-col border-border shadow-none">
               <CardHeader className="shrink-0">
-                <CardTitle className="text-base">你的译文</CardTitle>
+                <CardTitle className="text-base">{t("answer.yourTranslation")}</CardTitle>
               </CardHeader>
               <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
                 <Textarea
                   rows={16}
                   value={translation}
                   onChange={(e) => setTranslation(e.target.value)}
-                  placeholder="在此输入中文译文…"
+                  placeholder={t("answer.translationPlaceholder")}
                   className="source-text resize-none lg:min-h-0 lg:flex-1"
                 />
                 <p className="text-numeric shrink-0 text-xs text-muted-foreground">
-                  已输入 {translation.length} 字
+                  {t("answer.charCount", { count: translation.length })}
                 </p>
               </CardContent>
             </Card>
@@ -361,7 +372,7 @@ export function AnswerPage() {
               onClick={() => submit.mutate()}
             >
               <Send className="size-4" />
-              {submit.isPending ? "提交中…" : "提交并进入批改"}
+              {submit.isPending ? t("answer.submitting") : t("answer.submit")}
             </Button>
             {submit.isError ? <ErrorBanner error={submit.error} /> : null}
           </div>

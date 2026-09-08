@@ -19,8 +19,10 @@ import {
 } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/shell/user-menu";
 import { NAV_ITEMS } from "@/components/shell/nav-config";
+import { useT } from "@/lib/i18n";
 
 export function AppSidebar() {
+  const t = useT();
   const pathname = usePathname();
   const { state, toggleSidebar } = useSidebar();
   const collapsed = state === "collapsed";
@@ -65,12 +67,13 @@ export function AppSidebar() {
                   pathname === item.href ||
                   pathname.startsWith(`${item.match}/`) ||
                   pathname === item.match;
+                const label = t(item.labelKey);
                 return (
                   <SidebarMenuItem key={item.key}>
-                    <SidebarMenuButton tooltip={item.label} isActive={active} asChild>
+                    <SidebarMenuButton tooltip={label} isActive={active} asChild>
                       <Link href={item.href}>
                         <item.icon />
-                        <span>{item.label}</span>
+                        <span>{label}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

@@ -15,10 +15,7 @@ import {
   mergeWeakPointCatalog,
   updateWeakPointCatalogEntry,
 } from "@/lib/api/exam-config";
-import {
-  weakPointCatalogFormSchema,
-  type WeakPointCatalogFormInput,
-} from "@/lib/validation/admin";
+import { weakPointCatalogFormSchema, type WeakPointCatalogFormInput } from "@/lib/validation/admin";
 import type { WeakPointCatalogEntry } from "@/lib/types/dtos";
 import { WeakPointCatalogStatus, WeakPointCatalogStatusLabel } from "@/lib/types/enums";
 import { Badge } from "@/components/ui/badge";
@@ -34,9 +31,9 @@ import { showToast } from "@/components/ui/toast";
 import { ApiError } from "@/lib/api/fetcher";
 
 const STATUS_OPTIONS = [
-  { value: String(WeakPointCatalogStatus.active), label: "已启用" },
-  { value: String(WeakPointCatalogStatus.proposed), label: "待审" },
-  { value: String(WeakPointCatalogStatus.deprecated), label: "已退役" },
+  { value: String(WeakPointCatalogStatus.active), label: "Active" },
+  { value: String(WeakPointCatalogStatus.proposed), label: "Proposed" },
+  { value: String(WeakPointCatalogStatus.deprecated), label: "Deprecated" },
 ];
 
 /** 薄弱点种类现在是全局共享的（不再按考试类型划分，见 策划书 §1.2），这个面板只是仍挂在考试配置页下展示。 */
@@ -57,18 +54,21 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
   const columns: CrudColumn<WeakPointCatalogEntry>[] = [
     {
       key: "category",
-      header: "一级分类",
-      render: (c) => (c.categoryId ? (categoryNameById.get(c.categoryId) ?? "—") : "待审核·未分类"),
+      header: "Top-level category",
+      render: (c) =>
+        c.categoryId
+          ? (categoryNameById.get(c.categoryId) ?? "—")
+          : "Pending review · uncategorized",
     },
     {
       key: "code",
       header: "code",
       render: (c) => <span className="font-mono text-xs">{c.code}</span>,
     },
-    { key: "name", header: "名称", render: (c) => c.name },
+    { key: "name", header: "Name", render: (c) => c.name },
     {
       key: "match",
-      header: "规则匹配键",
+      header: "Rule match key",
       render: (c) =>
         c.defaultDimensionKey
           ? `${c.defaultDimensionKey}${c.defaultErrorCategory ? ` / ${c.defaultErrorCategory}` : ""}`
@@ -76,7 +76,7 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
     },
     {
       key: "status",
-      header: "状态",
+      header: "Status",
       render: (c) => (
         <Badge
           variant="outline"
@@ -89,32 +89,33 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
           }
         >
           {WeakPointCatalogStatusLabel[c.status]}
-          {c.origin !== "seed" ? ` · ${c.origin === "auto" ? "自动" : "手动"}` : ""}
+          {c.origin !== "seed" ? ` · ${c.origin === "auto" ? "auto" : "manual"}` : ""}
         </Badge>
       ),
     },
-    { key: "description", header: "说明", render: (c) => c.description },
+    { key: "description", header: "Description", render: (c) => c.description },
   ];
 
   const fields: CrudField<WeakPointCatalogFormInput>[] = [
-    { name: "categoryId", label: "一级分类", kind: "select", options: categoryOptions },
+    { name: "categoryId", label: "Top-level category", kind: "select", options: categoryOptions },
     { name: "code", label: "code", kind: "text", placeholder: "semantic_causality" },
-    { name: "name", label: "名称", kind: "text", placeholder: "Causality / 因果" },
-    { name: "description", label: "说明", kind: "textarea" },
+    { name: "name", label: "Name", kind: "text", placeholder: "Causality" },
+    { name: "description", label: "Description", kind: "textarea" },
     {
       name: "defaultDimensionKey",
-      label: "默认评分维度 key（可选）",
+      label: "Default scoring-dimension key (optional)",
       kind: "text",
       placeholder: "meaning_transfer",
-      description: "规则分桶按此匹配;留空表示不参与规则匹配,仅靠 AI 分类或手动归类。",
+      description:
+        "Rule bucketing matches on this; leave blank to skip rule matching and rely on AI classification or manual categorization.",
     },
     {
       name: "defaultErrorCategory",
-      label: "默认错误类别 key（可选）",
+      label: "Default error-category key (optional)",
       kind: "text",
       placeholder: "unjustified_omission",
     },
-    { name: "status", label: "状态", kind: "select", options: STATUS_OPTIONS },
+    { name: "status", label: "Status", kind: "select", options: STATUS_OPTIONS },
   ];
 
   const defaultValues: WeakPointCatalogFormInput = {
@@ -144,7 +145,7 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
         schema={weakPointCatalogFormSchema}
         fields={fields}
         defaultValues={defaultValues}
-        dialogTitle="新建薄弱点种类"
+        dialogTitle="New weak-point category"
         onCreate={(values) =>
           createWeakPointCatalogEntry({
             categoryId: values.categoryId,
@@ -195,8 +196,8 @@ function MergeControl({
     onSuccess: (res) => {
       showToast({
         variant: "success",
-        title: "已合并",
-        description: `重指 ${res.repointedCount} 条、合并 ${res.mergedCount} 条学习者薄弱点;来源种类已退役。`,
+        title: "Merged",
+        description: `Repointed ${res.repointedCount}, merged ${res.mergedCount} learner weak points; the source category was deprecated.`,
       });
       setFromId("");
       setToId("");
@@ -205,7 +206,7 @@ function MergeControl({
     onError: (err) =>
       showToast({
         variant: "error",
-        title: "合并失败",
+        title: "Merge failed",
         description: err instanceof ApiError ? (err.problem?.title ?? "") : "",
       }),
   });
@@ -213,16 +214,18 @@ function MergeControl({
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border border-dashed border-border p-4">
       <div className="space-y-1">
-        <p className="text-xs text-muted-foreground">合并(把「来源」并入「目标」,来源退役)</p>
+        <p className="text-xs text-muted-foreground">
+          Merge (fold Source into Target; Source is deprecated)
+        </p>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={fromId} onValueChange={setFromId}>
             <SelectTrigger className="h-9 w-52 text-sm">
-              <SelectValue placeholder="来源种类" />
+              <SelectValue placeholder="Source category" />
             </SelectTrigger>
             <SelectContent>
               {options.map((o) => (
                 <SelectItem key={o.id} value={o.id}>
-                  {o.name}（{o.code}）
+                  {o.name} ({o.code})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -230,14 +233,14 @@ function MergeControl({
           <span className="text-muted-foreground">→</span>
           <Select value={toId} onValueChange={setToId}>
             <SelectTrigger className="h-9 w-52 text-sm">
-              <SelectValue placeholder="目标种类" />
+              <SelectValue placeholder="Target category" />
             </SelectTrigger>
             <SelectContent>
               {options
                 .filter((o) => o.id !== fromId)
                 .map((o) => (
                   <SelectItem key={o.id} value={o.id}>
-                    {o.name}（{o.code}）
+                    {o.name} ({o.code})
                   </SelectItem>
                 ))}
             </SelectContent>
@@ -249,7 +252,7 @@ function MergeControl({
         disabled={!fromId || !toId || fromId === toId || merge.isPending}
         onClick={() => merge.mutate()}
       >
-        合并
+        Merge
       </Button>
     </div>
   );

@@ -4,6 +4,7 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 
 /**
  * CenterModal —— 屏幕中央打开的通用模态框（需求里称“popup 中”）。
@@ -72,6 +73,7 @@ function CenterModalHeader({
   children?: React.ReactNode;
   showClose?: boolean;
 }) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -93,7 +95,7 @@ function CenterModalHeader({
       {showClose ? (
         <DialogPrimitive.Close
           className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          aria-label="关闭"
+          aria-label={t("common.close")}
         >
           <X className="size-4" />
         </DialogPrimitive.Close>

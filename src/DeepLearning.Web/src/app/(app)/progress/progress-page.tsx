@@ -17,11 +17,13 @@ import {
 } from "@/components/ui/select";
 import { listProgress } from "@/lib/api/progress";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useT } from "@/lib/i18n";
 import { formatDate } from "@/lib/band";
 
 const ALL = "all";
 
 export function ProgressPage() {
+  const t = useT();
   const [difficultyTier, setDifficultyTier] = useState(ALL);
   const currentUser = useCurrentUser();
 
@@ -36,18 +38,18 @@ export function ProgressPage() {
 
   return (
     <AppShell
-      title="Learning Progress"
-      description="Three-dimensional Band trends and pass rate dashboard, with AI trend commentary."
+      title={t("progress.title")}
+      description={t("progress.description")}
       actions={
         <Select value={difficultyTier} onValueChange={setDifficultyTier}>
           <SelectTrigger className="w-36">
-            <SelectValue placeholder="Difficulty Tier" />
+            <SelectValue placeholder={t("progress.filter.difficultyTier")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>All Difficulties</SelectItem>
-            <SelectItem value="easy">Easy</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="hard">Hard</SelectItem>
+            <SelectItem value={ALL}>{t("progress.filter.allDifficulties")}</SelectItem>
+            <SelectItem value="easy">{t("progress.tier.easy")}</SelectItem>
+            <SelectItem value="medium">{t("progress.tier.medium")}</SelectItem>
+            <SelectItem value="hard">{t("progress.tier.hard")}</SelectItem>
           </SelectContent>
         </Select>
       }
@@ -61,7 +63,7 @@ export function ProgressPage() {
         <div className="space-y-6">
           <Card className="border-border shadow-none">
             <CardHeader>
-              <CardTitle className="text-base">Three-Dimensional Band Trends (Lower Values Are Better)</CardTitle>
+              <CardTitle className="text-base">{t("progress.bandTrendTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
               <BandTrendChart snapshots={snapshots.data} />
@@ -70,7 +72,7 @@ export function ProgressPage() {
 
           <Card className="border-border shadow-none">
             <CardHeader>
-              <CardTitle className="text-base">Pass Rate Trends</CardTitle>
+              <CardTitle className="text-base">{t("progress.passRateTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
               <PassRateChart snapshots={snapshots.data} />
@@ -82,7 +84,10 @@ export function ProgressPage() {
               <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
               <div className="space-y-1">
                 <p className="text-sm font-medium">
-                  Latest Period Commentary ({formatDate(latest.periodStart)} - {formatDate(latest.periodEnd)})
+                  {t("progress.latestCommentary", {
+                    start: formatDate(latest.periodStart),
+                    end: formatDate(latest.periodEnd),
+                  })}
                 </p>
                 <p className="text-sm leading-relaxed text-muted-foreground">{latest.trendNote}</p>
               </div>
@@ -91,7 +96,7 @@ export function ProgressPage() {
         </div>
       ) : (
         <p className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
-          No learning curve data available. More submissions will automatically generate periodic snapshots.
+          {t("progress.empty")}
         </p>
       )}
     </AppShell>

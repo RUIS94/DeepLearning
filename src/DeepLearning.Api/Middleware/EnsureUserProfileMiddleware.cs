@@ -29,6 +29,7 @@ namespace DeepLearning.Api.Middleware
             {
                 var userRepository = context.RequestServices.GetRequiredService<IUserRepository>();
                 var existing = await userRepository.GetByIdAsync(userId, context.RequestAborted);
+                var now = DateTimeOffset.UtcNow;
 
                 if (existing is null)
                 {
@@ -41,7 +42,8 @@ namespace DeepLearning.Api.Middleware
                         // PasswordHash is deliberately left empty — Supabase Auth owns credentials
                         // now, this column is vestigial (kept per the "don't drop columns" migration
                         // discipline, see AGENTS.md).
-                        CreatedAt = DateTimeOffset.UtcNow,
+                        CreatedAt = now,
+                        LastLoginAt = now,
                     };
 
                     try
@@ -55,6 +57,23 @@ namespace DeepLearning.Api.Middleware
                         // A concurrent request for the same brand-new Supabase user won the race
                         // and already inserted the profile row (unique index on username/email) —
                         // not an error, just proceed without needing our own copy of it.
+                    }
+                }
+                else if (existing.LastLoginAt is null || existing.LastLoginAt.Value.UtcDateTime.Date < now.UtcDateTime.Date)
+                {
+                    // Stamp "last seen" at most once per UTC day so an active user's every API call
+                    // doesn't turn into a users-row UPDATE. `existing` is change-tracked (the repo's
+                    // GetByIdAsync doesn't use AsNoTracking), so this one assignment + SaveChanges
+                    // is all it takes.
+                    existing.LastLoginAt = now;
+                    try
+                    {
+                        var unitOfWork = context.RequestServices.GetRequiredService<IUnitOfWork>();
+                        await unitOfWork.SaveChangesAsync(context.RequestAborted);
+                    }
+                    catch (DbUpdateException)
+                    {
+                        // A concurrent request already bumped it — the stamp only needs to land once.
                     }
                 }
             }

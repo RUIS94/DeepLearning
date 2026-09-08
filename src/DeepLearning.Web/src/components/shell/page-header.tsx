@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/lib/i18n";
 
 /**
  * 页面标题区。左侧导航由 (app)/layout.tsx 的 AppSidebar 统一提供,页面自身只渲染这个头部。
@@ -26,6 +27,7 @@ export function PageHeader({
   className?: string | undefined;
 }) {
   const router = useRouter();
+  const t = useT();
 
   return (
     <div className={cn("mb-6 space-y-3", className)}>
@@ -37,7 +39,7 @@ export function PageHeader({
           onClick={() => (backHref ? router.push(backHref) : router.back())}
         >
           <ArrowLeft className="size-4" />
-          Back
+          {t("common.back")}
         </Button>
       ) : null}
       <div className="flex flex-wrap items-end justify-between gap-4">

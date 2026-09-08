@@ -15,11 +15,15 @@ import { ReviewLibraryList } from "@/components/review/review-library-panel";
 import { WeakPointsPanel } from "@/components/review/weak-points-panel";
 import { useReviewLibrary } from "@/components/review/use-review-library";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { MasteryLevel, MasteryLevelLabel, WeakPointStatusLabel } from "@/lib/types/enums";
+import { MasteryLevel } from "@/lib/types/enums";
+import { useT } from "@/lib/i18n";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
 
 const ALL = "all";
 
 export function ReviewPage() {
+  const t = useT();
+  const { MasteryLevelLabel, WeakPointStatusLabel } = useEnumLabels();
   const [tab, setTab] = useState("patterns");
   const [mastery, setMastery] = useState(ALL);
   const [domain, setDomain] = useState(ALL);
@@ -32,16 +36,16 @@ export function ReviewPage() {
 
   return (
     <PageShell
-      title="Review Library"
-      description="A review library of useful phrases and vocabulary from practice, plus AI-identified weak areas."
+      title={t("review.title")}
+      description={t("review.description")}
       bodyClassName="flex min-h-0 flex-col overflow-hidden"
     >
       <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
           <TabsList>
-            <TabsTrigger value="patterns">Patterns</TabsTrigger>
-            <TabsTrigger value="vocab">Vocabulary</TabsTrigger>
-            <TabsTrigger value="weak-points">Weak Points</TabsTrigger>
+            <TabsTrigger value="patterns">{t("review.tab.patterns")}</TabsTrigger>
+            <TabsTrigger value="vocab">{t("review.tab.vocab")}</TabsTrigger>
+            <TabsTrigger value="weak-points">{t("review.tab.weakPoints")}</TabsTrigger>
           </TabsList>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -51,18 +55,18 @@ export function ReviewPage() {
                 value={status}
                 onChange={setStatus}
                 allowAll
-                allLabel="All Status"
-                placeholder="Status"
+                allLabel={t("review.filter.allStatus")}
+                placeholder={t("review.filter.status")}
                 className="w-36"
               />
             ) : (
               <>
                 <Select value={mastery} onValueChange={setMastery}>
                   <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Mastery Level" />
+                    <SelectValue placeholder={t("review.filter.masteryLevel")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ALL}>All Mastery Levels</SelectItem>
+                    <SelectItem value={ALL}>{t("review.filter.allMasteryLevels")}</SelectItem>
                     {Object.values(MasteryLevel).map((level) => (
                       <SelectItem key={level} value={String(level)}>
                         {MasteryLevelLabel[level]}
@@ -72,10 +76,10 @@ export function ReviewPage() {
                 </Select>
                 <Select value={domain} onValueChange={setDomain}>
                   <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Domain" />
+                    <SelectValue placeholder={t("review.filter.domain")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ALL}>All Domains</SelectItem>
+                    <SelectItem value={ALL}>{t("review.filter.allDomains")}</SelectItem>
                     {domains.map((d) => (
                       <SelectItem key={d} value={d}>
                         {d}

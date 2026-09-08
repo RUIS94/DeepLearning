@@ -21,14 +21,10 @@ import {
   watchGradingStatus,
 } from "@/lib/api/submissions";
 import { useExamType } from "@/hooks/use-exam-config";
-import {
-  SubmissionStatus,
-  SubmissionStatusLabel,
-  TaskType,
-  WeakPointGenerationStatus,
-  WeakPointGenerationStatusLabel,
-} from "@/lib/types/enums";
+import { SubmissionStatus, TaskType, WeakPointGenerationStatus } from "@/lib/types/enums";
 import type { TaskBAnnotation } from "@/lib/types/dtos";
+import { useT } from "@/lib/i18n";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import { cn } from "@/lib/utils";
 
 /**
@@ -50,6 +46,8 @@ const HANDOFF_STUCK_AFTER_MS = 30 * 1000;
 const WEAK_POINT_POLL_MS = 30 * 1000;
 
 export function SubmissionPage() {
+  const t = useT();
+  const { SubmissionStatusLabel, WeakPointGenerationStatusLabel } = useEnumLabels();
   const { submissionId } = useParams<{ submissionId: string }>();
   const queryClient = useQueryClient();
   // 何时把任务交给后端的。null = 本次会话没发起过批改。用来区分"刚提交、等着人点批改"和
@@ -136,14 +134,14 @@ export function SubmissionPage() {
 
   if (submission.isPending) {
     return (
-      <AppShell title="批改结果">
+      <AppShell title={t("submission.title")}>
         <Skeleton className="h-96 w-full rounded-xl" />
       </AppShell>
     );
   }
   if (submission.isError || !submission.data) {
     return (
-      <AppShell title="批改结果">
+      <AppShell title={t("submission.title")}>
         <ErrorBanner error={submission.error} />
       </AppShell>
     );
@@ -179,8 +177,8 @@ export function SubmissionPage() {
 
   return (
     <AppShell
-      title={question.data?.title ?? "批改结果"}
-      description="AI 依据当前生效的评分标准逐维度给出 Band 与理由。"
+      title={question.data?.title ?? t("submission.title")}
+      description={t("submission.description")}
       actions={
         <>
           <Badge variant="outline" className="border-primary/30 text-primary">
@@ -207,7 +205,7 @@ export function SubmissionPage() {
                   onClick={() => regenerate.mutate()}
                 >
                   <RefreshCw className={cn("size-3", regenerate.isPending && "animate-spin")} />
-                  重新生成
+                  {t("common.regenerate")}
                 </button>
               ) : null}
             </Badge>
@@ -216,7 +214,7 @@ export function SubmissionPage() {
             <Button variant="outline" asChild>
               <Link href={`/deep-learning/${question.data.id}`}>
                 <BookOpenCheck className="size-4" />
-                深入学习
+                {t("deepLearning.title")}
               </Link>
             </Button>
           ) : null}
@@ -242,10 +240,10 @@ export function SubmissionPage() {
               <CardHeader className="shrink-0">
                 <CardTitle className="text-base">
                   {gradingInFlight
-                    ? "正在批改"
+                    ? t("submission.grading")
                     : s.status === SubmissionStatus.grading_failed
-                      ? "批改失败"
-                      : "尚未批改"}
+                      ? t("submission.gradingFailed")
+                      : t("submission.notGraded")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 overflow-y-auto">
@@ -254,21 +252,18 @@ export function SubmissionPage() {
                   // （grading_failed）时才整块换掉——这就是"结果回来了再刷新显示"。
                   <div className="flex min-h-full flex-col items-center justify-center gap-3 py-10 text-center">
                     <Loader2 className="size-8 animate-spin text-primary" />
-                    <p className="text-sm font-medium">AI 正在批改</p>
+                    <p className="text-sm font-medium">{t("submission.aiGrading")}</p>
                     <p className="max-w-md text-sm text-muted-foreground">
-                      四个阶段：逐句取证、中文校对、复筛补漏，最后依官方 Band 定档。通常 2-3 分钟，
-                      完成后本页会自动显示结果，期间可以离开再回来。
+                      {t("submission.gradingExplain")}
                     </p>
                     {takingLong ? (
                       <p className="max-w-md text-xs text-warning-foreground">
-                        比平常久一些，后端仍在运行（状态还是「批改中」）。请继续等待——
-                        失败时会自动转为「批改失败」并允许重新发起。
+                        {t("submission.takingLong")}
                       </p>
                     ) : null}
                     {handoffStuck ? (
                       <p className="max-w-md text-xs text-warning-foreground">
-                        任务已提交但后台还没开始处理，可能是后台服务未就绪。稍候仍无变化的话，
-                        请检查后端是否正常运行。
+                        {t("submission.handoffStuck")}
                       </p>
                     ) : null}
                   </div>
@@ -276,17 +271,19 @@ export function SubmissionPage() {
                   <div className="flex flex-col items-start gap-3">
                     <p className="text-sm text-muted-foreground">
                       {s.status === SubmissionStatus.grading_failed
-                        ? "上一次批改未完成。后端已经自行重试过（每阶段最多 3 次）仍未成功，可以手动重新发起。"
-                        : "提交已记录，点击下方按钮开始 AI 批改。"}
+                        ? t("submission.retryHint")
+                        : t("submission.startHint")}
                     </p>
                     <Button disabled={!examType.data} onClick={() => grade.mutate()}>
                       <Gavel className="size-4" />
-                      {s.status === SubmissionStatus.grading_failed ? "重新批改" : "开始批改"}
+                      {s.status === SubmissionStatus.grading_failed
+                        ? t("submission.regrade")
+                        : t("submission.startGrading")}
                     </Button>
                     <AiLoadingState
                       status={grade.status}
                       error={grade.error}
-                      pendingHint="正在提交批改任务"
+                      pendingHint={t("submission.submittingTask")}
                     />
                   </div>
                 )}
@@ -302,14 +299,14 @@ export function SubmissionPage() {
 
           {s.status === SubmissionStatus.standard_revised ? (
             <div className="shrink-0 rounded-lg border border-success/40 bg-success/8 p-4 text-sm">
-              该判定已确认修正，相关评分标准已更新。可在
+              {t("submission.standardRevisedPrefix")}
               <Link
                 href="/standard-overrides"
                 className="mx-1 text-primary underline underline-offset-2"
               >
-                标准修正记录
+                {t("submission.standardRevisedLink")}
               </Link>
-              中查看追溯。
+              {t("submission.standardRevisedSuffix")}
             </div>
           ) : null}
         </div>
@@ -317,7 +314,7 @@ export function SubmissionPage() {
         <div className="flex min-h-0 flex-col gap-6 lg:overflow-hidden">
           <Card className="flex min-h-0 flex-1 flex-col border-border shadow-none">
             <CardHeader className="shrink-0">
-              <CardTitle className="text-base">你的作答</CardTitle>
+              <CardTitle className="text-base">{t("submission.yourAnswer")}</CardTitle>
             </CardHeader>
             <CardContent className="min-h-0 flex-1 overflow-y-auto">
               <div className="flex min-h-full flex-col justify-center">
@@ -342,7 +339,7 @@ export function SubmissionPage() {
           {question.data?.meaningCheckpoints.length ? (
             <Card className="shrink-0 border-border shadow-none lg:max-h-[32%] lg:overflow-y-auto">
               <CardHeader>
-                <CardTitle className="text-base">核心意义点</CardTitle>
+                <CardTitle className="text-base">{t("submission.meaningCheckpoints")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-1">

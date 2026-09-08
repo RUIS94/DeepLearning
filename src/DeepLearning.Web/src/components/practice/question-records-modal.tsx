@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listSubmissions } from "@/lib/api/submissions";
-import { SubmissionStatusLabel } from "@/lib/types/enums";
+import { useT } from "@/lib/i18n";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import { formatDate } from "@/lib/band";
 
 /** 「打开做过的记录」—— 列出当前用户对某题的历史提交,点进去看当次批改结果。 */
@@ -31,6 +32,8 @@ export function QuestionRecordsModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
+  const { SubmissionStatusLabel } = useEnumLabels();
   const records = useQuery({
     queryKey: ["submissions", userId, questionId],
     queryFn: () => listSubmissions(userId!, questionId!),
@@ -40,7 +43,7 @@ export function QuestionRecordsModal({
   return (
     <CenterModal open={open} onOpenChange={onOpenChange}>
       <CenterModalContent width="34rem">
-        <CenterModalHeader title="做过的记录" description={questionTitle} />
+        <CenterModalHeader title={t("records.modal.title")} description={questionTitle} />
         <CenterModalBody>
           {records.isPending ? (
             <div className="space-y-2">
@@ -49,7 +52,9 @@ export function QuestionRecordsModal({
               ))}
             </div>
           ) : (records.data ?? []).length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">还没有提交记录。</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              {t("records.modal.empty")}
+            </p>
           ) : (
             <ul className="space-y-2">
               {(records.data ?? []).map((s) => (
@@ -74,7 +79,7 @@ export function QuestionRecordsModal({
         </CenterModalBody>
         <CenterModalFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            关闭
+            {t("common.close")}
           </Button>
         </CenterModalFooter>
       </CenterModalContent>

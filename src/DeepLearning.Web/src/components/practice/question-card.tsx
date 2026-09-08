@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight, FileText, History } from "lucide-react";
 import type { QuestionListItem } from "@/lib/types/dtos";
@@ -5,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DifficultyBadge, TaskTypeBadge } from "./difficulty-badge";
 import { formatDate } from "@/lib/band";
+import { useT } from "@/lib/i18n";
 
 export function QuestionCard({
   question,
@@ -13,6 +16,7 @@ export function QuestionCard({
   question: QuestionListItem;
   onOpenRecords?: (question: QuestionListItem) => void;
 }) {
+  const t = useT();
   const practiced = question.myAttemptCount > 0;
 
   return (
@@ -23,12 +27,12 @@ export function QuestionCard({
           <DifficultyBadge difficulty={question.difficulty} />
           {question.inBank ? (
             <Badge variant="outline" className="border-primary/30 text-primary">
-              Imported
+              {t("questionCard.imported")}
             </Badge>
           ) : null}
           {practiced ? (
             <Badge variant="outline" className="border-transparent bg-success/12 text-success">
-              Practiced {question.myAttemptCount} times
+              {t("questionCard.practicedTimes", { count: question.myAttemptCount })}
             </Badge>
           ) : null}
         </div>
@@ -36,7 +40,8 @@ export function QuestionCard({
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span className="text-numeric inline-flex items-center gap-1">
             <FileText className="size-3.5" />
-            {question.wordCount ?? "—"} words · {formatDate(question.createdAt)}
+            {t("questionCard.words", { count: question.wordCount ?? "—" })} ·{" "}
+            {formatDate(question.createdAt)}
           </span>
           <div className="flex items-center gap-3">
             {practiced && onOpenRecords ? (
@@ -46,14 +51,14 @@ export function QuestionCard({
                 className="inline-flex items-center gap-1 font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
                 <History className="size-3.5" />
-                Records
+                {t("questionCard.records")}
               </button>
             ) : null}
             <Link
               href={`/practice/${question.id}`}
               className="inline-flex items-center gap-1 font-medium text-primary"
             >
-              Start
+              {t("questionCard.start")}
               <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
             </Link>
           </div>

@@ -53,13 +53,13 @@ function TagQuestionCard({ categories }: { categories: QuestionBankCategory[] })
   return (
     <Card className="border-border shadow-none">
       <CardHeader>
-        <CardTitle className="text-base">给题目打标签</CardTitle>
+        <CardTitle className="text-base">Tag a question</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Select value={categoryId} onValueChange={setCategoryId}>
             <SelectTrigger>
-              <SelectValue placeholder="选择分类" />
+              <SelectValue placeholder="Select a category" />
             </SelectTrigger>
             <SelectContent>
               {categories.map((c) => (
@@ -71,7 +71,7 @@ function TagQuestionCard({ categories }: { categories: QuestionBankCategory[] })
           </Select>
           <Select value={questionId} onValueChange={setQuestionId}>
             <SelectTrigger>
-              <SelectValue placeholder="选择题目" />
+              <SelectValue placeholder="Select a question" />
             </SelectTrigger>
             <SelectContent>
               {(questions.data ?? []).map((q) => (
@@ -84,16 +84,16 @@ function TagQuestionCard({ categories }: { categories: QuestionBankCategory[] })
         </div>
         <Button disabled={!categoryId || !questionId || tag.isPending} onClick={() => tag.mutate()}>
           <Tag className="size-4" />
-          {tag.isPending ? "打标签中…" : "打标签"}
+          {tag.isPending ? "Tagging…" : "Tag"}
         </Button>
         <AiLoadingState
           status={
             tag.isPending ? "pending" : tag.isSuccess ? "success" : tag.isError ? "error" : "idle"
           }
           error={tag.error}
-          pendingHint="正在写入分类映射"
+          pendingHint="Writing the category mapping"
         />
-        {tag.isSuccess ? <p className="text-sm text-success">已打标签。</p> : null}
+        {tag.isSuccess ? <p className="text-sm text-success">Tagged.</p> : null}
       </CardContent>
     </Card>
   );
@@ -110,33 +110,38 @@ export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandl
   const fields: CrudField<QuestionBankCategoryFormInput>[] = [
     {
       name: "categoryType",
-      label: "分类体系（新建时生效，编辑不可改）",
+      label: "Category system (set on create, not editable)",
       kind: "select",
       valueType: "number",
       options: Object.entries(CategoryTypeLabel).map(([v, l]) => ({ value: v, label: l })),
     },
-    { name: "name", label: "名称", kind: "text", placeholder: "法律政务 / 移民信件" },
+    {
+      name: "name",
+      label: "Name",
+      kind: "text",
+      placeholder: "Legal & government / Immigration letters",
+    },
     {
       name: "parentId",
-      label: "上级分类（可选，支持层级）",
+      label: "Parent category (optional, hierarchical)",
       kind: "select",
       options: [
-        { value: "", label: "无（顶层分类）" },
+        { value: "", label: "None (top-level category)" },
         ...(categories.data ?? []).map((c) => ({ value: c.id, label: c.name })),
       ],
     },
-    { name: "description", label: "描述（可选）", kind: "textarea" },
+    { name: "description", label: "Description (optional)", kind: "textarea" },
   ];
 
   const columns: CrudColumn<QuestionBankCategory>[] = [
-    { key: "categoryType", header: "体系", render: (c) => CategoryTypeLabel[c.categoryType] },
-    { key: "name", header: "名称", render: (c) => c.name },
+    { key: "categoryType", header: "System", render: (c) => CategoryTypeLabel[c.categoryType] },
+    { key: "name", header: "Name", render: (c) => c.name },
     {
       key: "parentId",
-      header: "上级分类",
+      header: "Parent category",
       render: (c) => (categories.data ?? []).find((p) => p.id === c.parentId)?.name ?? "—",
     },
-    { key: "description", header: "描述", render: (c) => c.description ?? "—" },
+    { key: "description", header: "Description", render: (c) => c.description ?? "—" },
   ];
 
   return (
@@ -152,7 +157,7 @@ export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandl
         schema={questionBankCategoryFormSchema}
         fields={fields}
         defaultValues={defaultValues}
-        dialogTitle="新建题库分类"
+        dialogTitle="New question-bank category"
         onCreate={(values) =>
           createQuestionBankCategory({
             ...values,
@@ -175,8 +180,9 @@ export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandl
         }
         onDelete={(id) => deleteQuestionBankCategory(id)}
         deleteConfirm={(c) => ({
-          title: `删除分类「${c.name}」？`,
-          description: "若该分类有子分类或已被题目引用，后端会拒绝（返回冲突）。",
+          title: `Delete category "${c.name}"?`,
+          description:
+            "The backend rejects (conflict) if the category has children or is referenced by questions.",
         })}
         onChanged={invalidate}
       />

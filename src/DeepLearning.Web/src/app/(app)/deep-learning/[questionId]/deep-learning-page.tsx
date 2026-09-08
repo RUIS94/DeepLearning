@@ -15,6 +15,7 @@ import { getQuestionById } from "@/lib/api/questions";
 import { listSubmissions } from "@/lib/api/submissions";
 import { useExamType } from "@/hooks/use-exam-config";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useT } from "@/lib/i18n";
 import type { SentencePattern, VocabExpression } from "@/lib/types/dtos";
 
 /** breakdownSteps 后端存的是 AI 返回的原始 JSON（对象 {"主干": "...", ...} 或普通字符串）——两种都兜住。 */
@@ -81,6 +82,7 @@ function TagRow({ tags }: { tags: (string | null | undefined)[] }) {
 }
 
 function SentencePatternCard({ p }: { p: SentencePattern }) {
+  const t = useT();
   return (
     <div className="rounded-lg border border-border p-4">
       <p className="text-sm font-medium">{p.patternName}</p>
@@ -93,7 +95,7 @@ function SentencePatternCard({ p }: { p: SentencePattern }) {
       {p.breakdownSteps ? <BreakdownSteps raw={p.breakdownSteps} /> : null}
       {p.variants ? (
         <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-          <span className="font-medium">常见变体：</span>
+          <span className="font-medium">{t("deepLearning.commonVariants")}</span>
           {p.variants}
         </p>
       ) : null}
@@ -103,13 +105,14 @@ function SentencePatternCard({ p }: { p: SentencePattern }) {
 }
 
 function VocabCard({ v }: { v: VocabExpression }) {
+  const t = useT();
   return (
     <div className="rounded-lg border border-border p-4">
       <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
         {v.englishExpr}
         {v.literalTranslatable === false ? (
           <span className="rounded bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning-foreground">
-            不可机械直译
+            {t("deepLearning.notLiteral")}
           </span>
         ) : null}
       </p>
@@ -125,6 +128,7 @@ function VocabCard({ v }: { v: VocabExpression }) {
 const UNCATEGORIZED = "其他";
 
 export function DeepLearningPage() {
+  const t = useT();
   const { questionId } = useParams<{ questionId: string }>();
   const examType = useExamType();
   const currentUser = useCurrentUser();
@@ -174,13 +178,15 @@ export function DeepLearningPage() {
 
   return (
     <AppShell
-      title="深入学习"
+      title={t("deepLearning.title")}
       description={question.data?.title}
       actions={
         <>
           {content.data ? (
             <Badge variant="outline" className="border-primary/30 text-primary">
-              {content.data.wasCached ? "命中缓存内容" : "本次新生成"}
+              {content.data.wasCached
+                ? t("deepLearning.cached")
+                : t("deepLearning.freshlyGenerated")}
             </Badge>
           ) : null}
           {submissionId ? (
@@ -195,10 +201,7 @@ export function DeepLearningPage() {
       }
     >
       {content.isPending ? (
-        <AiLoadingState
-          status="pending"
-          pendingHint="AI 正在生成参考译文与学习卡片，首次生成较慢"
-        />
+        <AiLoadingState status="pending" pendingHint={t("deepLearning.pendingHint")} />
       ) : content.isError ? (
         <ErrorBanner error={content.error} />
       ) : content.data ? (
@@ -212,7 +215,7 @@ export function DeepLearningPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base">
                       <BookOpenCheck className="size-4 text-primary" />
-                      参考译文
+                      {t("deepLearning.referenceTranslation")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -224,7 +227,7 @@ export function DeepLearningPage() {
                     <ArticleText text={content.data.referenceText} className="text-[15px]" />
                     {content.data.comparisonNotes ? (
                       <div className="rounded-lg border border-border bg-secondary/50 p-4 text-sm leading-relaxed">
-                        <p className="mb-1 font-medium">对照要点</p>
+                        <p className="mb-1 font-medium">{t("deepLearning.comparisonPoints")}</p>
                         <ComparisonNotes raw={content.data.comparisonNotes} />
                       </div>
                     ) : null}
@@ -233,12 +236,14 @@ export function DeepLearningPage() {
 
                 <Card className="border-border shadow-none">
                   <CardHeader>
-                    <CardTitle className="text-base">句型拆解</CardTitle>
+                    <CardTitle className="text-base">
+                      {t("deepLearning.sentenceBreakdown")}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {content.data.sentencePatterns.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
-                        本文没有特别值得拆解的长难句。
+                        {t("deepLearning.noSentencePatterns")}
                       </p>
                     ) : (
                       content.data.sentencePatterns.map((p) => (
@@ -254,16 +259,16 @@ export function DeepLearningPage() {
           <div className="flex min-h-0 flex-col gap-6 lg:overflow-hidden">
             <Card className="flex min-h-0 flex-1 flex-col border-border shadow-none">
               <CardHeader className="shrink-0">
-                <CardTitle className="text-base">词汇与表达</CardTitle>
+                <CardTitle className="text-base">{t("deepLearning.vocabAndExpressions")}</CardTitle>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 space-y-5 overflow-y-auto">
                 {vocabGroups.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">本文没有特别值得积累的表达。</p>
+                  <p className="text-sm text-muted-foreground">{t("deepLearning.noVocab")}</p>
                 ) : (
                   vocabGroups.map(([group, items]) => (
                     <div key={group} className="space-y-3">
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        {group}
+                        {group === UNCATEGORIZED ? t("deepLearning.uncategorized") : group}
                       </p>
                       {items.map((v) => (
                         <VocabCard key={v.id} v={v} />

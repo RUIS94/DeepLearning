@@ -4,13 +4,17 @@ export function bandToColor(band: number): string {
   return `var(--band-${clamped})`;
 }
 
+/**
+ * 英文原文（真相源）。中文版走 `useBandLabel()`（src/lib/i18n/enum-labels.ts），
+ * 界面里请优先用那个 hook。
+ */
 export function bandLabel(band: number): string {
   const map: Record<number, string> = {
-    1: "优秀",
-    2: "合格",
-    3: "临界",
-    4: "偏弱",
-    5: "薄弱",
+    1: "Excellent",
+    2: "Adequate",
+    3: "Borderline",
+    4: "Weak",
+    5: "Very weak",
   };
   return map[Math.min(5, Math.max(1, Math.round(band)))] ?? "";
 }

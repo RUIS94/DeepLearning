@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/lib/i18n";
 
 /**
  * 通用枚举下拉（方案 §8.1）：接收一张 Record<number,string> 标签表 + 当前值，
@@ -18,7 +19,7 @@ export function EnumSelect({
   onChange,
   placeholder,
   allowAll,
-  allLabel = "全部",
+  allLabel,
   className,
 }: {
   labels: Record<number, string>;
@@ -29,13 +30,14 @@ export function EnumSelect({
   allLabel?: string;
   className?: string;
 }) {
+  const t = useT();
   return (
     <Select value={String(value)} onValueChange={(v) => onChange(v === "all" ? "all" : Number(v))}>
       <SelectTrigger className={className}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        {allowAll ? <SelectItem value="all">{allLabel}</SelectItem> : null}
+        {allowAll ? <SelectItem value="all">{allLabel ?? t("common.all")}</SelectItem> : null}
         {Object.entries(labels).map(([v, label]) => (
           <SelectItem key={v} value={v}>
             {label}

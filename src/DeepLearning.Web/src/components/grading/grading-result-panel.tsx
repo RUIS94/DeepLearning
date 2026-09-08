@@ -5,15 +5,15 @@ import { AlertCircle, CheckCircle2, Flame, MessageSquare, Scale } from "lucide-r
 import type { SubmissionDetail } from "@/lib/types/dtos";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { bandLabel, bandToColor } from "@/lib/band";
+import { bandToColor } from "@/lib/band";
 import {
   ErrorSeverity,
-  ErrorSeverityLabel,
   FollowUpThreadKind,
   FollowUpThreadStatus,
   SubmissionStatus,
-  errorImpactLabel,
 } from "@/lib/types/enums";
+import { useT } from "@/lib/i18n";
+import { useBandLabel, useEnumLabels, useErrorImpactLabel } from "@/lib/i18n/enum-labels";
 import { cn } from "@/lib/utils";
 import { FollowUpPanel } from "@/components/grading/follow-up-panel";
 import { listFollowUpThreads } from "@/lib/api/follow-up-threads";
@@ -21,12 +21,6 @@ import { listFollowUpThreads } from "@/lib/api/follow-up-threads";
 const SEVERITY_BADGE: Record<number, string> = {
   [ErrorSeverity.minor]: "border-border text-muted-foreground",
   [ErrorSeverity.major]: "border-destructive/40 text-destructive",
-};
-
-const CONFIDENCE_LABEL: Record<string, string> = {
-  high: "判定把握 高",
-  medium: "判定把握 中",
-  low: "判定把握 低",
 };
 
 function DimensionBandRow({
@@ -48,6 +42,13 @@ function DimensionBandRow({
   confidence: "high" | "medium" | "low" | null;
   alternativeBand: number | null;
 }) {
+  const t = useT();
+  const bandLabel = useBandLabel();
+  const confidenceLabel: Record<string, string> = {
+    high: t("grading.confidence.high"),
+    medium: t("grading.confidence.medium"),
+    low: t("grading.confidence.low"),
+  };
   // 只有在评卷阶段确实给出了另一个候选档时才提示：alternativeBand === band 表示"没有第二选择"。
   const contested = alternativeBand !== null && alternativeBand !== band;
   return (
@@ -64,10 +65,12 @@ function DimensionBandRow({
           <p className="text-xs text-muted-foreground">
             Band {band} · {bandLabel(band)}
             {probability !== null
-              ? ` · 预估通过概率 ${Math.round((probability > 1 ? probability / 100 : probability) * 100)}%`
+              ? ` · ${t("grading.estPassProbability", {
+                  pct: Math.round((probability > 1 ? probability / 100 : probability) * 100),
+                })}`
               : ""}
-            {confidence ? ` · ${CONFIDENCE_LABEL[confidence]}` : ""}
-            {contested ? `（另一可能：Band ${alternativeBand}）` : ""}
+            {confidence ? ` · ${confidenceLabel[confidence]}` : ""}
+            {contested ? t("grading.alternativeBand", { band: alternativeBand ?? "" }) : ""}
           </p>
         </div>
         <Badge
@@ -77,7 +80,7 @@ function DimensionBandRow({
             pass ? "bg-success/12 text-success" : "bg-destructive/12 text-destructive",
           )}
         >
-          {pass ? "达标" : "未达标"}
+          {pass ? t("grading.pass") : t("grading.fail")}
         </Badge>
       </div>
       <p className="text-sm leading-relaxed text-muted-foreground">{rationale}</p>
@@ -92,6 +95,9 @@ function DimensionBandRow({
 }
 
 export function GradingResultPanel({ submission }: { submission: SubmissionDetail }) {
+  const t = useT();
+  const { ErrorSeverityLabel } = useEnumLabels();
+  const errorImpactLabel = useErrorImpactLabel();
   const summary = submission.overallSummary;
   // 结果区在这些状态下都在（见 submission-page 的 graded 判断），改判入口的可见性再据线程情况细分。
   const resultsVisible =
@@ -105,7 +111,7 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
     queryFn: () => listFollowUpThreads(submission.id),
     enabled: resultsVisible,
   });
-  const openThread = threads.data?.find((t) => t.status === FollowUpThreadStatus.open) ?? null;
+  const openThread = threads.data?.find((th) => th.status === FollowUpThreadStatus.open) ?? null;
   const openScoreChallenge =
     openThread?.kind === FollowUpThreadKind.score_challenge ? openThread : null;
   const noOpenThread = threads.isSuccess && !openThread;
@@ -129,7 +135,7 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
         <Card className="border-border shadow-none">
           <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-2 py-4">
             <div>
-              <p className="text-xs text-muted-foreground">总体预估通过率</p>
+              <p className="text-xs text-muted-foreground">{t("grading.overallPassProbability")}</p>
               <p className="text-numeric text-2xl font-semibold">
                 {Math.round(
                   (summary.overallPassProbability > 1
@@ -148,11 +154,9 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
                   : "bg-destructive/12 text-destructive",
               )}
             >
-              {summary.overallPassBool ? "整体达标" : "整体未达标"}
+              {summary.overallPassBool ? t("grading.overallPass") : t("grading.overallFail")}
             </Badge>
-            <span className="text-xs text-muted-foreground">
-              需全部维度达标方为通过（估算值，非官方）
-            </span>
+            <span className="text-xs text-muted-foreground">{t("grading.allDimsNote")}</span>
             {summary.cumulativeDensityNote ? (
               <p className="inline-flex w-full items-start gap-1.5 rounded-md bg-warning/15 px-2.5 py-1.5 text-xs text-warning-foreground">
                 <Flame className="mt-0.5 size-3.5 shrink-0" />
@@ -165,9 +169,9 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
       <Card className="border-border shadow-none">
         <CardHeader>
           <CardTitle className="text-base">
-            错误清单
+            {t("grading.errorList")}
             <span className="text-numeric ml-2 text-sm font-normal text-muted-foreground">
-              共 {submission.errorList.length} 条
+              {t("grading.errorCount", { count: submission.errorList.length })}
             </span>
           </CardTitle>
         </CardHeader>
@@ -182,8 +186,12 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
                     SEVERITY_BADGE[e.severity] ?? SEVERITY_BADGE[ErrorSeverity.minor],
                   )}
                 >
-                  {ErrorSeverityLabel[e.severity] ?? e.severity}
-                  {e.summary ? `，${e.summary}` : ""}
+                  {e.summary
+                    ? t("grading.severityWithSummary", {
+                        label: ErrorSeverityLabel[e.severity] ?? e.severity,
+                        summary: e.summary,
+                      })
+                    : (ErrorSeverityLabel[e.severity] ?? e.severity)}
                 </Badge>
                 <Badge variant="outline" className="border-accent/40 text-accent">
                   {e.errorCategory}
@@ -208,22 +216,31 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
                 })()}
               </div>
               {e.sourceTextSnippet ? (
-                <p className="mb-1 text-sm text-muted-foreground">原文：{e.sourceTextSnippet}</p>
+                <p className="mb-1 text-sm text-muted-foreground">
+                  {t("grading.sourceLabel", { text: e.sourceTextSnippet })}
+                </p>
               ) : null}
               {e.userTextSnippet ? (
-                <p className="mb-2 text-sm">你的译文：{e.userTextSnippet}</p>
+                <p className="mb-2 text-sm">
+                  {t("grading.yourTranslationLabel", { text: e.userTextSnippet })}
+                </p>
               ) : null}
               {e.explanation ? <p className="text-sm leading-relaxed">{e.explanation}</p> : null}
               {e.suggestion ? (
-                <p className="mt-1 text-sm text-primary">建议：{e.suggestion}</p>
+                <p className="mt-1 text-sm text-primary">
+                  {t("grading.suggestionLabel", { text: e.suggestion })}
+                </p>
               ) : null}
               {/* 始终挂载：popup 打开后即使 canStartChallenge 变 false（发送首条消息建线程后）也不卸载。 */}
               <div className={canStartChallenge ? "mt-2" : undefined}>
                 <FollowUpPanel
                   submissionId={submission.id}
                   disputeAnchor={{
-                    contextRef:
-                      `错误#${i + 1} · ${e.positionRef ?? "?"} · ${e.errorCategory}`.slice(0, 100),
+                    contextRef: t("grading.errorAnchor", {
+                      index: i + 1,
+                      ref: e.positionRef ?? "?",
+                      category: e.errorCategory,
+                    }).slice(0, 100),
                     label: `${e.dimensionKey} / ${e.errorCategory}${e.summary ? " · " + e.summary : ""}`,
                   }}
                   renderTrigger={(openPanel) =>
@@ -234,7 +251,7 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
                         className="inline-flex items-center gap-1 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
                       >
                         <MessageSquare className="size-3" />
-                        针对这条错误提问 / 质疑
+                        {t("grading.askAboutError")}
                       </button>
                     ) : null
                   }
@@ -247,7 +264,7 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
 
       <Card className="border-border shadow-none">
         <CardHeader>
-          <CardTitle className="text-base">维度评分</CardTitle>
+          <CardTitle className="text-base">{t("grading.dimensionScores")}</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           {submission.gradingResults.map((r) => {
@@ -287,8 +304,8 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
                             <Scale className="size-3" />
                           )}
                           {mode === "reopen"
-                            ? "查看进行中的改判申请"
-                            : "对这个维度的 Band 申请改判"}
+                            ? t("grading.viewOngoingChallenge")
+                            : t("grading.challengeThisDimension")}
                         </button>
                       ) : null
                     }

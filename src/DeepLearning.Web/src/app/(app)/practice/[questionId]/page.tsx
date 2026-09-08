@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { AnswerPage } from "./answer-page";
 
 export const metadata: Metadata = {
-  title: "答题",
-  description: "阅读原文完成翻译或找错标注，提交后由 AI 分维度批改。",
+  title: "Answer",
+  description:
+    "Read the source text, complete the translation or annotate errors, then get AI grading by dimension.",
   openGraph: {
-    title: "答题 · 译练",
-    description: "完成翻译或找错标注，提交后由 AI 分维度批改。",
+    title: "Answer",
+    description: "Complete the translation or annotate errors, then get AI grading by dimension.",
   },
 };
 

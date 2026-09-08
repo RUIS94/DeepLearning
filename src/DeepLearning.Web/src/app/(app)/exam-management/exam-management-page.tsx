@@ -17,16 +17,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listExamTypes } from "@/lib/api/exam-config";
-import { SubjectCategoryLabel } from "@/lib/types/enums";
+import { useT } from "@/lib/i18n";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
 
 export function ExamManagementPage() {
+  const t = useT();
+  const { SubjectCategoryLabel } = useEnumLabels();
   const examTypes = useQuery({ queryKey: ["admin", "exam-types"], queryFn: listExamTypes });
 
   return (
-    <PageShell
-      title="Management"
-      description="Manage and Add Exam Types"
-    >
+    <PageShell title={t("nav.examManagement")} description={t("examMgmt.description")}>
       {examTypes.isPending ? (
         <Skeleton className="h-48 w-full rounded-xl" />
       ) : examTypes.error ? (
@@ -36,12 +36,12 @@ export function ExamManagementPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Code</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Subject Category</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-24 text-right">Configuration</TableHead>
+                <TableHead>{t("common.code")}</TableHead>
+                <TableHead>{t("common.name")}</TableHead>
+                <TableHead>{t("examMgmt.col.subjectCategory")}</TableHead>
+                <TableHead>{t("common.description")}</TableHead>
+                <TableHead>{t("common.status")}</TableHead>
+                <TableHead className="w-24 text-right">{t("examMgmt.col.configuration")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -55,12 +55,12 @@ export function ExamManagementPage() {
                   <TableCell className="max-w-md text-sm text-muted-foreground">
                     {e.description ?? "—"}
                   </TableCell>
-                  <TableCell>{e.isActive ? "Enabled" : "Disabled"}</TableCell>
+                  <TableCell>{e.isActive ? t("common.enabled") : t("common.disabled")}</TableCell>
                   <TableCell className="text-right">
                     <Button asChild size="sm" variant="outline">
                       <Link href={`/exam-management/${e.id}`}>
                         <Settings2 className="size-3.5" />
-                        Configure
+                        {t("examMgmt.configure")}
                       </Link>
                     </Button>
                   </TableCell>

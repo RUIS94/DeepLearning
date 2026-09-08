@@ -21,8 +21,8 @@ import { cn } from "@/lib/utils";
 import type { StandardOverride } from "@/lib/types/dtos";
 
 const scopeLabel: Record<number, string> = {
-  [OverrideScope.grading_rubric]: "评分标准",
-  [OverrideScope.translation_reference]: "参考译文",
+  [OverrideScope.grading_rubric]: "Grading standard",
+  [OverrideScope.translation_reference]: "Reference translation",
 };
 
 const statusTone: Record<number, string> = {
@@ -43,13 +43,13 @@ export function StandardOverridesPanel() {
   const activate = useMutation({
     mutationFn: (id: string) => activateStandardOverride(id),
     onSuccess: () => {
-      showToast({ variant: "success", title: "已提升为生效" });
+      showToast({ variant: "success", title: "Promoted to active" });
       invalidate();
     },
     onError: (err) =>
       showToast({
         variant: "error",
-        title: "无法提升",
+        title: "Couldn't promote",
         description: err instanceof ApiError ? (err.problem?.title ?? "") : "",
       }),
   });
@@ -57,8 +57,8 @@ export function StandardOverridesPanel() {
   return (
     <>
       <p className="mb-4 text-sm text-muted-foreground">
-        审计链只增不改：这里只能「人工复核提升」observing →
-        active，或把一条修正「作废」。不提供编辑与物理删除。
+        The audit chain is append-only: here you can only manually review and promote observing →
+        active, or deprecate a revision. Editing and physical deletion are not offered.
       </p>
 
       {overrides.isPending ? (
@@ -101,7 +101,7 @@ export function StandardOverridesPanel() {
                       disabled={activate.isPending}
                       onClick={() => activate.mutate(o.id)}
                     >
-                      提升为生效
+                      Promote to active
                     </Button>
                   ) : null}
                   {o.status !== OverrideStatus.deprecated ? (
@@ -111,7 +111,7 @@ export function StandardOverridesPanel() {
                       className="text-muted-foreground hover:text-destructive"
                       onClick={() => setDeprecating(o)}
                     >
-                      作废
+                      Deprecate
                     </Button>
                   ) : null}
                 </div>
@@ -121,7 +121,7 @@ export function StandardOverridesPanel() {
         </div>
       ) : (
         <p className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
-          暂无标准修正记录。
+          No standard revision records yet.
         </p>
       )}
 
@@ -131,9 +131,9 @@ export function StandardOverridesPanel() {
           if (!next) setDeprecating(null);
         }}
         tone="warning"
-        title="作废这条修正？"
-        description="状态会变成 deprecated，不再参与后续评判。审计链记录保留，可追溯。"
-        confirmLabel="作废"
+        title="Deprecate this revision?"
+        description="The status becomes deprecated and it no longer takes part in future grading. The audit-chain record is kept and traceable."
+        confirmLabel="Deprecate"
         onConfirm={async () => {
           if (!deprecating) return;
           try {
@@ -143,7 +143,7 @@ export function StandardOverridesPanel() {
           } catch (err) {
             showToast({
               variant: "error",
-              title: "作废失败",
+              title: "Deprecation failed",
               description: err instanceof ApiError ? (err.problem?.title ?? "") : "",
             });
             throw err;

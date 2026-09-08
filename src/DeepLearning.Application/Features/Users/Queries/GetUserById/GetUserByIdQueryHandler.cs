@@ -18,7 +18,9 @@ namespace DeepLearning.Application.Features.Users.Queries.GetUserById
             var user = await _userRepository.GetByIdAsync(request.Id, cancellationToken)
                 ?? throw new NotFoundException(nameof(Domain.Entities.User), request.Id);
 
-            return new GetUserByIdResult(user.Id, user.Username, user.Email, user.DisplayName, user.CreatedAt, user.LastLoginAt);
+            return new GetUserByIdResult(
+                user.Id, user.Username, user.Email, user.DisplayName,
+                user.LanguagePreference, user.CreatedAt, user.LastLoginAt);
         }
     }
 }

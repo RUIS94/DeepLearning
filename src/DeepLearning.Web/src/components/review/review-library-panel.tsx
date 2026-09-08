@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useReviewLibrary } from "@/components/review/use-review-library";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { MasteryLevel, MasteryLevelLabel } from "@/lib/types/enums";
+import { MasteryLevel } from "@/lib/types/enums";
+import { useT } from "@/lib/i18n";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import { formatDate } from "@/lib/band";
 
 const ALL = "all";
@@ -39,6 +41,7 @@ function MasteryPicker({
   onChange: (level: number) => void;
   pending: boolean;
 }) {
+  const { MasteryLevelLabel } = useEnumLabels();
   return (
     <div className="flex gap-1">
       {Object.values(MasteryLevel).map((level) => (
@@ -65,6 +68,7 @@ export function ReviewLibraryList({
   mastery: string;
   domain: string;
 }) {
+  const t = useT();
   const currentUser = useCurrentUser();
   const { patterns, vocab, markPattern, markVocab } = useReviewLibrary(currentUser.data?.id);
 
@@ -102,7 +106,12 @@ export function ReviewLibraryList({
           scenario: v.scenario,
           frequencyTag: v.category ?? v.frequencyTag,
           countNote:
-            v.occurrenceCount > 1 ? `${v.senseCount} 个义项 · 出现 ${v.occurrenceCount} 次` : null,
+            v.occurrenceCount > 1
+              ? t("review.lib.countNote", {
+                  senses: v.senseCount,
+                  occurrences: v.occurrenceCount,
+                })
+              : null,
           timesEncountered: v.timesEncountered,
           lastReviewedAt: v.lastReviewedAt,
           questionId: null,
@@ -118,12 +127,12 @@ export function ReviewLibraryList({
   }
 
   if (filtered.length === 0) {
-    const label = kind === "patterns" ? "句型" : "词汇表达";
+    const label = kind === "patterns" ? t("review.lib.kindPatterns") : t("review.lib.kindVocab");
     return (
       <p className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
         {rows.length === 0
-          ? `暂无${label}记录，练习批改后会自动沉淀到这里。`
-          : `当前筛选条件下没有匹配的${label}。`}
+          ? t("review.lib.emptyNone", { kind: label })
+          : t("review.lib.emptyFiltered", { kind: label })}
       </p>
     );
   }
@@ -140,21 +149,26 @@ export function ReviewLibraryList({
                 <p className="whitespace-pre-line text-sm text-muted-foreground">{r.body}</p>
               ) : null}
               <div className="flex flex-wrap items-center gap-2">
-                {[r.domain, r.scenario, r.frequencyTag].filter(Boolean).map((t) => (
-                  <Badge key={t} variant="outline" className="border-border text-muted-foreground">
-                    {t}
+                {[r.domain, r.scenario, r.frequencyTag].filter(Boolean).map((tag) => (
+                  <Badge
+                    key={tag}
+                    variant="outline"
+                    className="border-border text-muted-foreground"
+                  >
+                    {tag}
                   </Badge>
                 ))}
                 <span className="text-numeric text-xs text-muted-foreground">
-                  {r.countNote ? `${r.countNote} · ` : ""}遇见 {r.timesEncountered} 次 · 上次复习{" "}
-                  {formatDate(r.lastReviewedAt)}
+                  {r.countNote ? `${r.countNote} · ` : ""}
+                  {t("review.lib.encounteredTimes", { count: r.timesEncountered })} ·{" "}
+                  {t("review.lib.lastReviewedPrefix")} {formatDate(r.lastReviewedAt)}
                 </span>
                 {r.questionId ? (
                   <Link
                     href={`/practice/${r.questionId}`}
                     className="text-xs text-primary underline underline-offset-2"
                   >
-                    回到原题
+                    {t("review.lib.backToQuestion")}
                   </Link>
                 ) : null}
               </div>

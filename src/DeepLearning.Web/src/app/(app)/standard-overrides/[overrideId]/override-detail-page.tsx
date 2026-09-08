@@ -16,8 +16,8 @@ import { formatDate } from "@/lib/band";
 import { cn } from "@/lib/utils";
 
 const scopeLabel: Record<number, string> = {
-  [OverrideScope.grading_rubric]: "评分标准",
-  [OverrideScope.translation_reference]: "参考译文",
+  [OverrideScope.grading_rubric]: "Grading standard",
+  [OverrideScope.translation_reference]: "Reference translation",
 };
 
 const statusTone: Record<number, string> = {
@@ -40,14 +40,14 @@ export function OverrideDetailPage() {
 
   return (
     <AppShell
-      title="标准修正详情"
+      title="Standard Revision Detail"
       actions={
         <Link
           href="/standard-overrides"
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
-          返回列表
+          Back to list
         </Link>
       }
     >
@@ -60,7 +60,9 @@ export function OverrideDetailPage() {
           <CardHeader>
             <div className="flex flex-wrap items-center gap-2">
               <Gavel className="size-4 text-muted-foreground" />
-              <CardTitle className="text-base">{scopeLabel[override.data.scope]}修正</CardTitle>
+              <CardTitle className="text-base">
+                {scopeLabel[override.data.scope]} revision
+              </CardTitle>
               <Badge
                 variant="outline"
                 className={cn("border-transparent", statusTone[override.data.status])}
@@ -71,28 +73,28 @@ export function OverrideDetailPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              关联维度/规则：
+              Associated dimension / rule:{" "}
               <span className="text-foreground">{override.data.dimensionOrRule}</span>
             </p>
             {override.data.originalRuleText ? (
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">修订前</p>
+                <p className="text-xs font-medium text-muted-foreground">Before</p>
                 <p className="text-sm leading-relaxed text-muted-foreground line-through opacity-70">
                   {override.data.originalRuleText}
                 </p>
               </div>
             ) : null}
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">修订后</p>
+              <p className="text-xs font-medium text-muted-foreground">After</p>
               <p className="text-sm leading-relaxed">{override.data.revisedRuleText}</p>
             </div>
             <div className="text-numeric flex flex-wrap gap-x-6 gap-y-1 border-t border-border pt-4 text-xs text-muted-foreground">
-              <span>生成时间 {formatDate(override.data.createdAt)}</span>
+              <span>Created {formatDate(override.data.createdAt)}</span>
               {override.data.effectiveFrom ? (
-                <span>生效时间 {formatDate(override.data.effectiveFrom)}</span>
+                <span>Effective {formatDate(override.data.effectiveFrom)}</span>
               ) : null}
               {override.data.triggeredByFollowupId ? (
-                <span>由追问 {override.data.triggeredByFollowupId} 触发</span>
+                <span>Triggered by follow-up {override.data.triggeredByFollowupId}</span>
               ) : null}
             </div>
             {override.data.status === OverrideStatus.observing ? (
@@ -104,10 +106,11 @@ export function OverrideDetailPage() {
                   onClick={() => activate.mutate()}
                 >
                   <CheckCircle2 className="size-4" />
-                  {activate.isPending ? "核准中…" : "人工核准生效"}
+                  {activate.isPending ? "Approving…" : "Manually approve & activate"}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  design doc §10.6：无需等待累计确认次数达标，经一次人工复核即可直接生效。
+                  design doc §10.6: no need to wait for a cumulative confirmation count — one manual
+                  review is enough to activate it directly.
                 </p>
                 {activate.isError ? <ErrorBanner error={activate.error} /> : null}
               </div>

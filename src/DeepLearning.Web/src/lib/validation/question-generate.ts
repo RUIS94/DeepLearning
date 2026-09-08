@@ -11,10 +11,10 @@ export const generateQuestionFormSchema = z.object({
   difficulty: z.number().int().min(0).max(2).nullable().optional(),
   categoryId: z.string().min(1).nullable().optional(),
   seedQuestionIds: z
-    .array(z.string().min(1, "真题种子 id 不能为空"))
-    .max(5, "真题种子最多选择 5 道")
+    .array(z.string().min(1, "Real-exam seed id is required"))
+    .max(5, "Select at most 5 real-exam seeds")
     .refine((ids) => new Set(ids).size === ids.length, {
-      message: "真题种子不能重复选择",
+      message: "Real-exam seeds cannot be selected more than once",
     })
     .nullable()
     .optional(),

@@ -17,6 +17,14 @@ namespace DeepLearning.Domain.Entities
         public string? PasswordHash { get; set; }
 
         public string? DisplayName { get; set; }
+
+        /// <summary>
+        /// Which language the web UI renders in for this user: "en" (default) or "zh". This is a
+        /// pure front-end display preference — it does not affect any stored content, which may
+        /// still be Chinese regardless of this value.
+        /// </summary>
+        public string LanguagePreference { get; set; } = "en";
+
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset? LastLoginAt { get; set; }
     }

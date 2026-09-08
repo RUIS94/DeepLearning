@@ -8,12 +8,14 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import type { ProgressSnapshot } from "@/lib/types/dtos";
-
-const config = {
-  passRate: { label: "通过率", color: "var(--chart-1)" },
-} satisfies ChartConfig;
+import { useT } from "@/lib/i18n";
 
 export function PassRateChart({ snapshots }: { snapshots: ProgressSnapshot[] }) {
+  const t = useT();
+  const config = {
+    passRate: { label: t("progress.passRate"), color: "var(--chart-1)" },
+  } satisfies ChartConfig;
+
   const data = snapshots.map((s) => ({
     period: s.periodEnd,
     passRate: s.passRate === null ? null : Math.round(s.passRate * 100),

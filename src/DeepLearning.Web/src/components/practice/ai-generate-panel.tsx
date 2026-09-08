@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/select";
 import { ErrorBanner } from "@/components/shared/ai-loading-state";
 import { RANDOM, type useAiGenerate } from "@/hooks/use-ai-generate";
-import { DifficultyLabel, PriorityLabel, TaskTypeLabel } from "@/lib/types/enums";
+import { useT } from "@/lib/i18n";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
 
 /**
  * AI 出题面板(SidePanel / “popup 右”)。表单与提交状态由父组件通过 useAiGenerate 持有,
@@ -38,31 +39,28 @@ export function AiGeneratePanel({
   onOpenChange: (open: boolean) => void;
   gen: ReturnType<typeof useAiGenerate>;
 }) {
+  const t = useT();
+  const { DifficultyLabel, PriorityLabel, TaskTypeLabel } = useEnumLabels();
   const { state, set, toggleSeed, mutation, categories, weakPoints, seeds, examTypeReady } = gen;
   const pending = mutation.isPending;
 
   return (
     <SidePanel open={open} onOpenChange={onOpenChange}>
       <SidePanelContent width="34rem">
-        <SidePanelHeader
-          title="AI 出题"
-          description="题目生成后会直接进入答题页"
-        />
+        <SidePanelHeader title={t("aiGen.title")} description={t("aiGen.description")} />
 
         <SidePanelBody>
           {pending ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 py-16 text-center">
               <Loader2 className="size-8 animate-spin text-primary" />
-              <p className="text-sm font-medium">AI 正在出题…</p>
-              <p className="max-w-xs text-xs text-muted-foreground">
-                可能需要几秒到十几秒。可以关掉这个面板去做别的，生成完成会自动通知并进入答题页。
-              </p>
+              <p className="text-sm font-medium">{t("aiGen.generating")}</p>
+              <p className="max-w-xs text-xs text-muted-foreground">{t("aiGen.generatingHint")}</p>
             </div>
           ) : (
             <div className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>任务类型</Label>
+                  <Label>{t("practice.filter.taskType")}</Label>
                   <Select value={state.taskType} onValueChange={(v) => set("taskType", v)}>
                     <SelectTrigger>
                       <SelectValue />
@@ -77,13 +75,13 @@ export function AiGeneratePanel({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>难度</Label>
+                  <Label>{t("practice.filter.difficulty")}</Label>
                   <Select value={state.difficulty} onValueChange={(v) => set("difficulty", v)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={RANDOM}>随机</SelectItem>
+                      <SelectItem value={RANDOM}>{t("aiGen.random")}</SelectItem>
                       {Object.entries(DifficultyLabel).map(([v, l]) => (
                         <SelectItem key={v} value={v}>
                           {l}
@@ -95,13 +93,13 @@ export function AiGeneratePanel({
               </div>
 
               <div className="space-y-2">
-                <Label>题材分类</Label>
+                <Label>{t("aiGen.categoryLabel")}</Label>
                 <Select value={state.categoryId} onValueChange={(v) => set("categoryId", v)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={RANDOM}>随机</SelectItem>
+                    <SelectItem value={RANDOM}>{t("aiGen.random")}</SelectItem>
                     {(categories.data ?? []).map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}
@@ -114,9 +112,9 @@ export function AiGeneratePanel({
               <div className="space-y-3 rounded-lg border border-border p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium">命中薄弱点</p>
+                    <p className="text-sm font-medium">{t("aiGen.targetWeakPoints")}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      让 AI 优先围绕当前活跃薄弱点设计题目。
+                      {t("aiGen.targetWeakPointsHint")}
                     </p>
                   </div>
                   <Switch
@@ -127,9 +125,13 @@ export function AiGeneratePanel({
                 {state.targetWeakPoints ? (
                   <div className="space-y-2 border-t border-border pt-3">
                     {weakPoints.isPending ? (
-                      <p className="text-xs text-muted-foreground">加载薄弱点…</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("aiGen.loadingWeakPoints")}
+                      </p>
                     ) : (weakPoints.data ?? []).length === 0 ? (
-                      <p className="text-xs text-muted-foreground">当前没有活跃薄弱点。</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("aiGen.noActiveWeakPoints")}
+                      </p>
                     ) : (
                       (weakPoints.data ?? []).map((w) => (
                         <div key={w.id} className="flex items-center justify-between gap-2 text-sm">
@@ -138,7 +140,9 @@ export function AiGeneratePanel({
                             variant="outline"
                             className="shrink-0 border-accent/40 text-accent"
                           >
-                            {PriorityLabel[w.priority]}优先
+                            {t("aiGen.prioritySuffix", {
+                              priority: PriorityLabel[w.priority] ?? "",
+                            })}
                           </Badge>
                         </div>
                       ))
@@ -148,13 +152,11 @@ export function AiGeneratePanel({
               </div>
 
               <div className="space-y-2">
-                <Label>真题种子（可选，最多 5 道）</Label>
+                <Label>{t("aiGen.seedsLabel")}</Label>
                 {seeds.isPending ? (
-                  <p className="text-xs text-muted-foreground">加载真题种子…</p>
+                  <p className="text-xs text-muted-foreground">{t("aiGen.loadingSeeds")}</p>
                 ) : (seeds.data ?? []).length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    题库里还没有标记为真题种子的题目。
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t("aiGen.noSeeds")}</p>
                 ) : (
                   <div className="space-y-1.5">
                     {(seeds.data ?? []).map((q) => {
@@ -175,7 +177,7 @@ export function AiGeneratePanel({
                       );
                     })}
                     <p className="text-numeric text-xs text-muted-foreground">
-                      已选 {state.seedIds.length} / 5
+                      {t("aiGen.selectedCount", { count: state.seedIds.length })}
                     </p>
                   </div>
                 )}
@@ -188,7 +190,7 @@ export function AiGeneratePanel({
 
         <SidePanelFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button size="sm" disabled={pending || !examTypeReady} onClick={() => mutation.mutate()}>
             {pending ? (
@@ -196,7 +198,7 @@ export function AiGeneratePanel({
             ) : (
               <Sparkles className="size-4" />
             )}
-            {pending ? "生成中…" : "生成题目"}
+            {pending ? t("aiGen.generatingBtn") : t("practice.generateQuestion")}
           </Button>
         </SidePanelFooter>
       </SidePanelContent>

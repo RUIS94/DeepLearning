@@ -23,12 +23,15 @@ import { listCategories } from "@/lib/api/exam-config";
 import { listQuestions } from "@/lib/api/questions";
 import { useAiGenerate } from "@/hooks/use-ai-generate";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { useT } from "@/lib/i18n";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import type { QuestionListItem } from "@/lib/types/dtos";
-import { DifficultyLabel, TaskTypeLabel } from "@/lib/types/enums";
 
 const ALL = "all";
 
 export function PracticePage() {
+  const t = useT();
+  const { DifficultyLabel, TaskTypeLabel } = useEnumLabels();
   const router = useRouter();
   const importPanel = useImportPanel();
   const currentUser = useCurrentUser();
@@ -42,7 +45,11 @@ export function PracticePage() {
 
   // useAiGenerate 挂在这个不会卸载的页面上,所以关掉面板不会丢表单/生成状态(见 hook 注释)。
   const gen = useAiGenerate((questionId) => {
-    showToast({ variant: "success", title: "题目已生成", description: "正在进入答题页…" });
+    showToast({
+      variant: "success",
+      title: t("practice.generated.title"),
+      description: t("practice.generated.description"),
+    });
     setGenOpen(false);
     router.push(`/practice/${questionId}`);
   });
@@ -61,17 +68,17 @@ export function PracticePage() {
 
   return (
     <AppShell
-      title="Question Bank"
-      description="Select a topic and start practicing"
+      title={t("practice.title")}
+      description={t("practice.subtitle")}
       actions={
         <>
           <Button variant="outline" onClick={() => importPanel.open()}>
             <Upload className="size-4" />
-            Import Question
+            {t("practice.importQuestion")}
           </Button>
           <Button onClick={() => setGenOpen(true)}>
             <Sparkles className="size-4" />
-            Generate Question
+            {t("practice.generateQuestion")}
           </Button>
         </>
       }
@@ -79,10 +86,10 @@ export function PracticePage() {
       <div className="mb-6 flex flex-wrap gap-3">
         <Select value={taskType} onValueChange={setTaskType}>
           <SelectTrigger className="w-44">
-            <SelectValue placeholder="Task Type" />
+            <SelectValue placeholder={t("practice.filter.taskType")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>All Task Types</SelectItem>
+            <SelectItem value={ALL}>{t("practice.filter.allTaskTypes")}</SelectItem>
             {Object.entries(TaskTypeLabel).map(([value, label]) => (
               <SelectItem key={value} value={value}>
                 {label}
@@ -93,10 +100,10 @@ export function PracticePage() {
 
         <Select value={difficulty} onValueChange={setDifficulty}>
           <SelectTrigger className="w-36">
-            <SelectValue placeholder="Difficulty" />
+            <SelectValue placeholder={t("practice.filter.difficulty")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>All Difficulties</SelectItem>
+            <SelectItem value={ALL}>{t("practice.filter.allDifficulties")}</SelectItem>
             {Object.entries(DifficultyLabel).map(([value, label]) => (
               <SelectItem key={value} value={value}>
                 {label}
@@ -107,10 +114,10 @@ export function PracticePage() {
 
         <Select value={categoryId} onValueChange={setCategoryId}>
           <SelectTrigger className="w-44">
-            <SelectValue placeholder="Categories" />
+            <SelectValue placeholder={t("practice.filter.categories")} />
           </SelectTrigger>
           <SelectContent className="max-h-72">
-            <SelectItem value={ALL}>All Categories</SelectItem>
+            <SelectItem value={ALL}>{t("practice.filter.allCategories")}</SelectItem>
             {(categories.data ?? []).map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 {c.name}
@@ -134,7 +141,7 @@ export function PracticePage() {
         </div>
       ) : (
         <p className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
-          没有符合条件的题目，换个筛选条件或让 AI 生成一道。
+          {t("practice.empty")}
         </p>
       )}
 

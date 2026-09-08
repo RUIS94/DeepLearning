@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBanner } from "@/components/shared/ai-loading-state";
+import { useT } from "@/lib/i18n";
 
 /**
  * 通用后台增改列表（方案 §8.2）。列定义 + 表单 schema 作为 props，不为每个资源重复写表格+弹窗。
@@ -114,10 +115,10 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
   deleteConfirm,
   lockOnEdit,
   title,
-  dialogTitle = "新建",
-  editDialogTitle = "编辑",
-  createButtonLabel = "新建",
-  emptyMessage = "暂无数据",
+  dialogTitle,
+  editDialogTitle,
+  createButtonLabel,
+  emptyMessage,
   hideCreate = false,
   openCreateRef,
   dialogOnly = false,
@@ -155,6 +156,11 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
   /** 只渲染新建弹窗，不渲染表格与按钮（配合 openCreateRef，做一个纯弹窗入口）。 */
   dialogOnly?: boolean;
 }) {
+  const t = useT();
+  const dlgTitle = dialogTitle ?? t("common.create");
+  const editTitle = editDialogTitle ?? t("common.edit");
+  const createLabel = createButtonLabel ?? t("common.create");
+  const emptyMsg = emptyMessage ?? t("crud.emptyData");
   const cols = columns ?? [];
   const rowId = getRowId ?? (() => "");
   const [mode, setMode] = useState<Mode<TItem>>("closed");
@@ -196,12 +202,14 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
       }
       onChanged?.();
       closeDialog();
-      showToast({ variant: "success", title: editing ? "已保存" : "已创建" });
+      showToast({ variant: "success", title: editing ? t("common.saved") : t("crud.created") });
     } catch (err) {
       setSubmitError(err);
       const msg =
-        err instanceof ApiError ? (err.problem?.title ?? `保存失败（${err.status}）`) : "保存失败";
-      showToast({ variant: "error", title: "无法保存", description: msg });
+        err instanceof ApiError
+          ? (err.problem?.title ?? t("crud.saveFailedStatus", { status: err.status }))
+          : t("crud.saveFailed");
+      showToast({ variant: "error", title: t("crud.cannotSave"), description: msg });
     }
   }
 
@@ -214,12 +222,12 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
       : undefined;
     showToast({
       variant: "error",
-      title: "表单校验未通过",
+      title: t("crud.validationFailed"),
       description: first?.[1]?.message
         ? fieldLabel
-          ? `${fieldLabel}：${first[1]!.message}`
+          ? t("crud.fieldError", { field: fieldLabel, message: first[1]!.message! })
           : first[1]!.message
-        : "请检查各字段填写是否正确。",
+        : t("crud.checkFields"),
     });
   }
 
@@ -231,8 +239,10 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
       setDeleting(null);
     } catch (err) {
       const msg =
-        err instanceof ApiError ? (err.problem?.title ?? `删除失败（${err.status}）`) : "删除失败";
-      showToast({ variant: "error", title: "无法删除", description: msg });
+        err instanceof ApiError
+          ? (err.problem?.title ?? t("crud.deleteFailedStatus", { status: err.status }))
+          : t("crud.deleteFailed");
+      showToast({ variant: "error", title: t("crud.cannotDelete"), description: msg });
       throw err; // 让 ConfirmDialog 保持打开
     }
   }
@@ -241,9 +251,7 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
     <Dialog open={mode !== "closed"} onOpenChange={(next) => (next ? null : closeDialog())}>
       <DialogContent className="flex max-h-[85vh] max-w-lg flex-col overflow-hidden">
         <DialogHeader className="shrink-0">
-          <DialogTitle>
-            {mode !== "closed" && mode !== "create" ? editDialogTitle : dialogTitle}
-          </DialogTitle>
+          <DialogTitle>{mode !== "closed" && mode !== "create" ? editTitle : dlgTitle}</DialogTitle>
         </DialogHeader>
         <form
           className="flex min-h-0 flex-1 flex-col gap-4"
@@ -262,9 +270,7 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
                   ) : null}
                   <CrudFieldControl field={field} form={form} disabled={locked} />
                   {locked ? (
-                    <p className="text-xs text-muted-foreground">
-                      此字段不可编辑；如需更改请新建模板并停用旧行。
-                    </p>
+                    <p className="text-xs text-muted-foreground">{t("crud.lockedField")}</p>
                   ) : field.description ? (
                     <p className="text-xs text-muted-foreground">{field.description}</p>
                   ) : null}
@@ -278,7 +284,7 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
           </div>
           <DialogFooter className="shrink-0">
             <Button type="submit" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? "提交中…" : "确认"}
+              {form.formState.isSubmitting ? t("crud.submitting") : t("common.confirm")}
             </Button>
           </DialogFooter>
         </form>
@@ -296,7 +302,7 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
           {!hideCreate ? (
             <Button onClick={openCreate}>
               <PlusCircle className="size-4" />
-              {createButtonLabel}
+              {createLabel}
             </Button>
           ) : null}
         </div>
@@ -304,7 +310,7 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
         <div className="flex justify-end">
           <Button onClick={openCreate}>
             <PlusCircle className="size-4" />
-            {createButtonLabel}
+            {createLabel}
           </Button>
         </div>
       ) : null}
@@ -323,7 +329,9 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
                 {cols.map((c) => (
                   <TableHead key={c.key}>{c.header}</TableHead>
                 ))}
-                {actionsColumn ? <TableHead className="w-24 text-right">操作</TableHead> : null}
+                {actionsColumn ? (
+                  <TableHead className="w-24 text-right">{t("crud.actions")}</TableHead>
+                ) : null}
                 {renderExpanded ? <TableHead className="w-10" /> : null}
               </TableRow>
             </TableHeader>
@@ -374,7 +382,7 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
                             type="button"
                             onClick={() => setExpandedId(expanded ? null : id)}
                             className="-m-2 inline-flex items-center justify-center p-2 text-muted-foreground transition-colors hover:text-foreground"
-                            aria-label={expanded ? "收起" : "展开"}
+                            aria-label={expanded ? t("crud.collapse") : t("crud.expand")}
                           >
                             {expanded ? (
                               <ChevronDown className="size-4" />
@@ -400,7 +408,7 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
         </div>
       ) : (
         <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          {emptyMessage}
+          {emptyMsg}
         </p>
       )}
 
@@ -411,11 +419,15 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
             if (!next) setDeleting(null);
           }}
           tone="warning"
-          title={deleting && deleteConfirm ? deleteConfirm(deleting).title : "确认删除？"}
-          description={
-            deleting && deleteConfirm ? deleteConfirm(deleting).description : "此操作不可撤销。"
+          title={
+            deleting && deleteConfirm ? deleteConfirm(deleting).title : t("crud.confirmDeleteTitle")
           }
-          confirmLabel="删除"
+          description={
+            deleting && deleteConfirm
+              ? deleteConfirm(deleting).description
+              : t("crud.confirmDeleteDesc")
+          }
+          confirmLabel={t("common.delete")}
           onConfirm={confirmDelete}
         />
       ) : null}

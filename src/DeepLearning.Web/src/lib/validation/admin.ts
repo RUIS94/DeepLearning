@@ -6,9 +6,9 @@ export const examTypeFormSchema = z.object({
   code: z
     .string()
     .trim()
-    .min(1, "code 不能为空")
-    .regex(/^[a-z0-9_]+$/, "只能包含小写字母、数字与下划线"),
-  name: z.string().trim().min(1, "名称不能为空").max(100),
+    .min(1, "code is required")
+    .regex(/^[a-z0-9_]+$/, "Only lowercase letters, digits, and underscores"),
+  name: z.string().trim().min(1, "Name is required").max(100),
   subjectCategory: z.number().int().min(0).max(4),
   sourceLanguage: z.string().trim().max(20).nullable().optional(),
   targetLanguage: z.string().trim().max(20).nullable().optional(),
@@ -21,15 +21,15 @@ export const assessmentDimensionFormSchema = z.object({
   dimensionKey: z
     .string()
     .trim()
-    .min(1, "dimensionKey 不能为空")
-    .regex(/^[a-z0-9_]+$/, "只能包含小写字母、数字与下划线"),
-  dimensionName: z.string().trim().min(1, "名称不能为空").max(100),
+    .min(1, "dimensionKey is required")
+    .regex(/^[a-z0-9_]+$/, "Only lowercase letters, digits, and underscores"),
+  dimensionName: z.string().trim().min(1, "Name is required").max(100),
   scaleType: z.number().int().min(0).max(2),
   passThreshold: z.string().trim().max(20).nullable().optional(),
   applicableTaskType: z.number().int().min(0).max(1).nullable().optional(),
-  levelDescriptions: z.string().trim().min(1, "各 Band 描述不能为空"),
-  rubricVersion: z.string().trim().min(1, "rubric 版本号不能为空").max(20),
-  effectiveFrom: z.string().trim().min(1, "生效日期不能为空"),
+  levelDescriptions: z.string().trim().min(1, "Band descriptions are required"),
+  rubricVersion: z.string().trim().min(1, "rubric version is required").max(20),
+  effectiveFrom: z.string().trim().min(1, "Effective date is required"),
   sourceReference: z.string().trim().nullable().optional(),
 });
 export type AssessmentDimensionFormInput = z.infer<typeof assessmentDimensionFormSchema>;
@@ -38,24 +38,24 @@ export const errorTaxonomyFormSchema = z.object({
   categoryKey: z
     .string()
     .trim()
-    .min(1, "categoryKey 不能为空")
-    .regex(/^[a-z0-9_]+$/, "只能包含小写字母、数字与下划线"),
-  categoryName: z.string().trim().min(1, "名称不能为空").max(100),
+    .min(1, "categoryKey is required")
+    .regex(/^[a-z0-9_]+$/, "Only lowercase letters, digits, and underscores"),
+  categoryName: z.string().trim().min(1, "Name is required").max(100),
   description: z.string().trim().nullable().optional(),
   exampleCases: z.string().trim().nullable().optional(),
 });
 export type ErrorTaxonomyFormInput = z.infer<typeof errorTaxonomyFormSchema>;
 
 export const weakPointCatalogFormSchema = z.object({
-  categoryId: z.string().trim().min(1, "请选择一级分类"),
+  categoryId: z.string().trim().min(1, "Select a top-level category"),
   code: z
     .string()
     .trim()
-    .min(1, "code 不能为空")
+    .min(1, "code is required")
     .max(60)
-    .regex(/^[a-z0-9_]+$/, "只能包含小写字母、数字与下划线"),
-  name: z.string().trim().min(1, "名称不能为空").max(100),
-  description: z.string().trim().min(1, "说明不能为空"),
+    .regex(/^[a-z0-9_]+$/, "Only lowercase letters, digits, and underscores"),
+  name: z.string().trim().min(1, "Name is required").max(100),
+  description: z.string().trim().min(1, "Description is required"),
   defaultDimensionKey: z.string().trim().max(50).nullable().optional(),
   defaultErrorCategory: z.string().trim().max(50).nullable().optional(),
   status: z.string().trim().min(1),
@@ -73,9 +73,9 @@ export const promptTemplateFormSchema = z
     // 否则编辑该类模板时 zodResolver 会静默拦下提交（见 enums.ts AiOperationType）。
     templateType: z.number().int().min(0).max(9),
     layer: z.number().int().min(0).max(1),
-    templateContent: z.string().trim().min(1, "模板正文不能为空"),
+    templateContent: z.string().trim().min(1, "Template content is required"),
     // 后端 CreatePromptTemplateCommand 要求显式传版本号，没有自动递增逻辑。
-    version: z.number().int().min(1, "版本号至少为 1"),
+    version: z.number().int().min(1, "Version must be at least 1"),
     // 仅编辑时有意义（PUT /prompt-templates/{id}）；新建时后端固定 IsActive=true。
     isActive: z.boolean().optional(),
   })
@@ -87,7 +87,7 @@ export const promptTemplateFormSchema = z
       return hasExamType !== hasSubject; // XOR：二选一，见设计文档 §6.24
     },
     {
-      message: "考试类型与学科类别二选一，不能同时为空或同时填写",
+      message: "Choose either exam type or subject category — not both, not neither",
       path: ["examTypeId"],
     },
   );
@@ -95,7 +95,7 @@ export type PromptTemplateFormInput = z.infer<typeof promptTemplateFormSchema>;
 
 export const questionBankCategoryFormSchema = z.object({
   categoryType: z.number().int().min(0).max(1),
-  name: z.string().trim().min(1, "名称不能为空").max(100),
+  name: z.string().trim().min(1, "Name is required").max(100),
   parentId: z.string().nullable().optional(),
   description: z.string().trim().nullable().optional(),
 });

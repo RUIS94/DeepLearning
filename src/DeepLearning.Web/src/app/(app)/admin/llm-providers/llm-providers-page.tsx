@@ -44,18 +44,18 @@ const PROVIDER_LABEL: Record<string, string> = {
 };
 
 const OPERATION_TYPE_LABEL: Record<AiOperationType, string> = {
-  question_gen: "生成题目",
-  grading: "批改",
-  followup: "追问对话（每轮）",
-  standard_revision: "标准修订",
-  deep_learning: "深度学习内容生成",
-  progress_trend: "进度趋势总结",
-  followup_summary: "追问收尾总结",
-  weak_point_classification: "薄弱点分类",
-  weak_point_detection_criteria: "薄弱点识别标准生成",
-  weak_point_recheck: "薄弱点复查",
-  score_challenge_summary: "改判申请结算",
-  vocab_semantic_drift: "词汇跨题语义积累",
+  question_gen: "Question generation",
+  grading: "Grading",
+  followup: "Follow-up conversation (per turn)",
+  standard_revision: "Standard revision",
+  deep_learning: "Deep-learning content generation",
+  progress_trend: "Progress-trend summary",
+  followup_summary: "Follow-up closing summary",
+  weak_point_classification: "Weak-point classification",
+  weak_point_detection_criteria: "Weak-point detection-criteria generation",
+  weak_point_recheck: "Weak-point recheck",
+  score_challenge_summary: "Score-challenge settlement",
+  vocab_semantic_drift: "Cross-question vocabulary semantic accumulation",
 };
 
 const FOLLOW_GLOBAL_VALUE = "__follow_global__";
@@ -109,7 +109,7 @@ function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
           {settings.isActive ? (
             <Badge variant="outline" className="border-transparent bg-success/12 text-success">
               <CheckCircle2 className="size-3.5" />
-              当前使用中
+              In use
             </Badge>
           ) : null}
         </CardTitle>
@@ -120,16 +120,16 @@ function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
             disabled={activate.isPending}
             onClick={() => activate.mutate()}
           >
-            设为当前供应商
+            Set as current provider
           </Button>
         ) : null}
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between rounded-lg border border-border p-3">
           <div>
-            <p className="text-sm font-medium">Thinking / 扩展推理</p>
+            <p className="text-sm font-medium">Thinking / extended reasoning</p>
             <p className="text-xs text-muted-foreground">
-              目前仅 Claude 语义完整支持（见 AGENTS.md）。
+              Currently only Claude is fully supported semantically (see AGENTS.md).
             </p>
           </div>
           <Switch
@@ -153,7 +153,7 @@ function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
         </div>
 
         <div className="space-y-2">
-          <Label>当前模型</Label>
+          <Label>Current model</Label>
           {models.isPending ? (
             <Skeleton className="h-9 w-full" />
           ) : (
@@ -162,7 +162,7 @@ function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
               onValueChange={(model) => selectModel.mutate(model)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="尚未设置当前模型" />
+                <SelectValue placeholder="No current model set" />
               </SelectTrigger>
               <SelectContent>
                 {(models.data ?? []).map((m) => (
@@ -176,12 +176,12 @@ function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">添加新模型到目录</Label>
+          <Label className="text-xs text-muted-foreground">Add a new model to the catalog</Label>
           <div className="flex gap-2">
             <Input
               value={newModel}
               onChange={(e) => setNewModel(e.target.value)}
-              placeholder="例如 claude-opus-5-2"
+              placeholder="e.g. claude-opus-5-2"
             />
             <Button
               size="icon"
@@ -258,7 +258,7 @@ function OperationOverrideRow({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={FOLLOW_GLOBAL_VALUE}>跟随全局当前供应商</SelectItem>
+            <SelectItem value={FOLLOW_GLOBAL_VALUE}>Follow the global current provider</SelectItem>
             {providerKeys.map((key) => (
               <SelectItem key={key} value={key}>
                 {PROVIDER_LABEL[key] ?? key}
@@ -286,7 +286,9 @@ function OperationOverrideRow({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={FOLLOW_PROVIDER_MODEL_VALUE}>跟随该供应商当前模型</SelectItem>
+              <SelectItem value={FOLLOW_PROVIDER_MODEL_VALUE}>
+                Follow this provider’s current model
+              </SelectItem>
               {(models.data ?? []).map((m) => (
                 <SelectItem key={m.model} value={m.model}>
                   {m.label ?? m.model}
@@ -317,16 +319,16 @@ function OperationOverrideRow({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={THINKING_FOLLOW_PROVIDER}>Thinking：跟随供应商</SelectItem>
-              <SelectItem value={THINKING_ON}>Thinking：开启</SelectItem>
-              <SelectItem value={THINKING_OFF}>Thinking：关闭</SelectItem>
+              <SelectItem value={THINKING_FOLLOW_PROVIDER}>Thinking: follow provider</SelectItem>
+              <SelectItem value={THINKING_ON}>Thinking: on</SelectItem>
+              <SelectItem value={THINKING_OFF}>Thinking: off</SelectItem>
             </SelectContent>
           </Select>
 
           <Input
             key={row.effort ?? ""}
             defaultValue={row.effort ?? ""}
-            placeholder="Effort：跟随供应商"
+            placeholder="Effort: follow provider"
             className="w-40"
             disabled={busy}
             onBlur={(e) => {
@@ -360,10 +362,11 @@ function OperationOverridesPanel({ providerKeys }: { providerKeys: string[] }) {
   return (
     <Card className="border-border shadow-none">
       <CardHeader>
-        <CardTitle className="text-base">按任务定制供应商</CardTitle>
+        <CardTitle className="text-base">Per-task provider customization</CardTitle>
         <p className="text-xs text-muted-foreground">
-          为单个任务绑定固定的供应商、模型、thinking 开关，不受上方「设为当前供应商」切换影响。留空
-          = 跟随全局当前供应商 / 该供应商自己的当前模型 / 该供应商自己的 thinking 默认值。
+          Bind a fixed provider, model, and thinking toggle for a single task, unaffected by the
+          "Set as current provider" switch above. Leave blank = follow the global current provider /
+          that provider’s own current model / that provider’s own thinking default.
         </p>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -419,8 +422,8 @@ export function LlmProvidersPanel() {
 export function LlmProvidersPage() {
   return (
     <AdminShell
-      title="AI 供应商"
-      description="切换供应商/模型/thinking/effort 是数据更新，下一次 AI 调用立即生效，无需重新部署。"
+      title="AI Providers"
+      description="Switching provider / model / thinking / effort is a data update; it takes effect on the next AI call with no redeploy."
     >
       <LlmProvidersPanel />
     </AdminShell>
