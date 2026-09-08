@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getQuestionById } from "@/lib/api/questions";
 import {
   getSubmissionById,
@@ -21,7 +22,12 @@ import {
   watchGradingStatus,
 } from "@/lib/api/submissions";
 import { useExamType } from "@/hooks/use-exam-config";
-import { SubmissionStatus, TaskType, WeakPointGenerationStatus } from "@/lib/types/enums";
+import {
+  CheckpointImportance,
+  SubmissionStatus,
+  TaskType,
+  WeakPointGenerationStatus,
+} from "@/lib/types/enums";
 import type { TaskBAnnotation } from "@/lib/types/dtos";
 import { useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
@@ -47,7 +53,8 @@ const WEAK_POINT_POLL_MS = 30 * 1000;
 
 export function SubmissionPage() {
   const t = useT();
-  const { SubmissionStatusLabel, WeakPointGenerationStatusLabel } = useEnumLabels();
+  const { SubmissionStatusLabel, WeakPointGenerationStatusLabel, CheckpointImportanceLabel } =
+    useEnumLabels();
   const { submissionId } = useParams<{ submissionId: string }>();
   const queryClient = useQueryClient();
   // 何时把任务交给后端的。null = 本次会话没发起过批改。用来区分"刚提交、等着人点批改"和
@@ -181,7 +188,7 @@ export function SubmissionPage() {
       description={t("submission.description")}
       actions={
         <>
-          <Badge variant="outline" className="border-primary/30 text-primary">
+          <Badge variant="outline" className="border-transparent text-primary">
             {SubmissionStatusLabel[s.status]}
           </Badge>
           {weakPointStatus !== null ? (
@@ -268,8 +275,8 @@ export function SubmissionPage() {
                     ) : null}
                   </div>
                 ) : (
-                  <div className="flex flex-col items-start gap-3">
-                    <p className="text-sm text-muted-foreground">
+                  <div className="flex min-h-full flex-col items-center justify-center gap-3 py-10 text-center">
+                    <p className="max-w-md text-sm text-muted-foreground">
                       {s.status === SubmissionStatus.grading_failed
                         ? t("submission.retryHint")
                         : t("submission.startHint")}
@@ -342,18 +349,35 @@ export function SubmissionPage() {
                 <CardTitle className="text-base">{t("submission.meaningCheckpoints")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-1">
-                  {question.data.meaningCheckpoints.map((c) => (
-                    <li key={c.id} className="flex items-start gap-2 text-sm">
-                      <span
-                        className={`mt-1.5 size-1.5 shrink-0 rounded-full ${
-                          c.importance === 0 ? "bg-accent" : "bg-muted-foreground"
-                        }`}
-                      />
-                      {c.checkpointText}
-                    </li>
-                  ))}
-                </ul>
+                <TooltipProvider delayDuration={200}>
+                  <ul className="space-y-1">
+                    {question.data.meaningCheckpoints.map((c) => {
+                      const isCore = c.importance === CheckpointImportance.core;
+                      return (
+                        <li key={c.id} className="flex items-start gap-2 text-sm">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="flex h-5 shrink-0 items-center">
+                                <span
+                                  className={cn(
+                                    "block size-1.5 rounded-full",
+                                    isCore ? "bg-primary" : "bg-muted-foreground/40",
+                                  )}
+                                />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {CheckpointImportanceLabel[c.importance]}
+                            </TooltipContent>
+                          </Tooltip>
+                          <span className={cn(!isCore && "text-muted-foreground")}>
+                            {c.checkpointText}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </TooltipProvider>
               </CardContent>
             </Card>
           ) : null}

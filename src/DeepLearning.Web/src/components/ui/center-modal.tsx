@@ -77,7 +77,7 @@ function CenterModalHeader({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-start justify-between gap-4 border-b border-border px-6 py-4",
+        "flex shrink-0 items-start justify-between gap-4 px-6 py-4",
         className,
       )}
     >
@@ -112,7 +112,7 @@ function CenterModalFooter({ className, ...props }: React.HTMLAttributes<HTMLDiv
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-end gap-2 border-t border-border px-6 py-4",
+        "flex shrink-0 items-center justify-end gap-2 px-6 py-4",
         className,
       )}
       {...props}

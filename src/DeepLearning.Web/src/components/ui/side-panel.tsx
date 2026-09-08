@@ -86,7 +86,7 @@ function SidePanelHeader({
       </div>
       {showClose ? (
         <DialogPrimitive.Close
-          className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label={t("common.close")}
         >
           <X className="size-4" />

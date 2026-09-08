@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageCircleQuestion, Plus, Scale, Send } from "lucide-react";
+import { Loader2, MessageCircleQuestion, Plus, Scale, Send } from "lucide-react";
 import {
   SidePanel,
   SidePanelBody,
@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { AiLoadingState } from "@/components/shared/ai-loading-state";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { AiLoadingState, ErrorBanner } from "@/components/shared/ai-loading-state";
 import {
   addFollowUpMessage,
   closeFollowUpThread,
@@ -69,6 +70,21 @@ function threadRowLabel(translate: TranslateFn, thread: FollowUpThreadSummary): 
       ? translate("followUp.rowInProgress")
       : verdictLabel(translate, thread.finalVerdict))
   );
+}
+
+/** 线程序号 chip 的状态色（open=进行中；closed 按 finalVerdict 分色）。文字描述走 tooltip。 */
+function threadChipTone(thread: FollowUpThreadSummary): string {
+  if (thread.status === FollowUpThreadStatus.open) return "bg-warning";
+  switch (thread.finalVerdict) {
+    case FollowUpVerdict.user_correct:
+      return "bg-success";
+    case FollowUpVerdict.partial:
+      return "bg-warning";
+    case FollowUpVerdict.user_incorrect:
+      return "bg-muted-foreground";
+    default:
+      return "bg-primary";
+  }
 }
 
 type ScoreChallengeTarget = { dimensionId: string; dimensionKey: string };
@@ -141,6 +157,7 @@ export function FollowUpPanel({
   const currentUser = useCurrentUser();
   const queryClient = useQueryClient();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
 
   const threads = useQuery({
     queryKey: ["follow-up-threads", submissionId],
@@ -162,9 +179,14 @@ export function FollowUpPanel({
   // stale detail, the DB was reset, etc.). Once the list is known, if `active` points at a
   // thread that isn't in it, drop back to the open thread / compose instead of previewing or
   // closing a ghost id (which 404s).
+  // Guard on `!threads.isFetching`: right after sending the first message of a new thread we
+  // `setActive(newId)` and invalidate this list, so for one render `threads.data` is the stale
+  // pre-create list that legitimately lacks `newId` — without the guard we'd immediately bounce
+  // off the freshly created thread back to the composer / some other open thread.
   useEffect(() => {
     if (
       threads.data &&
+      !threads.isFetching &&
       active !== null &&
       active !== NEW &&
       !threads.data.some((th) => th.id === active)
@@ -175,7 +197,7 @@ export function FollowUpPanel({
       setDraftMeta(null);
       setConfirmingClose(false);
     }
-  }, [threads.data, active, openThread]);
+  }, [threads.data, threads.isFetching, active, openThread]);
 
   const composing = active === NEW;
   const viewingThreadId = composing || active === null ? null : active;
@@ -254,6 +276,31 @@ export function FollowUpPanel({
     setDraft((d) => (d ? { ...d, ...patch } : d));
   }
 
+  // Auto-grow the composer up to a cap, then let it scroll internally.
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [text, showComposer, draft, confirmingClose]);
+
+  const canSend =
+    !send.isPending && text.trim().length >= 5 && !!examType.data && !!currentUser.data;
+
+  function submitMessage() {
+    if (!canSend) return;
+    send.mutate();
+  }
+
+  function handleComposerKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    // Enter sends; Shift+Enter inserts a newline. Ignore Enter while an IME
+    // composition is active (Chinese/Japanese input) so it only commits text.
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      submitMessage();
+    }
+  }
+
   return (
     <>
       {renderTrigger ? (
@@ -295,54 +342,6 @@ export function FollowUpPanel({
             }
           />
           <SidePanelBody className="flex flex-col gap-4">
-            {threads.data && threads.data.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {threads.data
-                  .slice()
-                  .reverse()
-                  .map((thread, i) => (
-                    <button
-                      key={thread.id}
-                      type="button"
-                      onClick={() => {
-                        setActive(thread.id);
-                        setConfirmingClose(false);
-                        setDraft(null);
-                        setDraftMeta(null);
-                      }}
-                      className={cn(
-                        "rounded-full border px-2.5 py-1 text-xs transition-colors",
-                        active === thread.id ? CHIP_ON : CHIP_OFF,
-                      )}
-                    >
-                      #{i + 1} · {threadRowLabel(t, thread)}
-                    </button>
-                  ))}
-                <button
-                  type="button"
-                  disabled={!canStartNew}
-                  title={canStartNew ? undefined : t("followUp.startNewAfterClose")}
-                  onClick={() => {
-                    setActive(NEW);
-                    setText("");
-                    setConfirmingClose(false);
-                    setDraft(null);
-                    setDraftMeta(null);
-                  }}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors",
-                    composing
-                      ? CHIP_ON
-                      : "border-dashed border-border text-muted-foreground hover:bg-secondary",
-                    !canStartNew && "cursor-not-allowed opacity-40 hover:bg-transparent",
-                  )}
-                >
-                  <Plus className="size-3" />
-                  {t("followUp.newThread")}
-                </button>
-              </div>
-            ) : null}
-
             {composing ? (
               <p className="text-sm text-muted-foreground">
                 {threads.data && threads.data.length > 0
@@ -374,7 +373,7 @@ export function FollowUpPanel({
             ) : null}
 
             {isViewingClosed && viewedThread ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-secondary/50 p-3">
+              <div className="flex flex-wrap items-center gap-2">
                 {viewedThread.kind === FollowUpThreadKind.score_challenge ? (
                   <Badge
                     variant="outline"
@@ -394,8 +393,8 @@ export function FollowUpPanel({
                       variant="outline"
                       className={
                         viewedThread.finalVerdict === FollowUpVerdict.user_correct
-                          ? "border-transparent bg-success/12 text-success"
-                          : "border-transparent bg-warning/20 text-warning-foreground"
+                          ? "border-transparent px-0 text-success"
+                          : "border-transparent px-0 text-warning-foreground"
                       }
                     >
                       {viewedThread.finalVerdict === null
@@ -427,7 +426,7 @@ export function FollowUpPanel({
                     "max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm leading-relaxed",
                     m.role === FollowUpMessageRole.user
                       ? "bg-primary text-primary-foreground"
-                      : "border border-border bg-secondary/50",
+                      : "bg-muted text-foreground",
                   )}
                 >
                   {m.content}
@@ -440,11 +439,23 @@ export function FollowUpPanel({
               </div>
             ))}
 
-            <AiLoadingState
-              status={send.status}
-              error={send.error}
-              pendingHint={t("followUp.aiReplying")}
-            />
+            {send.isPending ? (
+              <>
+                <div className="flex flex-col items-end gap-1">
+                  <div className="max-w-[85%] whitespace-pre-wrap rounded-lg bg-primary px-3 py-2 text-sm leading-relaxed text-primary-foreground opacity-70">
+                    {text}
+                  </div>
+                </div>
+                <div className="flex items-start">
+                  <div className="flex items-center gap-1 rounded-lg bg-muted px-3 py-2.5">
+                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
+                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground" />
+                  </div>
+                </div>
+              </>
+            ) : null}
+            {send.isError ? <ErrorBanner error={send.error} /> : null}
             <AiLoadingState
               status={preview.status}
               error={preview.error}
@@ -459,9 +470,9 @@ export function FollowUpPanel({
             <div ref={bottomRef} />
           </SidePanelBody>
 
-          {showComposer ? (
+          {showComposer || (threads.data && threads.data.length > 0) ? (
             <SidePanelFooter className="flex-col items-stretch gap-2">
-              {draft && draftMeta && viewedThread ? (
+              {showComposer && draft && draftMeta && viewedThread ? (
                 <CloseReviewDraft
                   kind={viewedThread.kind}
                   meta={draftMeta}
@@ -476,8 +487,8 @@ export function FollowUpPanel({
                     setDraftMeta(null);
                   }}
                 />
-              ) : confirmingClose ? (
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+              ) : showComposer && confirmingClose ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg bg-warning/10 p-3 text-sm">
                   <span>{t("followUp.confirmCloseWarning")}</span>
                   <div className="flex shrink-0 gap-2">
                     <Button size="sm" variant="outline" onClick={() => setConfirmingClose(false)}>
@@ -485,6 +496,7 @@ export function FollowUpPanel({
                     </Button>
                     <Button
                       size="sm"
+                      variant="destructive"
                       disabled={close.isPending}
                       onClick={() => close.mutate(undefined)}
                     >
@@ -492,12 +504,14 @@ export function FollowUpPanel({
                     </Button>
                   </div>
                 </div>
-              ) : (
-                <>
-                  <Textarea
+              ) : showComposer ? (
+                <div className="relative flex items-end rounded-xl border border-input bg-transparent shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring">
+                  <textarea
+                    ref={composerRef}
                     value={text}
                     onChange={(e) => setText(e.target.value)}
-                    rows={3}
+                    onKeyDown={handleComposerKeyDown}
+                    rows={1}
                     placeholder={
                       composing
                         ? isScoreChallenge
@@ -505,38 +519,102 @@ export function FollowUpPanel({
                           : t("followUp.composerPlaceholderNew")
                         : t("followUp.composerPlaceholderContinue")
                     }
+                    className="max-h-[160px] min-h-[42px] w-full resize-none bg-transparent py-2.5 pl-3 pr-12 text-sm leading-relaxed placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   />
-                  <div className="flex items-center justify-between gap-2">
-                    {isViewingOpen ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={send.isPending || preview.isPending || close.isPending}
-                        onClick={() => (needsSummary ? preview.mutate() : setConfirmingClose(true))}
-                      >
-                        {viewedKind === FollowUpThreadKind.score_challenge
-                          ? t("followUp.closeRequest")
-                          : t("followUp.closeFollowUp")}
-                      </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    className="absolute bottom-1.5 right-1.5 size-8 rounded-lg"
+                    disabled={!canSend}
+                    title={t("followUp.send")}
+                    onClick={submitMessage}
+                  >
+                    {send.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
                     ) : (
-                      <span />
-                    )}
-                    <Button
-                      size="sm"
-                      disabled={
-                        send.isPending ||
-                        text.trim().length < 5 ||
-                        !examType.data ||
-                        !currentUser.data
-                      }
-                      onClick={() => send.mutate()}
-                    >
                       <Send className="size-4" />
-                      {send.isPending ? t("followUp.sending") : t("followUp.send")}
+                    )}
+                  </Button>
+                </div>
+              ) : null}
+
+              {threads.data && threads.data.length > 0 ? (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <TooltipProvider delayDuration={200}>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {threads.data
+                        .slice()
+                        .reverse()
+                        .map((thread, i) => (
+                          <Tooltip key={thread.id}>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActive(thread.id);
+                                  setConfirmingClose(false);
+                                  setDraft(null);
+                                  setDraftMeta(null);
+                                }}
+                                className={cn(
+                                  "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+                                  active === thread.id
+                                    ? "border-primary bg-primary/10 text-primary hover:bg-primary/15"
+                                    : "border-border text-muted-foreground hover:bg-muted/50",
+                                )}
+                              >
+                                <span
+                                  className={cn("size-1.5 rounded-full", threadChipTone(thread))}
+                                />
+                                #{i + 1}
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>{threadRowLabel(t, thread)}</TooltipContent>
+                          </Tooltip>
+                        ))}
+                      <button
+                        type="button"
+                        disabled={!canStartNew}
+                        title={
+                          canStartNew ? t("followUp.newThread") : t("followUp.startNewAfterClose")
+                        }
+                        onClick={() => {
+                          setActive(NEW);
+                          setText("");
+                          setConfirmingClose(false);
+                          setDraft(null);
+                          setDraftMeta(null);
+                        }}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors",
+                          composing
+                            ? CHIP_ON
+                            : "border-dashed border-border text-muted-foreground hover:bg-muted/50 cursor-pointer",
+                          !canStartNew && "cursor-not-allowed opacity-40 hover:bg-transparent",
+                        )}
+                      >
+                        <Plus className="size-3" />
+                        {t("followUp.newThread")}
+                      </button>
+                    </div>
+                  </TooltipProvider>
+                  {showComposer &&
+                  isViewingOpen &&
+                  !confirmingClose &&
+                  !(draft && draftMeta && viewedThread) ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={send.isPending || preview.isPending || close.isPending}
+                      onClick={() => (needsSummary ? preview.mutate() : setConfirmingClose(true))}
+                    >
+                      {viewedKind === FollowUpThreadKind.score_challenge
+                        ? t("followUp.closeRequest")
+                        : t("followUp.closeFollowUp")}
                     </Button>
-                  </div>
-                </>
-              )}
+                  ) : null}
+                </div>
+              ) : null}
             </SidePanelFooter>
           ) : null}
         </SidePanelContent>

@@ -62,10 +62,10 @@ export function QuestionRecordsModal({
                   <Link
                     href={`/submissions/${s.id}`}
                     onClick={() => onOpenChange(false)}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-3 text-sm transition-colors hover:bg-secondary"
+                    className="flex items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm transition-colors hover:bg-muted"
                   >
                     <span className="flex items-center gap-2">
-                      <Badge variant="outline">{SubmissionStatusLabel[s.status] ?? s.status}</Badge>
+                      <Badge variant="outline" className="border-transparent">{SubmissionStatusLabel[s.status] ?? s.status}</Badge>
                       <span className="text-xs text-muted-foreground">
                         {formatDate(s.submittedAt ?? s.createdAt)}
                       </span>
