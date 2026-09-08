@@ -16,39 +16,54 @@ import {
   listPromptTemplates,
   updatePromptTemplate,
 } from "@/lib/api/exam-config";
-import { AiOperationTypeLabel, SubjectCategoryLabel, TemplateLayerLabel } from "@/lib/types/enums";
 import { promptTemplateFormSchema, type PromptTemplateFormInput } from "@/lib/validation/admin";
 import type { PromptTemplate } from "@/lib/types/dtos";
+import { useT, type TranslateFn } from "@/lib/i18n";
+import { useEnumLabels, type EnumLabels } from "@/lib/i18n/enum-labels";
 
 // 「用途」不再单独成列——每个 templateType 拆成一张独立的表，用途写在小标题上。
-const buildColumns = (examTypeName: (id: string) => string): CrudColumn<PromptTemplate>[] => [
-  { key: "layer", header: "Layer", render: (t) => TemplateLayerLabel[t.layer] },
+const buildColumns = (
+  t: TranslateFn,
+  labels: Pick<EnumLabels, "TemplateLayerLabel" | "SubjectCategoryLabel">,
+  examTypeName: (id: string) => string,
+): CrudColumn<PromptTemplate>[] => [
+  {
+    key: "layer",
+    header: t("examMgmt.tpl.colLayer"),
+    render: (row) => labels.TemplateLayerLabel[row.layer],
+  },
   {
     key: "examType",
-    header: "Exam type",
-    render: (t) =>
-      t.examTypeId ? examTypeName(t.examTypeId) : <span className="text-muted-foreground">—</span>,
+    header: t("examMgmt.tpl.colExamType"),
+    render: (row) =>
+      row.examTypeId ? (
+        examTypeName(row.examTypeId)
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      ),
   },
   {
     key: "scope",
-    header: "Association",
-    render: (t) =>
-      t.examTypeId
-        ? "Exam-type specific"
-        : `Subject: ${SubjectCategoryLabel[t.subjectCategory ?? 0]}`,
+    header: t("examMgmt.tpl.colAssociation"),
+    render: (row) =>
+      row.examTypeId
+        ? t("examMgmt.tpl.examTypeSpecific")
+        : t("examMgmt.tpl.subjectPrefix", {
+            subject: labels.SubjectCategoryLabel[row.subjectCategory ?? 0] ?? "",
+          }),
   },
-  { key: "version", header: "Version", render: (t) => `v${t.version}` },
+  { key: "version", header: t("examMgmt.tpl.colVersion"), render: (row) => `v${row.version}` },
   {
     key: "isActive",
-    header: "Status",
-    render: (t) =>
-      t.isActive ? (
+    header: t("common.status"),
+    render: (row) =>
+      row.isActive ? (
         <Badge variant="outline" className="border-transparent bg-success/12 text-success">
-          Active
+          {t("examMgmt.tpl.active")}
         </Badge>
       ) : (
         <Badge variant="outline" className="text-muted-foreground">
-          Disabled
+          {t("examMgmt.tpl.disabled")}
         </Badge>
       ),
   },
@@ -64,12 +79,13 @@ const defaultValues: PromptTemplateFormInput = {
   isActive: true,
 };
 
-// 稳定顺序：按枚举值升序展示各用途分组。
-const templateTypeGroups = Object.entries(AiOperationTypeLabel)
-  .map(([value, label]) => ({ value: Number(value), label }))
-  .sort((a, b) => a.value - b.value);
-
 export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreateHandle> }) {
+  const t = useT();
+  const { AiOperationTypeLabel, SubjectCategoryLabel, TemplateLayerLabel } = useEnumLabels();
+  // 稳定顺序：按枚举值升序展示各用途分组。
+  const templateTypeGroups = Object.entries(AiOperationTypeLabel)
+    .map(([value, label]) => ({ value: Number(value), label }))
+    .sort((a, b) => a.value - b.value);
   const queryClient = useQueryClient();
   const examTypes = useQuery({ queryKey: ["admin", "exam-types"], queryFn: listExamTypes });
 
@@ -83,51 +99,55 @@ export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreate
     queryClient.invalidateQueries({ queryKey: ["admin", "prompt-templates"] });
 
   const examTypeName = (id: string) => (examTypes.data ?? []).find((e) => e.id === id)?.name ?? id;
-  const columns = buildColumns(examTypeName);
+  const columns = buildColumns(t, { TemplateLayerLabel, SubjectCategoryLabel }, examTypeName);
 
   const fields: CrudField<PromptTemplateFormInput>[] = [
     {
       name: "examTypeId",
-      label: "Associated exam type (choose either this or subject; not editable)",
+      label: t("examMgmt.tpl.fieldExamType"),
       kind: "select",
       options: [
-        { value: "", label: "None (shared by subject)" },
+        { value: "", label: t("examMgmt.tpl.examTypeNone") },
         ...(examTypes.data ?? []).map((e) => ({ value: e.id, label: e.name })),
       ],
     },
     {
       name: "subjectCategory",
-      label: "Associated subject category (choose either this or exam type; not editable)",
+      label: t("examMgmt.tpl.fieldSubject"),
       kind: "select",
       valueType: "number",
       options: [
-        { value: "-1", label: "None (exam-type specific)" },
+        { value: "-1", label: t("examMgmt.tpl.subjectNone") },
         ...Object.entries(SubjectCategoryLabel).map(([v, l]) => ({ value: v, label: l })),
       ],
     },
     {
       name: "templateType",
-      label: "Template purpose (not editable)",
+      label: t("examMgmt.tpl.fieldPurpose"),
       kind: "select",
       valueType: "number",
       options: Object.entries(AiOperationTypeLabel).map(([v, l]) => ({ value: v, label: l })),
     },
     {
       name: "layer",
-      label: "Layer (not editable)",
+      label: t("examMgmt.tpl.fieldLayer"),
       kind: "select",
       valueType: "number",
       options: Object.entries(TemplateLayerLabel).map(([v, l]) => ({ value: v, label: l })),
     },
-    { name: "templateContent", label: "Template content (Scriban)", kind: "textarea", rows: 8 },
+    {
+      name: "templateContent",
+      label: t("examMgmt.tpl.fieldContent"),
+      kind: "textarea",
+      rows: 8,
+    },
     {
       name: "version",
-      label: "Version",
+      label: t("examMgmt.tpl.fieldVersion"),
       kind: "number",
-      description:
-        "The backend does not auto-increment; you must keep versions increasing within the same association + purpose + layer.",
+      description: t("examMgmt.tpl.versionHint"),
     },
-    { name: "isActive", label: "Enabled", kind: "switch" },
+    { name: "isActive", label: t("examMgmt.tpl.fieldEnabled"), kind: "switch" },
   ];
 
   const allTemplates = templates.data;
@@ -152,7 +172,7 @@ export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreate
         schema={promptTemplateFormSchema}
         fields={fields}
         defaultValues={defaultValues}
-        dialogTitle="New prompt template"
+        dialogTitle={t("examMgmt.tpl.dialogTitle")}
         onCreate={createTemplate}
         onChanged={invalidate}
       />
@@ -164,28 +184,30 @@ export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreate
             title={<h3 className="text-sm font-semibold">{group.label}</h3>}
             columns={columns}
             items={
-              allTemplates ? allTemplates.filter((t) => t.templateType === group.value) : undefined
+              allTemplates
+                ? allTemplates.filter((row) => row.templateType === group.value)
+                : undefined
             }
             isLoading={templates.isPending}
             loadError={templates.error}
-            getRowId={(t) => t.id}
+            getRowId={(row) => row.id}
             schema={promptTemplateFormSchema}
             fields={fields}
             // 后端 PUT /prompt-templates/{id} 只更新 templateContent/version/isActive，
             // 关联与用途/分层改了也不会生效——编辑时置灰，避免用户白改一场。
             lockOnEdit={["examTypeId", "subjectCategory", "templateType", "layer"]}
             defaultValues={{ ...defaultValues, templateType: group.value }}
-            dialogTitle={`New ${group.label} prompt template`}
-            emptyMessage={`No "${group.label}" templates yet`}
+            dialogTitle={t("examMgmt.tpl.dialogTitleGroup", { group: group.label })}
+            emptyMessage={t("examMgmt.tpl.emptyGroup", { group: group.label })}
             onCreate={createTemplate}
-            toFormValues={(t) => ({
-              examTypeId: t.examTypeId ?? "",
-              subjectCategory: t.subjectCategory ?? -1,
-              templateType: t.templateType,
-              layer: t.layer,
-              templateContent: t.templateContent,
-              version: t.version,
-              isActive: t.isActive,
+            toFormValues={(row) => ({
+              examTypeId: row.examTypeId ?? "",
+              subjectCategory: row.subjectCategory ?? -1,
+              templateType: row.templateType,
+              layer: row.layer,
+              templateContent: row.templateContent,
+              version: row.version,
+              isActive: row.isActive,
             })}
             onUpdate={(id, values) =>
               updatePromptTemplate(id, {
@@ -196,9 +218,8 @@ export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreate
             }
             onDelete={(id) => deletePromptTemplate(id)}
             deleteConfirm={() => ({
-              title: "Delete this prompt template?",
-              description:
-                "Hard delete, irreversible. To just deactivate, use Edit and turn off Enabled.",
+              title: t("examMgmt.tpl.deleteTitle"),
+              description: t("examMgmt.tpl.deleteDesc"),
             })}
             onChanged={invalidate}
           />

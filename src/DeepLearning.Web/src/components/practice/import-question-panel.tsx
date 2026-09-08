@@ -38,7 +38,7 @@ import {
   importUserQuestionSchema,
   type ImportUserQuestionFormInput,
 } from "@/lib/validation/question-import";
-import { useT } from "@/lib/i18n";
+import { tFormError, useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
@@ -278,7 +278,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                     <Input {...form.register("title")} placeholder={t("import.titlePh")} />
                     {form.formState.errors.title ? (
                       <p className="text-xs text-destructive">
-                        {form.formState.errors.title.message}
+                        {tFormError(t, form.formState.errors.title.message)}
                       </p>
                     ) : null}
                   </div>
@@ -297,7 +297,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                           />
                           {form.formState.errors.brief?.[f.name] ? (
                             <p className="text-xs text-destructive">
-                              {form.formState.errors.brief[f.name]?.message}
+                              {tFormError(t, form.formState.errors.brief[f.name]?.message)}
                             </p>
                           ) : null}
                         </div>
@@ -310,7 +310,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                     <Textarea rows={6} className="source-text" {...form.register("sourceText")} />
                     {form.formState.errors.sourceText ? (
                       <p className="text-xs text-destructive">
-                        {form.formState.errors.sourceText.message}
+                        {tFormError(t, form.formState.errors.sourceText.message)}
                       </p>
                     ) : null}
                   </div>
@@ -557,8 +557,10 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                     </div>
                     {form.formState.errors.taskB ? (
                       <p className="text-xs text-destructive">
-                        {(form.formState.errors.taskB as { message?: string }).message ??
-                          t("import.taskBError")}
+                        {tFormError(
+                          t,
+                          (form.formState.errors.taskB as { message?: string }).message,
+                        ) ?? t("import.taskBError")}
                       </p>
                     ) : null}
                   </CardContent>

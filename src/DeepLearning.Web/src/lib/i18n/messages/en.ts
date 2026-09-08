@@ -237,6 +237,178 @@ const en = {
   "examMgmt.add.promptTemplate": "Add Prompt Template",
   "examMgmt.add.weakPointCategory": "Add Weak Point Category",
 
+  // 考试管理 · 题目分类 tab
+  "examMgmt.tag.title": "Tag a question",
+  "examMgmt.tag.selectCategory": "Select a category",
+  "examMgmt.tag.selectQuestion": "Select a question",
+  "examMgmt.tag.tagging": "Tagging…",
+  "examMgmt.tag.tag": "Tag",
+  "examMgmt.tag.pendingHint": "Writing the category mapping",
+  "examMgmt.tag.tagged": "Tagged.",
+  "examMgmt.cat.fieldType": "Category system (set on create, not editable)",
+  "examMgmt.cat.namePh": "Legal & government / Immigration letters",
+  "examMgmt.cat.fieldParent": "Parent category (optional, hierarchical)",
+  "examMgmt.cat.parentNone": "None (top-level category)",
+  "examMgmt.cat.fieldDescription": "Description (optional)",
+  "examMgmt.cat.colSystem": "System",
+  "examMgmt.cat.colParent": "Parent category",
+  "examMgmt.cat.dialogTitle": "New question-bank category",
+  "examMgmt.cat.deleteTitle": 'Delete category "{name}"?',
+  "examMgmt.cat.deleteDesc":
+    "The backend rejects (conflict) if the category has children or is referenced by questions.",
+
+  // 考试管理 · 评分维度 tab
+  "examMgmt.dim.colScale": "Scale",
+  "examMgmt.dim.colPassLine": "Pass line",
+  "examMgmt.dim.colVersion": "Version",
+  "examMgmt.dim.colEffectiveFrom": "Effective from",
+  "examMgmt.dim.fieldScaleType": "Scale type",
+  "examMgmt.dim.fieldPassLine": "Pass line (optional)",
+  "examMgmt.dim.fieldApplicableTaskType": "Applicable task type",
+  "examMgmt.dim.taskTypeAny": "Any (applies to both task types)",
+  "examMgmt.dim.fieldLevelDescriptions": "Full original English text for each Band",
+  "examMgmt.dim.fieldRubricVersion": "Rubric version",
+  "examMgmt.dim.fieldEffectiveDate": "Effective date",
+  "examMgmt.dim.effectiveDateHint":
+    "If this dimensionKey already has an active version, the new version automatically closes the old one",
+  "examMgmt.dim.fieldSourceReference": "Official source (optional)",
+  "examMgmt.dim.dialogTitle": "New scoring-dimension version",
+  "examMgmt.dim.noLevelDescriptions": "(no level_descriptions)",
+  "examMgmt.dim.taskADimensions": "TaskA dimensions",
+  "examMgmt.dim.taskBDimensions": "TaskB dimensions",
+  "examMgmt.dim.emptyTaskA": "No dimensions apply to TaskA",
+  "examMgmt.dim.emptyTaskB": "No dimensions apply to TaskB",
+
+  // 考试管理 · 错误分类 tab
+  "examMgmt.tax.colEdgeCases": "Edge cases",
+  "examMgmt.tax.namePh": "Meaning distortion",
+  "examMgmt.tax.fieldDescription": "Description (optional)",
+  "examMgmt.tax.fieldEdgeCases": "Edge cases (optional)",
+  "examMgmt.tax.edgeCasesHint":
+    "Especially examples distinguishing easily-confused categories; rendered into the prompt as few-shot.",
+  "examMgmt.tax.dialogTitle": "New error taxonomy",
+
+  // 考试管理 · 提示词模板 tab
+  "examMgmt.tpl.colLayer": "Layer",
+  "examMgmt.tpl.colExamType": "Exam type",
+  "examMgmt.tpl.colAssociation": "Association",
+  "examMgmt.tpl.colVersion": "Version",
+  "examMgmt.tpl.examTypeSpecific": "Exam-type specific",
+  "examMgmt.tpl.subjectPrefix": "Subject: {subject}",
+  "examMgmt.tpl.active": "Active",
+  "examMgmt.tpl.disabled": "Disabled",
+  "examMgmt.tpl.fieldExamType":
+    "Associated exam type (choose either this or subject; not editable)",
+  "examMgmt.tpl.examTypeNone": "None (shared by subject)",
+  "examMgmt.tpl.fieldSubject":
+    "Associated subject category (choose either this or exam type; not editable)",
+  "examMgmt.tpl.subjectNone": "None (exam-type specific)",
+  "examMgmt.tpl.fieldPurpose": "Template purpose (not editable)",
+  "examMgmt.tpl.fieldLayer": "Layer (not editable)",
+  "examMgmt.tpl.fieldContent": "Template content (Scriban)",
+  "examMgmt.tpl.fieldVersion": "Version",
+  "examMgmt.tpl.versionHint":
+    "The backend does not auto-increment; you must keep versions increasing within the same association + purpose + layer.",
+  "examMgmt.tpl.fieldEnabled": "Enabled",
+  "examMgmt.tpl.dialogTitle": "New prompt template",
+  "examMgmt.tpl.dialogTitleGroup": "New {group} prompt template",
+  "examMgmt.tpl.emptyGroup": 'No "{group}" templates yet',
+  "examMgmt.tpl.deleteTitle": "Delete this prompt template?",
+  "examMgmt.tpl.deleteDesc":
+    "Hard delete, irreversible. To just deactivate, use Edit and turn off Enabled.",
+
+  // 考试管理 · 薄弱点目录 tab
+  "examMgmt.wpc.statusActive": "Active",
+  "examMgmt.wpc.statusProposed": "Proposed",
+  "examMgmt.wpc.statusDeprecated": "Deprecated",
+  "examMgmt.wpc.colCategory": "Top-level category",
+  "examMgmt.wpc.categoryPending": "Pending review · uncategorized",
+  "examMgmt.wpc.colRuleMatch": "Rule match key",
+  "examMgmt.wpc.originAuto": "auto",
+  "examMgmt.wpc.originManual": "manual",
+  "examMgmt.wpc.fieldCategory": "Top-level category",
+  "examMgmt.wpc.fieldName": "Name",
+  "examMgmt.wpc.fieldDescription": "Description",
+  "examMgmt.wpc.fieldDefaultDimension": "Default scoring-dimension key (optional)",
+  "examMgmt.wpc.defaultDimensionHint":
+    "Rule bucketing matches on this; leave blank to skip rule matching and rely on AI classification or manual categorization.",
+  "examMgmt.wpc.fieldDefaultErrorCategory": "Default error-category key (optional)",
+  "examMgmt.wpc.dialogTitle": "New weak-point category",
+  "examMgmt.wpc.merged": "Merged",
+  "examMgmt.wpc.mergedDesc":
+    "Repointed {repointed}, merged {merged} learner weak points; the source category was deprecated.",
+  "examMgmt.wpc.mergeFailed": "Merge failed",
+  "examMgmt.wpc.mergeHint": "Merge (fold Source into Target; Source is deprecated)",
+  "examMgmt.wpc.sourceCategory": "Source category",
+  "examMgmt.wpc.targetCategory": "Target category",
+  "examMgmt.wpc.merge": "Merge",
+
+  // 考试管理 · 标准修正 tab
+  "examMgmt.override.promoted": "Promoted to active",
+  "examMgmt.override.promoteFailed": "Couldn't promote",
+  "examMgmt.override.intro":
+    "The audit chain is append-only: here you can only manually review and promote observing → active, or deprecate a revision. Editing and physical deletion are not offered.",
+  "examMgmt.override.scopeRubric": "Grading standard",
+  "examMgmt.override.scopeReference": "Reference translation",
+  "examMgmt.override.promote": "Promote to active",
+  "examMgmt.override.deprecate": "Deprecate",
+  "examMgmt.override.empty": "No standard revision records yet.",
+  "examMgmt.override.deprecateTitle": "Deprecate this revision?",
+  "examMgmt.override.deprecateDesc":
+    "The status becomes deprecated and it no longer takes part in future grading. The audit-chain record is kept and traceable.",
+  "examMgmt.override.deprecateFailed": "Deprecation failed",
+
+  // ---- AI 供应商 (llm-providers) ----
+  "llm.title": "AI Providers",
+  "llm.description":
+    "Switching provider / model / thinking / effort is a data update; it takes effect on the next AI call with no redeploy.",
+  "llm.op.question_gen": "Question generation",
+  "llm.op.grading": "Grading",
+  "llm.op.followup": "Follow-up conversation (per turn)",
+  "llm.op.standard_revision": "Standard revision",
+  "llm.op.deep_learning": "Deep-learning content generation",
+  "llm.op.progress_trend": "Progress-trend summary",
+  "llm.op.followup_summary": "Follow-up closing summary",
+  "llm.op.weak_point_classification": "Weak-point classification",
+  "llm.op.weak_point_detection_criteria": "Weak-point detection-criteria generation",
+  "llm.op.weak_point_recheck": "Weak-point recheck",
+  "llm.op.score_challenge_summary": "Score-challenge settlement",
+  "llm.op.vocab_semantic_drift": "Cross-question vocabulary semantic accumulation",
+  "llm.inUse": "In use",
+  "llm.setAsCurrent": "Set as current provider",
+  "llm.thinkingLabel": "Thinking / extended reasoning",
+  "llm.thinkingHint": "Currently only Claude is fully supported semantically (see AGENTS.md).",
+  "llm.currentModel": "Current model",
+  "llm.noCurrentModel": "No current model set",
+  "llm.addModelLabel": "Add a new model to the catalog",
+  "llm.addModelPh": "e.g. claude-opus-5-2",
+  "llm.followGlobalProvider": "Follow the global current provider",
+  "llm.followProviderModel": "Follow this provider's current model",
+  "llm.thinkingFollowProvider": "Thinking: follow provider",
+  "llm.thinkingOn": "Thinking: on",
+  "llm.thinkingOff": "Thinking: off",
+  "llm.effortFollowProvider": "Effort: follow provider",
+  "llm.perTaskTitle": "Per-task provider customization",
+  "llm.perTaskHint":
+    "Bind a fixed provider, model, and thinking toggle for a single task, unaffected by the \"Set as current provider\" switch above. Leave blank = follow the global current provider / that provider's own current model / that provider's own thinking default.",
+
+  // ---- 标准修正详情页 ----
+  "overrideDetail.title": "Standard Revision Detail",
+  "overrideDetail.backToList": "Back to list",
+  "overrideDetail.scopeRubric": "Grading standard",
+  "overrideDetail.scopeReference": "Reference translation",
+  "overrideDetail.revisionSuffix": "{scope} revision",
+  "overrideDetail.associatedRule": "Associated dimension / rule:",
+  "overrideDetail.before": "Before",
+  "overrideDetail.after": "After",
+  "overrideDetail.created": "Created {date}",
+  "overrideDetail.effective": "Effective {date}",
+  "overrideDetail.triggeredBy": "Triggered by follow-up {id}",
+  "overrideDetail.approving": "Approving…",
+  "overrideDetail.approve": "Manually approve & activate",
+  "overrideDetail.approveHint":
+    "design doc §10.6: no need to wait for a cumulative confirmation count — one manual review is enough to activate it directly.",
+
   // ---- 导入题目面板 ----
   "import.description":
     "Manually enter a question or real-exam seed. TaskB needs a flawed translation and at least one annotated error.",
@@ -267,6 +439,68 @@ const en = {
   "import.taskBError": "Check that the seeded error ranges and categories are complete",
   "import.importing": "Importing…",
   "import.imported.title": "Question imported",
+
+  // ---- 浏览器标签页 / SEO (generateMetadata) ----
+  "meta.appDescription":
+    "NAATI translation practice platform with real-exam questions, AI grading, error review, and learning progress tracking.",
+  "meta.home.title": "Deep Learning · Chinese-English Translation Practice & AI Grading",
+  "meta.home.description":
+    "A translation practice platform for NAATI-certified interpreters: authentic exam questions, TaskA translation and TaskB error annotation, AI-powered dimension-based grading, follow-up review, and learning curves.",
+  "meta.home.ogDescription":
+    "Authentic practice, AI-powered dimension-based grading, and weak point tracking for improving Chinese-English interpretation skills.",
+  "meta.deepLearning.title": "Deep Learning",
+  "meta.deepLearning.description":
+    "Reference-translation comparison, sentence breakdowns, and vocabulary cards, cached per question.",
+  "meta.deepLearning.ogDescription":
+    "Reference-translation comparison, sentence breakdowns, and vocabulary cards.",
+  "meta.answer.title": "Answer",
+  "meta.answer.description":
+    "Read the source text, complete the translation or annotate errors, then get AI grading by dimension.",
+  "meta.answer.ogDescription":
+    "Complete the translation or annotate errors, then get AI grading by dimension.",
+  "meta.submission.title": "Grading Result",
+  "meta.submission.description":
+    "View the three-dimension Band scores and error list, and start a follow-up review of the verdict.",
+  "meta.submission.ogDescription":
+    "View the dimension scores and error list, and start a follow-up review of the verdict.",
+  "meta.overrideDetail.title": "Standard Revision Detail",
+  "meta.progress.title": "Learning Progress",
+  "meta.progress.description":
+    "Three-dimensional Band trends and pass rate dashboard, with AI trend commentary.",
+
+  // ---- 表单校验 (zod) ----
+  "v.codeRequired": "code is required",
+  "v.snakeCaseOnly": "Only lowercase letters, digits, and underscores",
+  "v.nameRequired": "Name is required",
+  "v.dimensionKeyRequired": "dimensionKey is required",
+  "v.bandDescriptionsRequired": "Band descriptions are required",
+  "v.rubricVersionRequired": "rubric version is required",
+  "v.effectiveDateRequired": "Effective date is required",
+  "v.categoryKeyRequired": "categoryKey is required",
+  "v.selectTopLevelCategory": "Select a top-level category",
+  "v.descriptionRequired": "Description is required",
+  "v.templateContentRequired": "Template content is required",
+  "v.versionMin1": "Version must be at least 1",
+  "v.examTypeSubjectXor": "Choose either exam type or subject category — not both, not neither",
+  "v.seedIdRequired": "Real-exam seed id is required",
+  "v.seedMax5": "Select at most 5 real-exam seeds",
+  "v.seedNoDup": "Real-exam seeds cannot be selected more than once",
+  "v.translationRequired": "Translation is required",
+  "v.selectErrorType": "Select an error type",
+  "v.enterCorrectedText": "Enter the corrected text",
+  "v.selectionEndGtStart": "Selection end must be greater than start",
+  "v.annotateAtLeastOne": "Annotate at least one error before submitting",
+  "v.meaningPointRequired": "Meaning-point text is required",
+  "v.selectErrorCategory": "Select an error category",
+  "v.enterCorrectTranslation": "Enter the correct translation",
+  "v.titleRequired": "Title is required",
+  "v.sourceTextRequired": "Source text is required",
+  "v.taskBRequires": "TaskB requires a flawed translation and seeded errors",
+  "v.flawedTranslationRequired": "Flawed translation is required",
+  "v.taskBNeedsOneError": "TaskB needs at least one seeded error",
+  "v.endGtStartPosition": "End position must be greater than start position",
+  "v.rangeWithinLength": "The range must fall within the flawed translation length ({len})",
+  "v.seededErrorsNoOverlap": "Seeded error ranges cannot overlap",
 
   // ---- 通用后台增改列表 (crud-table) ----
   "crud.emptyData": "No data",

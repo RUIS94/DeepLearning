@@ -11,14 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { activateStandardOverride, getStandardOverrideById } from "@/lib/api/standard-overrides";
-import { OverrideScope, OverrideStatus, OverrideStatusLabel } from "@/lib/types/enums";
+import { OverrideScope, OverrideStatus } from "@/lib/types/enums";
 import { formatDate } from "@/lib/band";
 import { cn } from "@/lib/utils";
-
-const scopeLabel: Record<number, string> = {
-  [OverrideScope.grading_rubric]: "Grading standard",
-  [OverrideScope.translation_reference]: "Reference translation",
-};
+import { useT } from "@/lib/i18n";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
 
 const statusTone: Record<number, string> = {
   [OverrideStatus.observing]: "bg-warning/20 text-warning-foreground",
@@ -27,6 +24,12 @@ const statusTone: Record<number, string> = {
 };
 
 export function OverrideDetailPage() {
+  const t = useT();
+  const { OverrideStatusLabel } = useEnumLabels();
+  const scopeLabel: Record<number, string> = {
+    [OverrideScope.grading_rubric]: t("overrideDetail.scopeRubric"),
+    [OverrideScope.translation_reference]: t("overrideDetail.scopeReference"),
+  };
   const { overrideId } = useParams<{ overrideId: string }>();
   const queryClient = useQueryClient();
   const override = useQuery({
@@ -40,14 +43,14 @@ export function OverrideDetailPage() {
 
   return (
     <AppShell
-      title="Standard Revision Detail"
+      title={t("overrideDetail.title")}
       actions={
         <Link
           href="/standard-overrides"
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
-          Back to list
+          {t("overrideDetail.backToList")}
         </Link>
       }
     >
@@ -61,7 +64,9 @@ export function OverrideDetailPage() {
             <div className="flex flex-wrap items-center gap-2">
               <Gavel className="size-4 text-muted-foreground" />
               <CardTitle className="text-base">
-                {scopeLabel[override.data.scope]} revision
+                {t("overrideDetail.revisionSuffix", {
+                  scope: scopeLabel[override.data.scope] ?? "",
+                })}
               </CardTitle>
               <Badge
                 variant="outline"
@@ -73,28 +78,38 @@ export function OverrideDetailPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Associated dimension / rule:{" "}
+              {t("overrideDetail.associatedRule")}{" "}
               <span className="text-foreground">{override.data.dimensionOrRule}</span>
             </p>
             {override.data.originalRuleText ? (
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Before</p>
+                <p className="text-xs font-medium text-muted-foreground">
+                  {t("overrideDetail.before")}
+                </p>
                 <p className="text-sm leading-relaxed text-muted-foreground line-through opacity-70">
                   {override.data.originalRuleText}
                 </p>
               </div>
             ) : null}
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">After</p>
+              <p className="text-xs font-medium text-muted-foreground">
+                {t("overrideDetail.after")}
+              </p>
               <p className="text-sm leading-relaxed">{override.data.revisedRuleText}</p>
             </div>
             <div className="text-numeric flex flex-wrap gap-x-6 gap-y-1 border-t border-border pt-4 text-xs text-muted-foreground">
-              <span>Created {formatDate(override.data.createdAt)}</span>
+              <span>
+                {t("overrideDetail.created", { date: formatDate(override.data.createdAt) })}
+              </span>
               {override.data.effectiveFrom ? (
-                <span>Effective {formatDate(override.data.effectiveFrom)}</span>
+                <span>
+                  {t("overrideDetail.effective", { date: formatDate(override.data.effectiveFrom) })}
+                </span>
               ) : null}
               {override.data.triggeredByFollowupId ? (
-                <span>Triggered by follow-up {override.data.triggeredByFollowupId}</span>
+                <span>
+                  {t("overrideDetail.triggeredBy", { id: override.data.triggeredByFollowupId })}
+                </span>
               ) : null}
             </div>
             {override.data.status === OverrideStatus.observing ? (
@@ -106,12 +121,9 @@ export function OverrideDetailPage() {
                   onClick={() => activate.mutate()}
                 >
                   <CheckCircle2 className="size-4" />
-                  {activate.isPending ? "Approving…" : "Manually approve & activate"}
+                  {activate.isPending ? t("overrideDetail.approving") : t("overrideDetail.approve")}
                 </Button>
-                <p className="text-xs text-muted-foreground">
-                  design doc §10.6: no need to wait for a cumulative confirmation count — one manual
-                  review is enough to activate it directly.
-                </p>
+                <p className="text-xs text-muted-foreground">{t("overrideDetail.approveHint")}</p>
                 {activate.isError ? <ErrorBanner error={activate.error} /> : null}
               </div>
             ) : null}

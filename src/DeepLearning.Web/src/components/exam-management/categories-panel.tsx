@@ -27,12 +27,13 @@ import {
   updateQuestionBankCategory,
 } from "@/lib/api/exam-config";
 import { listQuestions } from "@/lib/api/questions";
-import { CategoryTypeLabel } from "@/lib/types/enums";
 import {
   questionBankCategoryFormSchema,
   type QuestionBankCategoryFormInput,
 } from "@/lib/validation/admin";
 import type { QuestionBankCategory } from "@/lib/types/dtos";
+import { useT } from "@/lib/i18n";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
 
 const defaultValues: QuestionBankCategoryFormInput = {
   categoryType: 0,
@@ -42,6 +43,8 @@ const defaultValues: QuestionBankCategoryFormInput = {
 };
 
 function TagQuestionCard({ categories }: { categories: QuestionBankCategory[] }) {
+  const t = useT();
+  const { CategoryTypeLabel } = useEnumLabels();
   const [categoryId, setCategoryId] = useState("");
   const [questionId, setQuestionId] = useState("");
   const questions = useQuery({
@@ -53,13 +56,13 @@ function TagQuestionCard({ categories }: { categories: QuestionBankCategory[] })
   return (
     <Card className="border-border shadow-none">
       <CardHeader>
-        <CardTitle className="text-base">Tag a question</CardTitle>
+        <CardTitle className="text-base">{t("examMgmt.tag.title")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Select value={categoryId} onValueChange={setCategoryId}>
             <SelectTrigger>
-              <SelectValue placeholder="Select a category" />
+              <SelectValue placeholder={t("examMgmt.tag.selectCategory")} />
             </SelectTrigger>
             <SelectContent>
               {categories.map((c) => (
@@ -71,7 +74,7 @@ function TagQuestionCard({ categories }: { categories: QuestionBankCategory[] })
           </Select>
           <Select value={questionId} onValueChange={setQuestionId}>
             <SelectTrigger>
-              <SelectValue placeholder="Select a question" />
+              <SelectValue placeholder={t("examMgmt.tag.selectQuestion")} />
             </SelectTrigger>
             <SelectContent>
               {(questions.data ?? []).map((q) => (
@@ -84,22 +87,24 @@ function TagQuestionCard({ categories }: { categories: QuestionBankCategory[] })
         </div>
         <Button disabled={!categoryId || !questionId || tag.isPending} onClick={() => tag.mutate()}>
           <Tag className="size-4" />
-          {tag.isPending ? "Tagging…" : "Tag"}
+          {tag.isPending ? t("examMgmt.tag.tagging") : t("examMgmt.tag.tag")}
         </Button>
         <AiLoadingState
           status={
             tag.isPending ? "pending" : tag.isSuccess ? "success" : tag.isError ? "error" : "idle"
           }
           error={tag.error}
-          pendingHint="Writing the category mapping"
+          pendingHint={t("examMgmt.tag.pendingHint")}
         />
-        {tag.isSuccess ? <p className="text-sm text-success">Tagged.</p> : null}
+        {tag.isSuccess ? <p className="text-sm text-success">{t("examMgmt.tag.tagged")}</p> : null}
       </CardContent>
     </Card>
   );
 }
 
 export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandle> }) {
+  const t = useT();
+  const { CategoryTypeLabel } = useEnumLabels();
   const queryClient = useQueryClient();
   const categories = useQuery({ queryKey: ["admin", "categories"], queryFn: listCategories });
   const invalidate = () => {
@@ -110,38 +115,42 @@ export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandl
   const fields: CrudField<QuestionBankCategoryFormInput>[] = [
     {
       name: "categoryType",
-      label: "Category system (set on create, not editable)",
+      label: t("examMgmt.cat.fieldType"),
       kind: "select",
       valueType: "number",
       options: Object.entries(CategoryTypeLabel).map(([v, l]) => ({ value: v, label: l })),
     },
     {
       name: "name",
-      label: "Name",
+      label: t("common.name"),
       kind: "text",
-      placeholder: "Legal & government / Immigration letters",
+      placeholder: t("examMgmt.cat.namePh"),
     },
     {
       name: "parentId",
-      label: "Parent category (optional, hierarchical)",
+      label: t("examMgmt.cat.fieldParent"),
       kind: "select",
       options: [
-        { value: "", label: "None (top-level category)" },
+        { value: "", label: t("examMgmt.cat.parentNone") },
         ...(categories.data ?? []).map((c) => ({ value: c.id, label: c.name })),
       ],
     },
-    { name: "description", label: "Description (optional)", kind: "textarea" },
+    { name: "description", label: t("examMgmt.cat.fieldDescription"), kind: "textarea" },
   ];
 
   const columns: CrudColumn<QuestionBankCategory>[] = [
-    { key: "categoryType", header: "System", render: (c) => CategoryTypeLabel[c.categoryType] },
-    { key: "name", header: "Name", render: (c) => c.name },
+    {
+      key: "categoryType",
+      header: t("examMgmt.cat.colSystem"),
+      render: (c) => CategoryTypeLabel[c.categoryType],
+    },
+    { key: "name", header: t("common.name"), render: (c) => c.name },
     {
       key: "parentId",
-      header: "Parent category",
+      header: t("examMgmt.cat.colParent"),
       render: (c) => (categories.data ?? []).find((p) => p.id === c.parentId)?.name ?? "—",
     },
-    { key: "description", header: "Description", render: (c) => c.description ?? "—" },
+    { key: "description", header: t("common.description"), render: (c) => c.description ?? "—" },
   ];
 
   return (
@@ -157,7 +166,7 @@ export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandl
         schema={questionBankCategoryFormSchema}
         fields={fields}
         defaultValues={defaultValues}
-        dialogTitle="New question-bank category"
+        dialogTitle={t("examMgmt.cat.dialogTitle")}
         onCreate={(values) =>
           createQuestionBankCategory({
             ...values,
@@ -180,9 +189,8 @@ export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandl
         }
         onDelete={(id) => deleteQuestionBankCategory(id)}
         deleteConfirm={(c) => ({
-          title: `Delete category "${c.name}"?`,
-          description:
-            "The backend rejects (conflict) if the category has children or is referenced by questions.",
+          title: t("examMgmt.cat.deleteTitle", { name: c.name }),
+          description: t("examMgmt.cat.deleteDesc"),
         })}
         onChanged={invalidate}
       />

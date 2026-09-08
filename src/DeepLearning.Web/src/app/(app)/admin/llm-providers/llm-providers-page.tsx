@@ -35,6 +35,7 @@ import type {
   AiOperationType,
   LlmProviderSettings,
 } from "@/lib/types/dtos";
+import { useT, type TranslateFn } from "@/lib/i18n";
 
 const PROVIDER_LABEL: Record<string, string> = {
   claude: "Claude (Anthropic)",
@@ -43,20 +44,8 @@ const PROVIDER_LABEL: Record<string, string> = {
   mimo: "Mimo",
 };
 
-const OPERATION_TYPE_LABEL: Record<AiOperationType, string> = {
-  question_gen: "Question generation",
-  grading: "Grading",
-  followup: "Follow-up conversation (per turn)",
-  standard_revision: "Standard revision",
-  deep_learning: "Deep-learning content generation",
-  progress_trend: "Progress-trend summary",
-  followup_summary: "Follow-up closing summary",
-  weak_point_classification: "Weak-point classification",
-  weak_point_detection_criteria: "Weak-point detection-criteria generation",
-  weak_point_recheck: "Weak-point recheck",
-  score_challenge_summary: "Score-challenge settlement",
-  vocab_semantic_drift: "Cross-question vocabulary semantic accumulation",
-};
+const opTypeLabel = (t: TranslateFn, op: AiOperationType): string =>
+  t(`llm.op.${op}` as "llm.op.grading");
 
 const FOLLOW_GLOBAL_VALUE = "__follow_global__";
 const FOLLOW_PROVIDER_MODEL_VALUE = "__follow_provider_model__";
@@ -65,6 +54,7 @@ const THINKING_ON = "on";
 const THINKING_OFF = "off";
 
 function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [newModel, setNewModel] = useState("");
 
@@ -109,7 +99,7 @@ function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
           {settings.isActive ? (
             <Badge variant="outline" className="border-transparent bg-success/12 text-success">
               <CheckCircle2 className="size-3.5" />
-              In use
+              {t("llm.inUse")}
             </Badge>
           ) : null}
         </CardTitle>
@@ -120,17 +110,15 @@ function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
             disabled={activate.isPending}
             onClick={() => activate.mutate()}
           >
-            Set as current provider
+            {t("llm.setAsCurrent")}
           </Button>
         ) : null}
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between rounded-lg border border-border p-3">
           <div>
-            <p className="text-sm font-medium">Thinking / extended reasoning</p>
-            <p className="text-xs text-muted-foreground">
-              Currently only Claude is fully supported semantically (see AGENTS.md).
-            </p>
+            <p className="text-sm font-medium">{t("llm.thinkingLabel")}</p>
+            <p className="text-xs text-muted-foreground">{t("llm.thinkingHint")}</p>
           </div>
           <Switch
             checked={settings.thinkingEnabled}
@@ -153,7 +141,7 @@ function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
         </div>
 
         <div className="space-y-2">
-          <Label>Current model</Label>
+          <Label>{t("llm.currentModel")}</Label>
           {models.isPending ? (
             <Skeleton className="h-9 w-full" />
           ) : (
@@ -162,7 +150,7 @@ function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
               onValueChange={(model) => selectModel.mutate(model)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="No current model set" />
+                <SelectValue placeholder={t("llm.noCurrentModel")} />
               </SelectTrigger>
               <SelectContent>
                 {(models.data ?? []).map((m) => (
@@ -176,12 +164,12 @@ function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Add a new model to the catalog</Label>
+          <Label className="text-xs text-muted-foreground">{t("llm.addModelLabel")}</Label>
           <div className="flex gap-2">
             <Input
               value={newModel}
               onChange={(e) => setNewModel(e.target.value)}
-              placeholder="e.g. claude-opus-5-2"
+              placeholder={t("llm.addModelPh")}
             />
             <Button
               size="icon"
@@ -206,6 +194,7 @@ function OperationOverrideRow({
   row: AiOperationOverrideResultItem;
   providerKeys: string[];
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["admin", "ai-operation-overrides"] });
@@ -244,7 +233,7 @@ function OperationOverrideRow({
   return (
     <div className="space-y-2 rounded-lg border border-border p-2.5">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm">{OPERATION_TYPE_LABEL[row.operationType]}</span>
+        <span className="text-sm">{opTypeLabel(t, row.operationType)}</span>
         <Select
           value={row.providerKey ?? FOLLOW_GLOBAL_VALUE}
           disabled={busy}
@@ -258,7 +247,7 @@ function OperationOverrideRow({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={FOLLOW_GLOBAL_VALUE}>Follow the global current provider</SelectItem>
+            <SelectItem value={FOLLOW_GLOBAL_VALUE}>{t("llm.followGlobalProvider")}</SelectItem>
             {providerKeys.map((key) => (
               <SelectItem key={key} value={key}>
                 {PROVIDER_LABEL[key] ?? key}
@@ -287,7 +276,7 @@ function OperationOverrideRow({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={FOLLOW_PROVIDER_MODEL_VALUE}>
-                Follow this provider’s current model
+                {t("llm.followProviderModel")}
               </SelectItem>
               {(models.data ?? []).map((m) => (
                 <SelectItem key={m.model} value={m.model}>
@@ -319,16 +308,18 @@ function OperationOverrideRow({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={THINKING_FOLLOW_PROVIDER}>Thinking: follow provider</SelectItem>
-              <SelectItem value={THINKING_ON}>Thinking: on</SelectItem>
-              <SelectItem value={THINKING_OFF}>Thinking: off</SelectItem>
+              <SelectItem value={THINKING_FOLLOW_PROVIDER}>
+                {t("llm.thinkingFollowProvider")}
+              </SelectItem>
+              <SelectItem value={THINKING_ON}>{t("llm.thinkingOn")}</SelectItem>
+              <SelectItem value={THINKING_OFF}>{t("llm.thinkingOff")}</SelectItem>
             </SelectContent>
           </Select>
 
           <Input
             key={row.effort ?? ""}
             defaultValue={row.effort ?? ""}
-            placeholder="Effort: follow provider"
+            placeholder={t("llm.effortFollowProvider")}
             className="w-40"
             disabled={busy}
             onBlur={(e) => {
@@ -354,6 +345,7 @@ function OperationOverrideRow({
 
 /** 按任务(AiOperationType)绑定固定 provider/model/thinking，不受全局「当前供应商」切换影响——见后端 AiOperationProviderOverride。 */
 function OperationOverridesPanel({ providerKeys }: { providerKeys: string[] }) {
+  const t = useT();
   const overrides = useQuery({
     queryKey: ["admin", "ai-operation-overrides"],
     queryFn: listAiOperationOverrides,
@@ -362,12 +354,8 @@ function OperationOverridesPanel({ providerKeys }: { providerKeys: string[] }) {
   return (
     <Card className="border-border shadow-none">
       <CardHeader>
-        <CardTitle className="text-base">Per-task provider customization</CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Bind a fixed provider, model, and thinking toggle for a single task, unaffected by the
-          "Set as current provider" switch above. Leave blank = follow the global current provider /
-          that provider’s own current model / that provider’s own thinking default.
-        </p>
+        <CardTitle className="text-base">{t("llm.perTaskTitle")}</CardTitle>
+        <p className="text-xs text-muted-foreground">{t("llm.perTaskHint")}</p>
       </CardHeader>
       <CardContent className="space-y-2">
         {overrides.isPending ? (
@@ -420,11 +408,9 @@ export function LlmProvidersPanel() {
 }
 
 export function LlmProvidersPage() {
+  const t = useT();
   return (
-    <AdminShell
-      title="AI Providers"
-      description="Switching provider / model / thinking / effort is a data update; it takes effect on the next AI call with no redeploy."
-    >
+    <AdminShell title={t("llm.title")} description={t("llm.description")}>
       <LlmProvidersPanel />
     </AdminShell>
   );

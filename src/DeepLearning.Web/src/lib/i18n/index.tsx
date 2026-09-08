@@ -79,6 +79,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof document !== "undefined") {
       document.documentElement.lang = locale;
+      // 同一份值镜像到 cookie，仅供 SSR 的 generateMetadata 读取浏览器标签页标题的语言
+      // （运行时界面语言仍以 localStorage / 用户 profile 为准）。
+      try {
+        document.cookie = `${LOCALE_STORAGE_KEY}=${locale}; path=/; max-age=31536000; samesite=lax`;
+      } catch {
+        /* 忽略 */
+      }
     }
   }, [locale]);
 
@@ -118,6 +125,17 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const value = useMemo<I18nContextValue>(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+}
+
+/**
+ * 把 zod schema 里的校验消息翻译出来。约定：以 `v.` 开头的是 i18n key（见 messages），
+ * 带参数的写成 `v.key::<len>`（目前只有 rangeWithinLength 用到 {len}）。其它字符串（zod 内建
+ * 提示等）原样返回。
+ */
+export function tFormError(t: TranslateFn, message: string | undefined): string | undefined {
+  if (!message || !message.startsWith("v.")) return message;
+  const [key, len] = message.split("::");
+  return t(key as MessageKey, len !== undefined ? { len } : undefined);
 }
 
 export function useI18n(): I18nContextValue {

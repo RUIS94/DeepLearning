@@ -17,7 +17,9 @@ import {
 } from "@/lib/api/exam-config";
 import { weakPointCatalogFormSchema, type WeakPointCatalogFormInput } from "@/lib/validation/admin";
 import type { WeakPointCatalogEntry } from "@/lib/types/dtos";
-import { WeakPointCatalogStatus, WeakPointCatalogStatusLabel } from "@/lib/types/enums";
+import { WeakPointCatalogStatus } from "@/lib/types/enums";
+import { useT } from "@/lib/i18n";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,14 +32,18 @@ import {
 import { showToast } from "@/components/ui/toast";
 import { ApiError } from "@/lib/api/fetcher";
 
-const STATUS_OPTIONS = [
-  { value: String(WeakPointCatalogStatus.active), label: "Active" },
-  { value: String(WeakPointCatalogStatus.proposed), label: "Proposed" },
-  { value: String(WeakPointCatalogStatus.deprecated), label: "Deprecated" },
-];
-
 /** 薄弱点种类现在是全局共享的（不再按考试类型划分，见 策划书 §1.2），这个面板只是仍挂在考试配置页下展示。 */
 export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreateHandle> }) {
+  const t = useT();
+  const { WeakPointCatalogStatusLabel } = useEnumLabels();
+  const STATUS_OPTIONS = [
+    { value: String(WeakPointCatalogStatus.active), label: t("examMgmt.wpc.statusActive") },
+    { value: String(WeakPointCatalogStatus.proposed), label: t("examMgmt.wpc.statusProposed") },
+    {
+      value: String(WeakPointCatalogStatus.deprecated),
+      label: t("examMgmt.wpc.statusDeprecated"),
+    },
+  ];
   const queryClient = useQueryClient();
   const key = ["admin", "weak-point-catalog"];
   const catalog = useQuery({
@@ -54,21 +60,21 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
   const columns: CrudColumn<WeakPointCatalogEntry>[] = [
     {
       key: "category",
-      header: "Top-level category",
+      header: t("examMgmt.wpc.colCategory"),
       render: (c) =>
         c.categoryId
           ? (categoryNameById.get(c.categoryId) ?? "—")
-          : "Pending review · uncategorized",
+          : t("examMgmt.wpc.categoryPending"),
     },
     {
       key: "code",
       header: "code",
       render: (c) => <span className="font-mono text-xs">{c.code}</span>,
     },
-    { key: "name", header: "Name", render: (c) => c.name },
+    { key: "name", header: t("common.name"), render: (c) => c.name },
     {
       key: "match",
-      header: "Rule match key",
+      header: t("examMgmt.wpc.colRuleMatch"),
       render: (c) =>
         c.defaultDimensionKey
           ? `${c.defaultDimensionKey}${c.defaultErrorCategory ? ` / ${c.defaultErrorCategory}` : ""}`
@@ -76,7 +82,7 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
     },
     {
       key: "status",
-      header: "Status",
+      header: t("common.status"),
       render: (c) => (
         <Badge
           variant="outline"
@@ -89,33 +95,39 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
           }
         >
           {WeakPointCatalogStatusLabel[c.status]}
-          {c.origin !== "seed" ? ` · ${c.origin === "auto" ? "auto" : "manual"}` : ""}
+          {c.origin !== "seed"
+            ? ` · ${c.origin === "auto" ? t("examMgmt.wpc.originAuto") : t("examMgmt.wpc.originManual")}`
+            : ""}
         </Badge>
       ),
     },
-    { key: "description", header: "Description", render: (c) => c.description },
+    { key: "description", header: t("common.description"), render: (c) => c.description },
   ];
 
   const fields: CrudField<WeakPointCatalogFormInput>[] = [
-    { name: "categoryId", label: "Top-level category", kind: "select", options: categoryOptions },
+    {
+      name: "categoryId",
+      label: t("examMgmt.wpc.fieldCategory"),
+      kind: "select",
+      options: categoryOptions,
+    },
     { name: "code", label: "code", kind: "text", placeholder: "semantic_causality" },
-    { name: "name", label: "Name", kind: "text", placeholder: "Causality" },
-    { name: "description", label: "Description", kind: "textarea" },
+    { name: "name", label: t("examMgmt.wpc.fieldName"), kind: "text", placeholder: "Causality" },
+    { name: "description", label: t("examMgmt.wpc.fieldDescription"), kind: "textarea" },
     {
       name: "defaultDimensionKey",
-      label: "Default scoring-dimension key (optional)",
+      label: t("examMgmt.wpc.fieldDefaultDimension"),
       kind: "text",
       placeholder: "meaning_transfer",
-      description:
-        "Rule bucketing matches on this; leave blank to skip rule matching and rely on AI classification or manual categorization.",
+      description: t("examMgmt.wpc.defaultDimensionHint"),
     },
     {
       name: "defaultErrorCategory",
-      label: "Default error-category key (optional)",
+      label: t("examMgmt.wpc.fieldDefaultErrorCategory"),
       kind: "text",
       placeholder: "unjustified_omission",
     },
-    { name: "status", label: "Status", kind: "select", options: STATUS_OPTIONS },
+    { name: "status", label: t("common.status"), kind: "select", options: STATUS_OPTIONS },
   ];
 
   const defaultValues: WeakPointCatalogFormInput = {
@@ -145,7 +157,7 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
         schema={weakPointCatalogFormSchema}
         fields={fields}
         defaultValues={defaultValues}
-        dialogTitle="New weak-point category"
+        dialogTitle={t("examMgmt.wpc.dialogTitle")}
         onCreate={(values) =>
           createWeakPointCatalogEntry({
             categoryId: values.categoryId,
@@ -187,6 +199,7 @@ function MergeControl({
   entries: WeakPointCatalogEntry[];
   onMerged: () => void;
 }) {
+  const t = useT();
   const [fromId, setFromId] = useState("");
   const [toId, setToId] = useState("");
   const options = entries.filter((e) => e.status !== WeakPointCatalogStatus.deprecated);
@@ -196,8 +209,11 @@ function MergeControl({
     onSuccess: (res) => {
       showToast({
         variant: "success",
-        title: "Merged",
-        description: `Repointed ${res.repointedCount}, merged ${res.mergedCount} learner weak points; the source category was deprecated.`,
+        title: t("examMgmt.wpc.merged"),
+        description: t("examMgmt.wpc.mergedDesc", {
+          repointed: res.repointedCount,
+          merged: res.mergedCount,
+        }),
       });
       setFromId("");
       setToId("");
@@ -206,7 +222,7 @@ function MergeControl({
     onError: (err) =>
       showToast({
         variant: "error",
-        title: "Merge failed",
+        title: t("examMgmt.wpc.mergeFailed"),
         description: err instanceof ApiError ? (err.problem?.title ?? "") : "",
       }),
   });
@@ -214,13 +230,11 @@ function MergeControl({
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border border-dashed border-border p-4">
       <div className="space-y-1">
-        <p className="text-xs text-muted-foreground">
-          Merge (fold Source into Target; Source is deprecated)
-        </p>
+        <p className="text-xs text-muted-foreground">{t("examMgmt.wpc.mergeHint")}</p>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={fromId} onValueChange={setFromId}>
             <SelectTrigger className="h-9 w-52 text-sm">
-              <SelectValue placeholder="Source category" />
+              <SelectValue placeholder={t("examMgmt.wpc.sourceCategory")} />
             </SelectTrigger>
             <SelectContent>
               {options.map((o) => (
@@ -233,7 +247,7 @@ function MergeControl({
           <span className="text-muted-foreground">→</span>
           <Select value={toId} onValueChange={setToId}>
             <SelectTrigger className="h-9 w-52 text-sm">
-              <SelectValue placeholder="Target category" />
+              <SelectValue placeholder={t("examMgmt.wpc.targetCategory")} />
             </SelectTrigger>
             <SelectContent>
               {options
@@ -252,7 +266,7 @@ function MergeControl({
         disabled={!fromId || !toId || fromId === toId || merge.isPending}
         onClick={() => merge.mutate()}
       >
-        Merge
+        {t("examMgmt.wpc.merge")}
       </Button>
     </div>
   );

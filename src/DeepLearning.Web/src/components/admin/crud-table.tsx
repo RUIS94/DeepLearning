@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorBanner } from "@/components/shared/ai-loading-state";
-import { useT } from "@/lib/i18n";
+import { tFormError, useT } from "@/lib/i18n";
 
 /**
  * 通用后台增改列表（方案 §8.2）。列定义 + 表单 schema 作为 props，不为每个资源重复写表格+弹窗。
@@ -220,13 +220,14 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
     const fieldLabel = first
       ? (fields.find((f) => f.name === first[0])?.label ?? first[0])
       : undefined;
+    const firstMessage = tFormError(t, first?.[1]?.message);
     showToast({
       variant: "error",
       title: t("crud.validationFailed"),
-      description: first?.[1]?.message
+      description: firstMessage
         ? fieldLabel
-          ? t("crud.fieldError", { field: fieldLabel, message: first[1]!.message! })
-          : first[1]!.message
+          ? t("crud.fieldError", { field: fieldLabel, message: firstMessage })
+          : firstMessage
         : t("crud.checkFields"),
     });
   }
@@ -275,7 +276,9 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
                     <p className="text-xs text-muted-foreground">{field.description}</p>
                   ) : null}
                   {errors[field.name]?.message ? (
-                    <p className="text-xs text-destructive">{errors[field.name]!.message}</p>
+                    <p className="text-xs text-destructive">
+                      {tFormError(t, errors[field.name]!.message)}
+                    </p>
                   ) : null}
                 </div>
               );

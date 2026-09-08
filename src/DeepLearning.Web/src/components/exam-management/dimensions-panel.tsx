@@ -10,72 +10,97 @@ import {
 } from "@/components/admin/crud-table";
 import { Badge } from "@/components/ui/badge";
 import { createAssessmentDimension, listAssessmentDimensions } from "@/lib/api/exam-config";
-import { ScaleTypeLabel, TaskTypeLabel } from "@/lib/types/enums";
 import {
   assessmentDimensionFormSchema,
   type AssessmentDimensionFormInput,
 } from "@/lib/validation/admin";
 import type { AssessmentDimension } from "@/lib/types/dtos";
 import { formatDate } from "@/lib/band";
+import { useT, type TranslateFn } from "@/lib/i18n";
+import { useEnumLabels, type EnumLabels } from "@/lib/i18n/enum-labels";
 
-const columns: CrudColumn<AssessmentDimension>[] = [
+const buildColumns = (
+  t: TranslateFn,
+  ScaleTypeLabel: EnumLabels["ScaleTypeLabel"],
+): CrudColumn<AssessmentDimension>[] => [
   {
     key: "dimensionKey",
     header: "Key",
     render: (d) => <span className="font-mono text-xs">{d.dimensionKey}</span>,
   },
-  { key: "dimensionName", header: "Name", render: (d) => d.dimensionName },
+  { key: "dimensionName", header: t("common.name"), render: (d) => d.dimensionName },
   {
     key: "scaleType",
-    header: "Scale",
+    header: t("examMgmt.dim.colScale"),
     render: (d) => <Badge variant="outline">{ScaleTypeLabel[d.scaleType]}</Badge>,
   },
-  { key: "passThreshold", header: "Pass line", render: (d) => d.passThreshold ?? "—" },
-  { key: "rubricVersion", header: "Version", render: (d) => d.rubricVersion },
-  { key: "effectiveFrom", header: "Effective from", render: (d) => formatDate(d.effectiveFrom) },
+  {
+    key: "passThreshold",
+    header: t("examMgmt.dim.colPassLine"),
+    render: (d) => d.passThreshold ?? "—",
+  },
+  { key: "rubricVersion", header: t("examMgmt.dim.colVersion"), render: (d) => d.rubricVersion },
+  {
+    key: "effectiveFrom",
+    header: t("examMgmt.dim.colEffectiveFrom"),
+    render: (d) => formatDate(d.effectiveFrom),
+  },
 ];
 
-const fields: CrudField<AssessmentDimensionFormInput>[] = [
+const buildFields = (
+  t: TranslateFn,
+  ScaleTypeLabel: EnumLabels["ScaleTypeLabel"],
+  TaskTypeLabel: EnumLabels["TaskTypeLabel"],
+): CrudField<AssessmentDimensionFormInput>[] => [
   { name: "dimensionKey", label: "Dimension Key", kind: "text", placeholder: "meaning_transfer" },
-  { name: "dimensionName", label: "Name", kind: "text", placeholder: "Meaning Transfer" },
+  {
+    name: "dimensionName",
+    label: t("common.name"),
+    kind: "text",
+    placeholder: "Meaning Transfer",
+  },
   {
     name: "scaleType",
-    label: "Scale type",
+    label: t("examMgmt.dim.fieldScaleType"),
     kind: "select",
     valueType: "number",
     options: Object.entries(ScaleTypeLabel).map(([v, l]) => ({ value: v, label: l })),
   },
   {
     name: "passThreshold",
-    label: "Pass line (optional)",
+    label: t("examMgmt.dim.fieldPassLine"),
     kind: "text",
     placeholder: "Band 2 or above",
   },
   {
     name: "applicableTaskType",
-    label: "Applicable task type",
+    label: t("examMgmt.dim.fieldApplicableTaskType"),
     kind: "select",
     valueType: "number",
     options: [
-      { value: "-1", label: "Any (applies to both task types)" },
+      { value: "-1", label: t("examMgmt.dim.taskTypeAny") },
       ...Object.entries(TaskTypeLabel).map(([v, l]) => ({ value: v, label: l })),
     ],
   },
   {
     name: "levelDescriptions",
-    label: "Full original English text for each Band",
+    label: t("examMgmt.dim.fieldLevelDescriptions"),
     kind: "textarea",
     rows: 5,
   },
-  { name: "rubricVersion", label: "Rubric version", kind: "text", placeholder: "2026-02" },
+  {
+    name: "rubricVersion",
+    label: t("examMgmt.dim.fieldRubricVersion"),
+    kind: "text",
+    placeholder: "2026-02",
+  },
   {
     name: "effectiveFrom",
-    label: "Effective date",
+    label: t("examMgmt.dim.fieldEffectiveDate"),
     kind: "date",
-    description:
-      "If this dimensionKey already has an active version, the new version automatically closes the old one",
+    description: t("examMgmt.dim.effectiveDateHint"),
   },
-  { name: "sourceReference", label: "Official source (optional)", kind: "text" },
+  { name: "sourceReference", label: t("examMgmt.dim.fieldSourceReference"), kind: "text" },
 ];
 
 const defaultValues: AssessmentDimensionFormInput = {
@@ -92,6 +117,7 @@ const defaultValues: AssessmentDimensionFormInput = {
 
 /** level_descriptions 是 jsonb 字符串，展开时转成 Band => 原文 的 key-value 组显示。 */
 function LevelDescriptions({ raw }: { raw: string }) {
+  const t = useT();
   let entries: [string, string][] = [];
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
@@ -100,7 +126,7 @@ function LevelDescriptions({ raw }: { raw: string }) {
     return <pre className="whitespace-pre-wrap text-xs text-muted-foreground">{raw}</pre>;
   }
   if (entries.length === 0) {
-    return <p className="text-xs text-muted-foreground">(no level_descriptions)</p>;
+    return <p className="text-xs text-muted-foreground">{t("examMgmt.dim.noLevelDescriptions")}</p>;
   }
   return (
     <dl className="space-y-2 py-1 text-sm">
@@ -121,6 +147,10 @@ export function DimensionsPanel({
   examTypeId: string;
   createRef?: Ref<CrudCreateHandle>;
 }) {
+  const t = useT();
+  const { ScaleTypeLabel, TaskTypeLabel } = useEnumLabels();
+  const columns = buildColumns(t, ScaleTypeLabel);
+  const fields = buildFields(t, ScaleTypeLabel, TaskTypeLabel);
   const queryClient = useQueryClient();
   const key = ["admin", "dimensions", examTypeId];
   const dimensions = useQuery({
@@ -147,7 +177,7 @@ export function DimensionsPanel({
   return (
     <div className="space-y-8">
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold">TaskA dimensions</h3>
+        <h3 className="text-sm font-semibold">{t("examMgmt.dim.taskADimensions")}</h3>
         <CrudTable
           openCreateRef={createRef}
           hideCreate
@@ -159,16 +189,16 @@ export function DimensionsPanel({
           schema={assessmentDimensionFormSchema}
           fields={fields}
           defaultValues={defaultValues}
-          dialogTitle="New scoring-dimension version"
+          dialogTitle={t("examMgmt.dim.dialogTitle")}
           renderExpanded={(d) => <LevelDescriptions raw={d.levelDescriptions} />}
           onCreate={create}
           onChanged={invalidate}
-          emptyMessage="No dimensions apply to TaskA"
+          emptyMessage={t("examMgmt.dim.emptyTaskA")}
         />
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold">TaskB dimensions</h3>
+        <h3 className="text-sm font-semibold">{t("examMgmt.dim.taskBDimensions")}</h3>
         <CrudTable
           columns={columns}
           items={dimensions.isPending ? undefined : taskB}
@@ -182,7 +212,7 @@ export function DimensionsPanel({
           renderExpanded={(d) => <LevelDescriptions raw={d.levelDescriptions} />}
           onCreate={create}
           onChanged={invalidate}
-          emptyMessage="No dimensions apply to TaskB"
+          emptyMessage={t("examMgmt.dim.emptyTaskB")}
         />
       </section>
     </div>

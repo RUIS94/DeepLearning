@@ -15,15 +15,12 @@ import {
   deprecateStandardOverride,
   listStandardOverrides,
 } from "@/lib/api/standard-overrides";
-import { OverrideScope, OverrideStatus, OverrideStatusLabel } from "@/lib/types/enums";
+import { OverrideScope, OverrideStatus } from "@/lib/types/enums";
 import { formatDate } from "@/lib/band";
 import { cn } from "@/lib/utils";
 import type { StandardOverride } from "@/lib/types/dtos";
-
-const scopeLabel: Record<number, string> = {
-  [OverrideScope.grading_rubric]: "Grading standard",
-  [OverrideScope.translation_reference]: "Reference translation",
-};
+import { useT } from "@/lib/i18n";
+import { useEnumLabels } from "@/lib/i18n/enum-labels";
 
 const statusTone: Record<number, string> = {
   [OverrideStatus.observing]: "bg-warning/20 text-warning-foreground",
@@ -32,6 +29,12 @@ const statusTone: Record<number, string> = {
 };
 
 export function StandardOverridesPanel() {
+  const t = useT();
+  const { OverrideStatusLabel } = useEnumLabels();
+  const scopeLabel: Record<number, string> = {
+    [OverrideScope.grading_rubric]: t("examMgmt.override.scopeRubric"),
+    [OverrideScope.translation_reference]: t("examMgmt.override.scopeReference"),
+  };
   const queryClient = useQueryClient();
   const overrides = useQuery({
     queryKey: ["standard-overrides"],
@@ -43,23 +46,20 @@ export function StandardOverridesPanel() {
   const activate = useMutation({
     mutationFn: (id: string) => activateStandardOverride(id),
     onSuccess: () => {
-      showToast({ variant: "success", title: "Promoted to active" });
+      showToast({ variant: "success", title: t("examMgmt.override.promoted") });
       invalidate();
     },
     onError: (err) =>
       showToast({
         variant: "error",
-        title: "Couldn't promote",
+        title: t("examMgmt.override.promoteFailed"),
         description: err instanceof ApiError ? (err.problem?.title ?? "") : "",
       }),
   });
 
   return (
     <>
-      <p className="mb-4 text-sm text-muted-foreground">
-        The audit chain is append-only: here you can only manually review and promote observing →
-        active, or deprecate a revision. Editing and physical deletion are not offered.
-      </p>
+      <p className="mb-4 text-sm text-muted-foreground">{t("examMgmt.override.intro")}</p>
 
       {overrides.isPending ? (
         <div className="space-y-4">
@@ -101,7 +101,7 @@ export function StandardOverridesPanel() {
                       disabled={activate.isPending}
                       onClick={() => activate.mutate(o.id)}
                     >
-                      Promote to active
+                      {t("examMgmt.override.promote")}
                     </Button>
                   ) : null}
                   {o.status !== OverrideStatus.deprecated ? (
@@ -111,7 +111,7 @@ export function StandardOverridesPanel() {
                       className="text-muted-foreground hover:text-destructive"
                       onClick={() => setDeprecating(o)}
                     >
-                      Deprecate
+                      {t("examMgmt.override.deprecate")}
                     </Button>
                   ) : null}
                 </div>
@@ -121,7 +121,7 @@ export function StandardOverridesPanel() {
         </div>
       ) : (
         <p className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
-          No standard revision records yet.
+          {t("examMgmt.override.empty")}
         </p>
       )}
 
@@ -131,9 +131,9 @@ export function StandardOverridesPanel() {
           if (!next) setDeprecating(null);
         }}
         tone="warning"
-        title="Deprecate this revision?"
-        description="The status becomes deprecated and it no longer takes part in future grading. The audit-chain record is kept and traceable."
-        confirmLabel="Deprecate"
+        title={t("examMgmt.override.deprecateTitle")}
+        description={t("examMgmt.override.deprecateDesc")}
+        confirmLabel={t("examMgmt.override.deprecate")}
         onConfirm={async () => {
           if (!deprecating) return;
           try {
@@ -143,7 +143,7 @@ export function StandardOverridesPanel() {
           } catch (err) {
             showToast({
               variant: "error",
-              title: "Deprecation failed",
+              title: t("examMgmt.override.deprecateFailed"),
               description: err instanceof ApiError ? (err.problem?.title ?? "") : "",
             });
             throw err;

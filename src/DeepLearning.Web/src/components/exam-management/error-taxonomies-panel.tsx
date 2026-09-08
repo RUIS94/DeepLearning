@@ -11,28 +11,41 @@ import {
 import { createErrorTaxonomy, listErrorTaxonomiesByExamType } from "@/lib/api/exam-config";
 import { errorTaxonomyFormSchema, type ErrorTaxonomyFormInput } from "@/lib/validation/admin";
 import type { ErrorTaxonomy } from "@/lib/types/dtos";
+import { useT, type TranslateFn } from "@/lib/i18n";
 
-const columns: CrudColumn<ErrorTaxonomy>[] = [
+const buildColumns = (t: TranslateFn): CrudColumn<ErrorTaxonomy>[] => [
   {
     key: "categoryKey",
     header: "Key",
-    render: (t) => <span className="font-mono text-xs">{t.categoryKey}</span>,
+    render: (row) => <span className="font-mono text-xs">{row.categoryKey}</span>,
   },
-  { key: "categoryName", header: "Name", render: (t) => t.categoryName },
-  { key: "description", header: "Description", render: (t) => t.description ?? "—" },
-  { key: "exampleCases", header: "Edge cases", render: (t) => t.exampleCases ?? "—" },
+  { key: "categoryName", header: t("common.name"), render: (row) => row.categoryName },
+  {
+    key: "description",
+    header: t("common.description"),
+    render: (row) => row.description ?? "—",
+  },
+  {
+    key: "exampleCases",
+    header: t("examMgmt.tax.colEdgeCases"),
+    render: (row) => row.exampleCases ?? "—",
+  },
 ];
 
-const fields: CrudField<ErrorTaxonomyFormInput>[] = [
+const buildFields = (t: TranslateFn): CrudField<ErrorTaxonomyFormInput>[] => [
   { name: "categoryKey", label: "Category Key", kind: "text", placeholder: "distortion" },
-  { name: "categoryName", label: "Name", kind: "text", placeholder: "Meaning distortion" },
-  { name: "description", label: "Description (optional)", kind: "textarea" },
+  {
+    name: "categoryName",
+    label: t("common.name"),
+    kind: "text",
+    placeholder: "Meaning distortion",
+  },
+  { name: "description", label: t("examMgmt.tax.fieldDescription"), kind: "textarea" },
   {
     name: "exampleCases",
-    label: "Edge cases (optional)",
+    label: t("examMgmt.tax.fieldEdgeCases"),
     kind: "textarea",
-    description:
-      "Especially examples distinguishing easily-confused categories; rendered into the prompt as few-shot.",
+    description: t("examMgmt.tax.edgeCasesHint"),
   },
 ];
 
@@ -50,6 +63,9 @@ export function ErrorTaxonomiesPanel({
   examTypeId: string;
   createRef?: Ref<CrudCreateHandle>;
 }) {
+  const t = useT();
+  const columns = buildColumns(t);
+  const fields = buildFields(t);
   const queryClient = useQueryClient();
   const key = ["admin", "error-taxonomies", examTypeId];
   const taxonomies = useQuery({
@@ -65,11 +81,11 @@ export function ErrorTaxonomiesPanel({
       items={taxonomies.data}
       isLoading={taxonomies.isPending}
       loadError={taxonomies.error}
-      getRowId={(t) => t.id}
+      getRowId={(row) => row.id}
       schema={errorTaxonomyFormSchema}
       fields={fields}
       defaultValues={defaultValues}
-      dialogTitle="New error taxonomy"
+      dialogTitle={t("examMgmt.tax.dialogTitle")}
       onCreate={(values) =>
         createErrorTaxonomy(examTypeId, {
           ...values,
