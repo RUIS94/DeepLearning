@@ -17,7 +17,7 @@ namespace DeepLearning.Infrastructure.BackgroundJobs
     /// work lives in GenerateProgressTrendSnapshotCommandHandler, independently unit/integration
     /// testable without Hangfire ever running.
     ///
-    /// One MediatR command per (active exam type, active user, difficulty tier, trailing week) —
+    /// One MediatR command per (active user, difficulty tier, trailing week) —
     /// covers both "this week's fresh snapshot" and "backfill any of the last few weeks that
     /// don't have a row yet" with the same call, since the handler recomputes from source
     /// grading_results rather than incrementing, so re-running it for an already-populated week
@@ -25,6 +25,20 @@ namespace DeepLearning.Infrastructure.BackgroundJobs
     /// (LookbackWeeks) rather than a user's entire history — an unbounded historical scan on a
     /// job that runs every week would grow more expensive from run to run for no product benefit,
     /// since every prior week already got its own snapshot the first time this job ever saw it.
+    ///
+    /// <para><b>One exam type, not all of them.</b> <c>progress_snapshots</c> has no
+    /// <c>exam_type_id</c> (design doc §6.14 — progress is keyed only by user/tier/period), so a
+    /// given <c>(user, tier, week)</c> row can only ever hold one exam type's narrative. The job
+    /// used to loop over every active exam type and send a command per each; with a second active
+    /// exam type that made whichever command ran last silently overwrite the others' narrative,
+    /// and <c>GenerateProgressTrendSnapshotCommandHandler</c>'s "unchanged numbers -> skip the AI
+    /// call" self-audit check then locked in whichever ran last the first time the numbers
+    /// matched. It now narrates against exactly one exam type — the only active one, or, if more
+    /// than one is ever active, the earliest-created one (deterministically) plus a warning —
+    /// until progress tracking is actually scoped per exam type (design doc §9.4's deferral of
+    /// putting <c>exam_type_id</c> on the business tables). Submissions/questions carry no exam
+    /// type either, so there is no per-user activity signal to pick a "better" one from today.
+    /// </para>
     /// </summary>
     public class ProgressSnapshotJob
     {
@@ -54,46 +68,62 @@ namespace DeepLearning.Infrastructure.BackgroundJobs
             var since = weeks[0].PeriodStart;
 
             var examTypes = await _examTypeRepository.ListAsync(isActive: true, cancellationToken);
+            if (examTypes.Count == 0)
+            {
+                _logger.LogInformation("ProgressSnapshotJob: no active exam types, nothing to do.");
+                return;
+            }
+
+            // See the class remarks: progress_snapshots is not scoped per exam type, so narrate
+            // against exactly one. Earliest-created is an arbitrary-but-stable tiebreak; it only
+            // ever matters once a second exam type is active, at which point this warning is the
+            // signal to scope progress per exam type properly.
+            var narrationExamType = examTypes.OrderBy(e => e.CreatedAt).ThenBy(e => e.Id).First();
+            if (examTypes.Count > 1)
+            {
+                _logger.LogWarning(
+                    "ProgressSnapshotJob: {ExamTypeCount} active exam types but progress_snapshots is not scoped per exam type; " +
+                    "narrating all trends against '{Code}' ({ExamTypeId}) only. Scope progress per exam type before relying on the others.",
+                    examTypes.Count, narrationExamType.Code, narrationExamType.Id);
+            }
+
             var userIds = await _progressRepository.ListUserIdsWithGradingActivitySinceAsync(since, cancellationToken);
             var difficultyTiers = Enum.GetValues<Difficulty>().Select(d => d.ToString()).ToList();
 
             var processed = 0;
             var failed = 0;
 
-            foreach (var examType in examTypes)
+            foreach (var userId in userIds)
             {
-                foreach (var userId in userIds)
+                foreach (var difficultyTier in difficultyTiers)
                 {
-                    foreach (var difficultyTier in difficultyTiers)
+                    foreach (var week in weeks)
                     {
-                        foreach (var week in weeks)
+                        try
                         {
-                            try
-                            {
-                                await _mediator.Send(
-                                    new GenerateProgressTrendSnapshotCommand(userId, examType.Id, difficultyTier, week.PeriodStart, week.PeriodEnd),
-                                    cancellationToken);
-                                processed++;
-                            }
-                            catch (Exception ex)
-                            {
-                                // One user/tier/week failing (e.g. a transient DB error) must not
-                                // abort the whole weekly batch for every other user — logged and
-                                // skipped, same "isolate the blast radius of one bad unit" spirit
-                                // as the handler's own AI-failure handling.
-                                failed++;
-                                _logger.LogError(ex,
-                                    "ProgressSnapshotJob failed for user {UserId}, tier {DifficultyTier}, week {PeriodStart}",
-                                    userId, difficultyTier, week.PeriodStart);
-                            }
+                            await _mediator.Send(
+                                new GenerateProgressTrendSnapshotCommand(userId, narrationExamType.Id, difficultyTier, week.PeriodStart, week.PeriodEnd),
+                                cancellationToken);
+                            processed++;
+                        }
+                        catch (Exception ex)
+                        {
+                            // One user/tier/week failing (e.g. a transient DB error) must not
+                            // abort the whole weekly batch for every other user — logged and
+                            // skipped, same "isolate the blast radius of one bad unit" spirit
+                            // as the handler's own AI-failure handling.
+                            failed++;
+                            _logger.LogError(ex,
+                                "ProgressSnapshotJob failed for user {UserId}, tier {DifficultyTier}, week {PeriodStart}",
+                                userId, difficultyTier, week.PeriodStart);
                         }
                     }
                 }
             }
 
             _logger.LogInformation(
-                "ProgressSnapshotJob completed: {Processed} unit(s) processed, {Failed} failed, {UserCount} user(s), {ExamTypeCount} exam type(s).",
-                processed, failed, userIds.Count, examTypes.Count);
+                "ProgressSnapshotJob completed: {Processed} unit(s) processed, {Failed} failed, {UserCount} user(s), narrated against exam type {ExamTypeId}.",
+                processed, failed, userIds.Count, narrationExamType.Id);
         }
     }
 }

@@ -248,6 +248,12 @@ const zh: Record<MessageKey, string> = {
   "examMgmt.cat.dialogTitle": "新建题库分类",
   "examMgmt.cat.deleteTitle": "删除分类「{name}」？",
   "examMgmt.cat.deleteDesc": "若该分类有子分类或已被题目引用，后端会拒绝（返回冲突）。",
+  "examMgmt.cat.fieldScope": "作用域",
+  "examMgmt.cat.scopeThisExam": "当前考试类型",
+  "examMgmt.cat.scopeGlobal": "全局（所有考试类型）",
+  "examMgmt.cat.colScope": "作用域",
+  "examMgmt.scopeGlobalBadge": "全局",
+  "examMgmt.sharedNotice": "此 tab 跨考试类型共享：显示当前考试类型自己的条目 + 全局条目。",
 
   // 考试管理 · 评分维度 tab
   "examMgmt.dim.colScale": "量表",

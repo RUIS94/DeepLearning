@@ -57,12 +57,18 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
             return await fromLegacyFollowUps.Union(fromThreads).Distinct().CountAsync(cancellationToken);
         }
 
-        public Task<List<StandardOverride>> ListAsync(OverrideStatus? status, CancellationToken cancellationToken = default)
+        public Task<List<StandardOverride>> ListAsync(
+            OverrideStatus? status, Guid? examTypeId = null, CancellationToken cancellationToken = default)
         {
             var query = _context.StandardOverrides.AsQueryable();
             if (status is { } s)
             {
                 query = query.Where(x => x.Status == s);
+            }
+
+            if (examTypeId is { } et)
+            {
+                query = query.Where(x => x.ExamTypeId == et || x.ExamTypeId == null);
             }
 
             return query.OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);

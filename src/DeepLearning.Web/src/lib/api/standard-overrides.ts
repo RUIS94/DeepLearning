@@ -7,8 +7,12 @@ import type {
 
 const api = createBrowserApiClient();
 
-export async function listStandardOverrides(status?: number): Promise<StandardOverride[]> {
-  return api<StandardOverride[]>("/standard-overrides", { query: { status } });
+/** 传 examTypeId 时返回该考试类型的修正 + 历史/全局(exam_type_id IS NULL)的修正。 */
+export async function listStandardOverrides(
+  status?: number,
+  examTypeId?: string,
+): Promise<StandardOverride[]> {
+  return api<StandardOverride[]>("/standard-overrides", { query: { status, examTypeId } });
 }
 
 export async function getStandardOverrideById(id: string): Promise<StandardOverrideDetail> {

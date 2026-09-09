@@ -86,7 +86,8 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             // Injected into the prompt so the AI's brief.domain reuses an existing name instead of
             // inventing near-duplicates ("政府公告" / "政府通告" / "Government Notices"). Also reused
             // by ResolveTopicHintAsync and MapCategoriesAsync so this is the only DB read for it.
-            var domainCategories = await _questionBankCategoryRepository.ListAsync(CategoryType.domain, cancellationToken);
+            var domainCategories = await _questionBankCategoryRepository.ListAsync(
+                CategoryType.domain, request.ExamTypeId, cancellationToken);
 
             var (seedSamples, seedSelectionReason) = await ResolveSeedSamplesAsync(request, cancellationToken);
             var weakPointHint = await ResolveWeakPointHintAsync(request, cancellationToken);
@@ -206,7 +207,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             }
             await _questionRepository.AddSeededErrorsAsync(seededErrors, cancellationToken);
 
-            await MapCategoriesAsync(question, pinnedCategory, briefFields.Domain, domainCategories, cancellationToken);
+            await MapCategoriesAsync(question, pinnedCategory, briefFields.Domain, domainCategories, request.ExamTypeId, cancellationToken);
 
             if (seedSamples.Count > 0)
             {
@@ -318,6 +319,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             QuestionBankCategory? pinnedCategory,
             string? briefDomain,
             List<QuestionBankCategory> domainCategories,
+            Guid examTypeId,
             CancellationToken cancellationToken)
         {
             Guid categoryId;
@@ -346,6 +348,9 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                         Id = Guid.NewGuid(),
                         CategoryType = CategoryType.domain,
                         Name = domainName,
+                        // Scope the auto-created domain category to this exam type so it doesn't
+                        // land as a global row (design doc §9.4 / the 2026-09-09 C4 round).
+                        ExamTypeId = examTypeId,
                         CreatedAt = DateTimeOffset.UtcNow,
                     };
                     await _questionBankCategoryRepository.AddAsync(match, cancellationToken);

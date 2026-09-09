@@ -14,7 +14,8 @@ namespace DeepLearning.Application.Features.StandardOverrides.Queries.ListStanda
 
         public async Task<List<StandardOverrideResultItem>> Handle(ListStandardOverridesQuery request, CancellationToken cancellationToken)
         {
-            var overrides = await _standardOverrideRepository.ListAsync(request.Status, cancellationToken);
+            var overrides = await _standardOverrideRepository.ListAsync(
+                request.Status, request.ExamTypeId, cancellationToken);
 
             return overrides.Select(x => new StandardOverrideResultItem(
                 x.Id,
@@ -24,7 +25,8 @@ namespace DeepLearning.Application.Features.StandardOverrides.Queries.ListStanda
                 x.Status,
                 x.PreviousOverrideId,
                 x.EffectiveFrom,
-                x.CreatedAt)).ToList();
+                x.CreatedAt,
+                x.ExamTypeId)).ToList();
         }
     }
 }

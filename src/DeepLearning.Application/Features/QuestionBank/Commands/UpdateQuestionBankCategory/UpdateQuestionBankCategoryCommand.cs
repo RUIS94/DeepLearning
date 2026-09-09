@@ -6,5 +6,6 @@ namespace DeepLearning.Application.Features.QuestionBank.Commands.UpdateQuestion
         Guid Id,
         string Name,
         Guid? ParentId,
-        string? Description) : IRequest<UpdateQuestionBankCategoryResult>;
+        string? Description,
+        Guid? ExamTypeId = null) : IRequest<UpdateQuestionBankCategoryResult>;
 }

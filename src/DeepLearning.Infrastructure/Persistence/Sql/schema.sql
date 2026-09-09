@@ -409,6 +409,7 @@ CREATE TABLE question_bank_categories (
     name                   VARCHAR(100) NOT NULL,
     parent_id                UUID REFERENCES question_bank_categories(id),
     description                TEXT,
+    exam_type_id                UUID REFERENCES exam_types(id),  -- NULL = global category (migration 20260909051831); see IQuestionBankCategoryRepository.ListAsync
     created_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

@@ -36,11 +36,12 @@ import { CategoryType } from "@/lib/types/enums";
 import { useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
 
-const defaultValues: QuestionBankCategoryFormInput = {
+const baseDefaultValues: QuestionBankCategoryFormInput = {
   categoryType: 0,
   name: "",
   parentId: "",
   description: "",
+  examTypeId: "",
 };
 
 function TagQuestionCard({ categories }: { categories: QuestionBankCategory[] }) {
@@ -107,14 +108,35 @@ function TagQuestionCard({ categories }: { categories: QuestionBankCategory[] })
   );
 }
 
-export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandle> }) {
+export function CategoriesPanel({
+  examTypeId,
+  createRef,
+}: {
+  examTypeId?: string;
+  createRef?: Ref<CrudCreateHandle>;
+}) {
   const t = useT();
   const { CategoryTypeLabel } = useEnumLabels();
   const queryClient = useQueryClient();
-  const categories = useQuery({ queryKey: ["admin", "categories"], queryFn: listCategories });
+  const categories = useQuery({
+    queryKey: ["admin", "categories", examTypeId ?? null],
+    queryFn: () => listCategories(examTypeId),
+  });
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["admin", "categories"] });
     queryClient.invalidateQueries({ queryKey: ["categories"] });
+  };
+
+  // 新建/编辑时"作用域"下拉：绑定当前考试类型 or 全局。examTypeId 缺失（理论上不会）时只留全局。
+  const scopeOptions = examTypeId
+    ? [
+        { value: examTypeId, label: t("examMgmt.cat.scopeThisExam") },
+        { value: "", label: t("examMgmt.cat.scopeGlobal") },
+      ]
+    : [{ value: "", label: t("examMgmt.cat.scopeGlobal") }];
+  const defaultValues: QuestionBankCategoryFormInput = {
+    ...baseDefaultValues,
+    examTypeId: examTypeId ?? "",
   };
 
   const fields: CrudField<QuestionBankCategoryFormInput>[] = [
@@ -141,6 +163,12 @@ export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandl
       ],
     },
     { name: "description", label: t("examMgmt.cat.fieldDescription"), kind: "textarea" },
+    {
+      name: "examTypeId",
+      label: t("examMgmt.cat.fieldScope"),
+      kind: "select",
+      options: scopeOptions,
+    },
   ];
 
   const columns: CrudColumn<QuestionBankCategory>[] = [
@@ -149,6 +177,12 @@ export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandl
       key: "parentId",
       header: t("examMgmt.cat.colParent"),
       render: (c) => (categories.data ?? []).find((p) => p.id === c.parentId)?.name ?? "—",
+    },
+    {
+      key: "scope",
+      header: t("examMgmt.cat.colScope"),
+      render: (c) =>
+        c.examTypeId ? t("examMgmt.cat.scopeThisExam") : t("examMgmt.scopeGlobalBadge"),
     },
     { key: "description", header: t("common.description"), render: (c) => c.description ?? "—" },
   ];
@@ -168,18 +202,21 @@ export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandl
         ...values,
         parentId: values.parentId || null,
         description: values.description || null,
+        examTypeId: values.examTypeId || null,
       }),
     toFormValues: (c: QuestionBankCategory) => ({
       categoryType: c.categoryType,
       name: c.name,
       parentId: c.parentId ?? "",
       description: c.description ?? "",
+      examTypeId: c.examTypeId ?? "",
     }),
     onUpdate: (id: string, values: QuestionBankCategoryFormInput) =>
       updateQuestionBankCategory(id, {
         name: values.name,
         parentId: values.parentId || null,
         description: values.description || null,
+        examTypeId: values.examTypeId || null,
       }),
     onDelete: (id: string) => deleteQuestionBankCategory(id),
     deleteConfirm: (c: QuestionBankCategory) => ({
@@ -194,6 +231,8 @@ export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandl
 
   return (
     <div className="space-y-6">
+      <p className="text-xs text-muted-foreground">{t("examMgmt.sharedNotice")}</p>
+
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">{t("examMgmt.cat.domainTitle")}</h3>
         <CrudTable openCreateRef={createRef} items={domainItems} {...commonTableProps} />

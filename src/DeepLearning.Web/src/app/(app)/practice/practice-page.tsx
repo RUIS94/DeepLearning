@@ -54,7 +54,7 @@ export function PracticePage() {
     router.push(`/practice/${questionId}`);
   });
 
-  const categories = useQuery({ queryKey: ["categories"], queryFn: listCategories });
+  const categories = useQuery({ queryKey: ["categories"], queryFn: () => listCategories() });
   const questions = useQuery({
     queryKey: ["questions", taskType, difficulty, categoryId, userId],
     queryFn: () =>

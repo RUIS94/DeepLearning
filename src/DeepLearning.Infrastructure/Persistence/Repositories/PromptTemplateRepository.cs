@@ -22,6 +22,7 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
             SubjectCategory? subjectCategory,
             AiOperationType? templateType,
             bool? isActive,
+            bool includeGlobalScope = false,
             CancellationToken cancellationToken = default)
         {
             var query = _context.PromptTemplates.AsQueryable();
@@ -33,7 +34,9 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
 
             if (examTypeId.HasValue)
             {
-                query = query.Where(x => x.ExamTypeId == examTypeId.Value);
+                query = includeGlobalScope
+                    ? query.Where(x => x.ExamTypeId == examTypeId.Value || x.ExamTypeId == null)
+                    : query.Where(x => x.ExamTypeId == examTypeId.Value);
             }
 
             if (subjectCategory.HasValue)

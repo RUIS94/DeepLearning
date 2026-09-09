@@ -14,10 +14,12 @@ namespace DeepLearning.Application.Features.QuestionBank.Queries.ListQuestionBan
 
         public async Task<List<ListQuestionBankCategoriesResultItem>> Handle(ListQuestionBankCategoriesQuery request, CancellationToken cancellationToken)
         {
-            var categories = await _categoryRepository.ListAsync(request.CategoryType, cancellationToken);
+            var categories = await _categoryRepository.ListAsync(
+                request.CategoryType, request.ExamTypeId, cancellationToken);
 
             return categories
-                .Select(x => new ListQuestionBankCategoriesResultItem(x.Id, x.CategoryType, x.Name, x.ParentId, x.Description))
+                .Select(x => new ListQuestionBankCategoriesResultItem(
+                    x.Id, x.CategoryType, x.Name, x.ParentId, x.Description, x.ExamTypeId))
                 .ToList();
         }
     }

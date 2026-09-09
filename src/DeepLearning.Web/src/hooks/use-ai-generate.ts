@@ -43,7 +43,7 @@ export function useAiGenerate(onGenerated: (questionId: string) => void) {
   const currentUser = useCurrentUser();
   const [state, setState] = useState<AiGenerateState>(INITIAL);
 
-  const categories = useQuery({ queryKey: ["categories"], queryFn: listCategories });
+  const categories = useQuery({ queryKey: ["categories"], queryFn: () => listCategories() });
   const weakPoints = useQuery({
     queryKey: ["weak-points", currentUser.data?.id, WeakPointStatus.active],
     queryFn: () => listWeakPoints(currentUser.data!.id, WeakPointStatus.active),

@@ -72,6 +72,62 @@ namespace DeepLearning.UnitTests.Integration
             CreatedAt = DateTimeOffset.UtcNow,
         };
 
+        private static ExamType NewExamType() => new()
+        {
+            Id = Guid.NewGuid(),
+            Code = $"et_{Guid.NewGuid():N}",
+            Name = "Test Exam Type",
+            SubjectCategory = SubjectCategory.translation,
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+
+        [Fact]
+        public async Task ListAsync_with_an_exam_type_returns_that_exam_types_rows_plus_global_ones_only()
+        {
+            await using var context = _fixture.CreateContext();
+            var repository = new StandardOverrideRepository(context);
+
+            var examType = NewExamType();
+            var otherExamType = NewExamType();
+            await context.ExamTypes.AddRangeAsync(examType, otherExamType);
+            await context.SaveChangesAsync();
+
+            // Unique rule so these rows don't collide with other tests' fixed "meaning_transfer"
+            // rows in the shared PostgresCollection DB.
+            var rule = $"scoping_rule_{Guid.NewGuid():N}";
+            StandardOverride Row(Guid? examTypeId, string text) => new()
+            {
+                Id = Guid.NewGuid(),
+                Scope = OverrideScope.grading_rubric,
+                DimensionOrRule = rule,
+                RevisedRuleText = text,
+                ExamTypeId = examTypeId,
+                Status = OverrideStatus.active,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+
+            var mine = Row(examType.Id, $"mine_{examType.Id:N}");
+            var global = Row(null, $"global_{examType.Id:N}");
+            var theirs = Row(otherExamType.Id, $"theirs_{examType.Id:N}");
+            await repository.AddAsync(mine);
+            await repository.AddAsync(global);
+            await repository.AddAsync(theirs);
+            await context.SaveChangesAsync();
+
+            await using var readContext = _fixture.CreateContext();
+            var readRepository = new StandardOverrideRepository(readContext);
+
+            var scoped = await readRepository.ListAsync(status: null, examTypeId: examType.Id);
+            Assert.Contains(scoped, x => x.Id == mine.Id);
+            Assert.Contains(scoped, x => x.Id == global.Id);
+            Assert.DoesNotContain(scoped, x => x.Id == theirs.Id);
+
+            // No exam type -> every row, unchanged behaviour.
+            var unscoped = await readRepository.ListAsync(status: null);
+            Assert.Contains(unscoped, x => x.Id == theirs.Id);
+        }
+
         [Fact]
         public async Task GetActiveByRuleAsync_returns_only_the_active_row_ignoring_observing_and_deprecated_ones()
         {

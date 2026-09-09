@@ -93,16 +93,16 @@ export function ExamTypeConfigPage() {
           <ErrorTaxonomiesPanel examTypeId={examTypeId} createRef={taxonomiesCreate} />
         </TabsContent>
         <TabsContent value="categories" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
-          <CategoriesPanel createRef={categoriesCreate} />
+          <CategoriesPanel examTypeId={examTypeId} createRef={categoriesCreate} />
         </TabsContent>
         <TabsContent value="prompt-templates" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
-          <PromptTemplatesPanel createRef={promptCreate} />
+          <PromptTemplatesPanel examTypeId={examTypeId} createRef={promptCreate} />
         </TabsContent>
         <TabsContent value="weak-point-catalog" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
           <WeakPointCatalogPanel createRef={weakPointCatalogCreate} />
         </TabsContent>
         <TabsContent value="standard-overrides" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
-          <StandardOverridesPanel />
+          <StandardOverridesPanel examTypeId={examTypeId} />
         </TabsContent>
       </Tabs>
     </PageShell>

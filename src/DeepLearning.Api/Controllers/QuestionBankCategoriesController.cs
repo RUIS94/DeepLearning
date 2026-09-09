@@ -22,13 +22,15 @@ namespace DeepLearning.Api.Controllers
             _mediator = mediator;
         }
 
-        public record CreateQuestionBankCategoryRequest(CategoryType CategoryType, string Name, Guid? ParentId, string? Description);
+        public record CreateQuestionBankCategoryRequest(
+            CategoryType CategoryType, string Name, Guid? ParentId, string? Description, Guid? ExamTypeId);
 
         [HttpPost]
         public async Task<ActionResult<CreateQuestionBankCategoryResult>> Create(CreateQuestionBankCategoryRequest request, CancellationToken cancellationToken)
         {
             var result = await _mediator.Send(
-                new CreateQuestionBankCategoryCommand(request.CategoryType, request.Name, request.ParentId, request.Description),
+                new CreateQuestionBankCategoryCommand(
+                    request.CategoryType, request.Name, request.ParentId, request.Description, request.ExamTypeId),
                 cancellationToken);
 
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
@@ -38,13 +40,13 @@ namespace DeepLearning.Api.Controllers
         public async Task<ActionResult<GetQuestionBankCategoryByIdResult>> GetById(Guid id, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(new GetQuestionBankCategoryByIdQuery(id), cancellationToken));
 
-        public record UpdateQuestionBankCategoryRequest(string Name, Guid? ParentId, string? Description);
+        public record UpdateQuestionBankCategoryRequest(string Name, Guid? ParentId, string? Description, Guid? ExamTypeId);
 
         [HttpPut("{id:guid}")]
         public async Task<ActionResult<UpdateQuestionBankCategoryResult>> Update(
             Guid id, UpdateQuestionBankCategoryRequest request, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(
-                new UpdateQuestionBankCategoryCommand(id, request.Name, request.ParentId, request.Description),
+                new UpdateQuestionBankCategoryCommand(id, request.Name, request.ParentId, request.Description, request.ExamTypeId),
                 cancellationToken));
 
         [HttpDelete("{id:guid}")]
@@ -55,8 +57,9 @@ namespace DeepLearning.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<List<ListQuestionBankCategoriesResultItem>>> List(CategoryType? categoryType, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new ListQuestionBankCategoriesQuery(categoryType), cancellationToken));
+        public async Task<ActionResult<List<ListQuestionBankCategoriesResultItem>>> List(
+            CategoryType? categoryType, Guid? examTypeId, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new ListQuestionBankCategoriesQuery(categoryType, examTypeId), cancellationToken));
 
         // Design doc §2.1 node C1/D1 "是否归入题库" -> CAT: tagging a question with a category
         // here is the "归入题库" action itself (see TagQuestionWithCategoryCommand's own doc).

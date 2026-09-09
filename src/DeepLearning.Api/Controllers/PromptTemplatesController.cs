@@ -43,9 +43,9 @@ namespace DeepLearning.Api.Controllers
         [HttpGet]
         public async Task<ActionResult<List<PromptTemplateResultItem>>> List(
             Guid? examTypeId, SubjectCategory? subjectCategory, AiOperationType? templateType, bool? isActive,
-            CancellationToken cancellationToken)
+            bool includeGlobalScope, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(
-                new GetPromptTemplatesByExamTypeQuery(examTypeId, subjectCategory, templateType, isActive),
+                new GetPromptTemplatesByExamTypeQuery(examTypeId, subjectCategory, templateType, isActive, includeGlobalScope),
                 cancellationToken));
 
         public record UpdatePromptTemplateRequest(string TemplateContent, int Version, bool IsActive);

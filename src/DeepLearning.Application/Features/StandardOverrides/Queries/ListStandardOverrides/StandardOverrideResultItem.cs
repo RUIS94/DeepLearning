@@ -10,5 +10,6 @@ namespace DeepLearning.Application.Features.StandardOverrides.Queries.ListStanda
         OverrideStatus Status,
         Guid? PreviousOverrideId,
         DateTimeOffset? EffectiveFrom,
-        DateTimeOffset CreatedAt);
+        DateTimeOffset CreatedAt,
+        Guid? ExamTypeId);
 }

@@ -110,6 +110,8 @@ export async function listPromptTemplates(filter?: {
   templateType?: number | undefined;
   /** 省略 = 只返回启用中的(后端默认);传 false 可看停用的。管理页传 undefined 拿全部则需分别取。 */
   isActive?: boolean | undefined;
+  /** 传 examTypeId 时通常也传 true：返回该考试类型的行 + 共享(exam_type_id IS NULL)的行。 */
+  includeGlobalScope?: boolean | undefined;
 }): Promise<PromptTemplate[]> {
   return api<PromptTemplate[]>("/prompt-templates", {
     query: {
@@ -117,6 +119,7 @@ export async function listPromptTemplates(filter?: {
       subjectCategory: filter?.subjectCategory,
       templateType: filter?.templateType,
       isActive: filter?.isActive,
+      includeGlobalScope: filter?.includeGlobalScope,
     },
   });
 }
@@ -138,8 +141,9 @@ export async function deletePromptTemplate(id: string): Promise<void> {
   await api<void>(`/prompt-templates/${id}`, { method: "DELETE" });
 }
 
-export async function listCategories(): Promise<QuestionBankCategory[]> {
-  return api<QuestionBankCategory[]>("/question-bank-categories");
+/** 传 examTypeId 时返回该考试类型的分类 + 全局(exam_type_id IS NULL)的分类。 */
+export async function listCategories(examTypeId?: string): Promise<QuestionBankCategory[]> {
+  return api<QuestionBankCategory[]>("/question-bank-categories", { query: { examTypeId } });
 }
 
 export async function createQuestionBankCategory(
@@ -150,7 +154,12 @@ export async function createQuestionBankCategory(
 
 export async function updateQuestionBankCategory(
   id: string,
-  req: { name: string; parentId?: string | null; description?: string | null },
+  req: {
+    name: string;
+    parentId?: string | null;
+    description?: string | null;
+    examTypeId?: string | null;
+  },
 ): Promise<QuestionBankCategory> {
   return api<QuestionBankCategory>(`/question-bank-categories/${id}`, { method: "PUT", body: req });
 }

@@ -48,17 +48,21 @@ namespace DeepLearning.Application.Common
             decimal? temperature = null,
             Func<string?, bool, string>? buildRejectionNotice = null,
             Action<Exception, bool>? onAttemptFailed = null,
+            TimeSpan? hardAttemptTimeout = null,
             CancellationToken cancellationToken = default)
         {
             string? rejectionReason = null;
             var lastAttemptWasTruncated = false;
             var budget = initialBudget;
             var notice = buildRejectionNotice ?? BuildDefaultRejectionNotice;
+            // Overridable only so tests can prove the backstop actually fires without waiting the
+            // full 240s; every production call site leaves it null.
+            var backstop = hardAttemptTimeout ?? HardAttemptTimeout;
 
             return retryExecutor.ExecuteAsync(log, async () =>
             {
                 using var hardTimeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                hardTimeoutCts.CancelAfter(HardAttemptTimeout);
+                hardTimeoutCts.CancelAfter(backstop);
 
                 LlmCompletionResult completion;
                 try
@@ -77,7 +81,7 @@ namespace DeepLearning.Application.Common
                     // cancelled" (e.g. the request was legitimately aborted upstream) — only the
                     // former is a bug worth a message that says so explicitly in ai_call_logs.
                     throw new TimeoutException(
-                        $"LLM call did not complete within the {HardAttemptTimeout.TotalSeconds:0}s hard backstop " +
+                        $"LLM call did not complete within the {backstop.TotalSeconds:0}s hard backstop " +
                         "— the transport-level resilience timeout should have failed this well before that and didn't.");
                 }
 

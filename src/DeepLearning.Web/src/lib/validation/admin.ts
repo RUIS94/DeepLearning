@@ -98,5 +98,7 @@ export const questionBankCategoryFormSchema = z.object({
   name: z.string().trim().min(1, "v.nameRequired").max(100),
   parentId: z.string().nullable().optional(),
   description: z.string().trim().nullable().optional(),
+  /** "" = 全局分类；否则是某个考试类型的 id。 */
+  examTypeId: z.string().optional(),
 });
 export type QuestionBankCategoryFormInput = z.infer<typeof questionBankCategoryFormSchema>;

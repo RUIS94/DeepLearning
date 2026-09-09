@@ -17,13 +17,19 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
         public Task<QuestionBankCategory?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
             => _context.QuestionBankCategories.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
-        public Task<List<QuestionBankCategory>> ListAsync(CategoryType? categoryType, CancellationToken cancellationToken = default)
+        public Task<List<QuestionBankCategory>> ListAsync(
+            CategoryType? categoryType, Guid? examTypeId = null, CancellationToken cancellationToken = default)
         {
             var query = _context.QuestionBankCategories.AsQueryable();
 
             if (categoryType.HasValue)
             {
                 query = query.Where(x => x.CategoryType == categoryType.Value);
+            }
+
+            if (examTypeId is { } et)
+            {
+                query = query.Where(x => x.ExamTypeId == et || x.ExamTypeId == null);
             }
 
             return query.OrderBy(x => x.Name).ToListAsync(cancellationToken);

@@ -7,5 +7,6 @@ namespace DeepLearning.Application.Features.QuestionBank.Queries.ListQuestionBan
         CategoryType CategoryType,
         string Name,
         Guid? ParentId,
-        string? Description);
+        string? Description,
+        Guid? ExamTypeId);
 }

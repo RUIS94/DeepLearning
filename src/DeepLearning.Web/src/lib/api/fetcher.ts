@@ -58,13 +58,22 @@ export function createApiClient(
   };
 }
 
-/** 服务端组件用：直连后端，不经代理（发起方不是浏览器，没有 CORS 问题，见方案 §5.1）。 */
-export function createServerApiClient(): ApiClient {
+/**
+ * 服务端组件 / Route Handler 用：直连后端，不经代理（发起方不是浏览器，没有 CORS 问题，见方案 §5.1）。
+ *
+ * ⚠️ 目前没有任何调用方（所有 `lib/api/*` 都走 createBrowserApiClient + 代理层）。真要用它做
+ * 登录用户身份下的 SSR 读取时，**必须传 `getAuthHeader`**：
+ *   `createServerApiClient(async () => { const t = await getAccessToken(); return t ? \`Bearer ${t}\` : null; })`
+ * 否则请求匿名打到后端、fallback 到 `?userId=` / `Guid.Empty`。不要在本文件里直接 import
+ * `lib/auth/session.ts`——它依赖 `next/headers`，而本文件会被 client 组件引用（`users.ts` /
+ * `i18n` 等），会让整个 build 失败。把注入逻辑放在调用方（Server Component / Route Handler）里。
+ */
+export function createServerApiClient(getAuthHeader?: () => Promise<string | null>): ApiClient {
   const baseUrl = process.env["BACKEND_API_BASE_URL"];
   if (!baseUrl) {
     throw new Error("BACKEND_API_BASE_URL is not set — copy .env.local.example to .env.local.");
   }
-  return createApiClient(`${baseUrl}/api/v1`);
+  return createApiClient(`${baseUrl}/api/v1`, getAuthHeader);
 }
 
 /** 客户端组件用：经同源代理 /api/backend，代理层自己注入 token。 */

@@ -89,6 +89,56 @@ namespace DeepLearning.UnitTests.Integration
         }
 
         [Fact]
+        public async Task QuestionBankCategoryRepository_ListAsync_scopes_to_the_exam_type_plus_global_categories()
+        {
+            await using var context = _fixture.CreateContext();
+            var categoryRepository = new QuestionBankCategoryRepository(context);
+
+            var examType = new ExamType
+            {
+                Id = Guid.NewGuid(),
+                Code = $"et_{Guid.NewGuid():N}",
+                Name = "Test Exam Type",
+                SubjectCategory = SubjectCategory.translation,
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            var otherExamType = new ExamType
+            {
+                Id = Guid.NewGuid(),
+                Code = $"et_{Guid.NewGuid():N}",
+                Name = "Other Exam Type",
+                SubjectCategory = SubjectCategory.translation,
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            await context.ExamTypes.AddRangeAsync(examType, otherExamType);
+
+            QuestionBankCategory Cat(Guid? examTypeId, string tag) => new()
+            {
+                Id = Guid.NewGuid(),
+                CategoryType = CategoryType.domain,
+                Name = $"{tag}_{Guid.NewGuid():N}",
+                ExamTypeId = examTypeId,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+
+            var mine = Cat(examType.Id, "mine");
+            var global = Cat(null, "global");
+            var theirs = Cat(otherExamType.Id, "theirs");
+            await context.QuestionBankCategories.AddRangeAsync(mine, global, theirs);
+            await context.SaveChangesAsync();
+
+            var scoped = await categoryRepository.ListAsync(CategoryType.domain, examType.Id);
+            Assert.Contains(scoped, c => c.Id == mine.Id);
+            Assert.Contains(scoped, c => c.Id == global.Id);
+            Assert.DoesNotContain(scoped, c => c.Id == theirs.Id);
+
+            var unscoped = await categoryRepository.ListAsync(CategoryType.domain);
+            Assert.Contains(unscoped, c => c.Id == theirs.Id);
+        }
+
+        [Fact]
         public async Task Tagging_a_question_with_a_category_is_reflected_in_ListCategoryIdsAsync_and_HasCategoryMapAsync()
         {
             await using var context = _fixture.CreateContext();

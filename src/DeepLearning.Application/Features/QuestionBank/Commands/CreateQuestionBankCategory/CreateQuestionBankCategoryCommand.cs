@@ -7,5 +7,6 @@ namespace DeepLearning.Application.Features.QuestionBank.Commands.CreateQuestion
         CategoryType CategoryType,
         string Name,
         Guid? ParentId,
-        string? Description) : IRequest<CreateQuestionBankCategoryResult>;
+        string? Description,
+        Guid? ExamTypeId = null) : IRequest<CreateQuestionBankCategoryResult>;
 }

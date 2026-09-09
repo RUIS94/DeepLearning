@@ -9,6 +9,11 @@ import { getSupabaseServerClient } from "./supabase-server";
 export async function getAccessToken(): Promise<string | null> {
   const supabase = await getSupabaseServerClient();
   if (!supabase) return null;
+  // getSession() reads the token from the cookie; when it's expired and this runs in a Route
+  // Handler (where cookies() is writable), @supabase/ssr refreshes it and writes the new one
+  // back via getSupabaseServerClient's setAll. We deliberately don't call getUser() here — that
+  // adds an auth-server round trip per proxied request, and the backend validates the JWT
+  // anyway (a stale token just yields a 401 the frontend can react to).
   const {
     data: { session },
   } = await supabase.auth.getSession();

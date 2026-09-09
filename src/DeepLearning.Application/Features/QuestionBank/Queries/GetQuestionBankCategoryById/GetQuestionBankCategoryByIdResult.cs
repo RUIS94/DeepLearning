@@ -8,5 +8,6 @@ namespace DeepLearning.Application.Features.QuestionBank.Queries.GetQuestionBank
         string Name,
         Guid? ParentId,
         string? Description,
+        Guid? ExamTypeId,
         DateTimeOffset CreatedAt);
 }

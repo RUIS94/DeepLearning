@@ -125,7 +125,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
 
   const examType = useExamType();
   const errorTaxonomies = useErrorTaxonomies(examType.data?.id);
-  const categories = useQuery({ queryKey: ["categories"], queryFn: listCategories });
+  const categories = useQuery({ queryKey: ["categories"], queryFn: () => listCategories() });
   const selectedDraftTaxonomyId = draftTaxonomyId || errorTaxonomies.data?.[0]?.id || "";
 
   const form = useForm<ImportUserQuestionFormInput>({

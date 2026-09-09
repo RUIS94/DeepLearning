@@ -204,11 +204,46 @@ export const errorTaxonomies: ErrorTaxonomy[] = [
 ];
 
 export const categories: QuestionBankCategory[] = [
-  { id: "cat-health", categoryType: 0, name: "医疗健康", parentId: null, description: null },
-  { id: "cat-legal", categoryType: 0, name: "法律政务", parentId: null, description: null },
-  { id: "cat-business", categoryType: 0, name: "商务财经", parentId: null, description: null },
-  { id: "cat-notice", categoryType: 1, name: "公告通知", parentId: null, description: null },
-  { id: "cat-letter", categoryType: 1, name: "信函往来", parentId: null, description: null },
+  {
+    id: "cat-health",
+    categoryType: 0,
+    name: "医疗健康",
+    parentId: null,
+    description: null,
+    examTypeId: null,
+  },
+  {
+    id: "cat-legal",
+    categoryType: 0,
+    name: "法律政务",
+    parentId: null,
+    description: null,
+    examTypeId: null,
+  },
+  {
+    id: "cat-business",
+    categoryType: 0,
+    name: "商务财经",
+    parentId: null,
+    description: null,
+    examTypeId: null,
+  },
+  {
+    id: "cat-notice",
+    categoryType: 1,
+    name: "公告通知",
+    parentId: null,
+    description: null,
+    examTypeId: null,
+  },
+  {
+    id: "cat-letter",
+    categoryType: 1,
+    name: "信函往来",
+    parentId: null,
+    description: null,
+    examTypeId: null,
+  },
 ];
 
 /* ------------------------------- 题目 ------------------------------- */
@@ -453,6 +488,7 @@ const overrides: StandardOverrideDetail[] = [
     previousOverrideId: null,
     effectiveFrom: "2026-07-02T05:12:00Z",
     createdAt: "2026-07-02T05:12:00Z",
+    examTypeId: null,
   },
   {
     id: "ovr-2",
@@ -465,6 +501,7 @@ const overrides: StandardOverrideDetail[] = [
     previousOverrideId: null,
     effectiveFrom: null,
     createdAt: "2026-08-15T11:40:00Z",
+    examTypeId: null,
   },
 ];
 
@@ -843,6 +880,7 @@ export async function createQuestionBankCategory(
     name: req.name,
     parentId: req.parentId ?? null,
     description: req.description ?? null,
+    examTypeId: req.examTypeId ?? null,
   };
   categories.push(created);
   return created;
@@ -1226,6 +1264,7 @@ export async function createFollowUp(
       previousOverrideId: null,
       effectiveFrom: now,
       createdAt: now,
+      examTypeId: null,
     });
   }
   return result;

@@ -38,10 +38,12 @@ namespace DeepLearning.Infrastructure.Ai
             // the incident this guards against). Filter on Layer explicitly so each row lands
             // in exactly one bucket regardless of stray column values.
             var sharedTemplates = (await _promptTemplateRepository.ListAsync(
-                    examTypeId: null, subjectCategory: examType.SubjectCategory, templateType: templateType, isActive: true, cancellationToken))
+                    examTypeId: null, subjectCategory: examType.SubjectCategory, templateType: templateType, isActive: true,
+                    cancellationToken: cancellationToken))
                 .Where(t => t.Layer == TemplateLayer.shared_methodology);
             var specificTemplates = (await _promptTemplateRepository.ListAsync(
-                    examTypeId: examTypeId, subjectCategory: null, templateType: templateType, isActive: true, cancellationToken))
+                    examTypeId: examTypeId, subjectCategory: null, templateType: templateType, isActive: true,
+                    cancellationToken: cancellationToken))
                 .Where(t => t.Layer == TemplateLayer.exam_specific);
 
             var segments = sharedTemplates

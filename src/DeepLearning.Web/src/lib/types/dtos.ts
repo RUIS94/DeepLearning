@@ -91,6 +91,8 @@ export interface QuestionBankCategory {
   name: string;
   parentId: string | null;
   description: string | null;
+  /** 所属考试类型；null = 全局分类（对每个考试类型都可见）。 */
+  examTypeId: string | null;
 }
 
 export interface MeaningCheckpoint {
@@ -433,6 +435,8 @@ export interface StandardOverride {
   previousOverrideId: string | null;
   effectiveFrom: string | null;
   createdAt: string;
+  /** 适用的考试类型；null = 历史/全局行（对每个考试类型都适用）。 */
+  examTypeId: string | null;
 }
 
 /** 对应后端 GetStandardOverrideByIdResult，比列表项多 originalRuleText/triggeredByFollowupId。 */
@@ -694,6 +698,8 @@ export interface CreateQuestionBankCategoryRequest {
   name: string;
   parentId?: string | null;
   description?: string | null;
+  /** null / 省略 = 全局分类。 */
+  examTypeId?: string | null;
 }
 
 export interface ImportSeededErrorRequest {

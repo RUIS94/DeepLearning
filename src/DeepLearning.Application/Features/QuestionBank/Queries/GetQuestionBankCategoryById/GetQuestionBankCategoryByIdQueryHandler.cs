@@ -19,7 +19,8 @@ namespace DeepLearning.Application.Features.QuestionBank.Queries.GetQuestionBank
                 ?? throw new NotFoundException(nameof(Domain.Entities.QuestionBankCategory), request.Id);
 
             return new GetQuestionBankCategoryByIdResult(
-                category.Id, category.CategoryType, category.Name, category.ParentId, category.Description, category.CreatedAt);
+                category.Id, category.CategoryType, category.Name, category.ParentId, category.Description,
+                category.ExamTypeId, category.CreatedAt);
         }
     }
 }

@@ -20,9 +20,11 @@ async function proxy(req: NextRequest, path: string[]): Promise<NextResponse> {
     );
   }
 
-  // getAccessToken() 目前是桩实现，总是返回 null（Supabase Auth 还没接入，见 lib/auth/session.ts）。
-  // 后端的 JWT 是可选携带的（未认证请求会 fallback 到调用方显式传的 userId，见 AGENTS.md Auth 一节），
-  // 所以这不会导致任何接口打不通。
+  // getAccessToken() 从 @supabase/ssr 的服务端 client 取当前会话的 access token（lib/auth/session.ts，
+  // 已是真实实现）。这条 Route Handler 不在 proxy.ts 的 matcher 里（matcher 排除了 /api/backend），
+  // 所以这里不会有中间件的会话刷新——但 getSession() 在 Route Handler 里遇到过期 token 会自行刷新并
+  // 写回 cookie。Supabase 未配置或未登录时返回 null；后端 JWT 可选携带，未认证请求 fallback 到调用方
+  // 显式传的 userId（见 AGENTS.md Auth 一节），所以缺 token 不会让接口打不通，只是不以真实用户身份调用。
   const token = await getAccessToken();
   const targetUrl = `${BACKEND_BASE_URL}/api/v1/${path.join("/")}${req.nextUrl.search}`;
 

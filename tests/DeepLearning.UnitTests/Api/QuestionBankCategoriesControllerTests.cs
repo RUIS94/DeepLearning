@@ -66,6 +66,70 @@ namespace DeepLearning.UnitTests.Api
         }
 
         [Fact]
+        public async Task Create_returns_404_when_exam_type_id_does_not_exist()
+        {
+            var client = _factory.CreateClient();
+            var request = new
+            {
+                CategoryType = CategoryType.domain,
+                Name = $"legal_{Guid.NewGuid():N}",
+                ParentId = (Guid?)null,
+                Description = (string?)null,
+                ExamTypeId = (Guid?)Guid.NewGuid(),
+            };
+
+            var response = await client.PostAsJsonAsync(ApiRoutes.QuestionBankCategories.Base, request);
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task Listing_by_exam_type_returns_that_exam_types_categories_plus_global_ones_only()
+        {
+            var client = _factory.CreateClient();
+
+            var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
+            {
+                Code = $"test_{Guid.NewGuid():N}",
+                Name = "Category Scoping Exam Type",
+                SubjectCategory = SubjectCategory.translation,
+            });
+            var examType = await examTypeResponse.Content.ReadFromJsonAsync<CreateExamTypeResult>();
+
+            async Task<CreateQuestionBankCategoryResult> CreateCategory(Guid? examTypeId, string tag) =>
+                (await (await client.PostAsJsonAsync(ApiRoutes.QuestionBankCategories.Base, new
+                {
+                    CategoryType = CategoryType.domain,
+                    Name = $"{tag}_{Guid.NewGuid():N}",
+                    ParentId = (Guid?)null,
+                    Description = (string?)null,
+                    ExamTypeId = examTypeId,
+                })).Content.ReadFromJsonAsync<CreateQuestionBankCategoryResult>())!;
+
+            var mine = await CreateCategory(examType!.Id, "mine");
+            var global = await CreateCategory(null, "global");
+            var otherExamTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
+            {
+                Code = $"test_{Guid.NewGuid():N}",
+                Name = "Other Exam Type",
+                SubjectCategory = SubjectCategory.translation,
+            });
+            var otherExamType = await otherExamTypeResponse.Content.ReadFromJsonAsync<CreateExamTypeResult>();
+            var theirs = await CreateCategory(otherExamType!.Id, "theirs");
+
+            Assert.Equal(examType.Id, mine.ExamTypeId);
+            Assert.Null(global.ExamTypeId);
+
+            var listResponse = await client.GetAsync(
+                $"{ApiRoutes.QuestionBankCategories.Base}?examTypeId={examType.Id}");
+            var list = await listResponse.Content.ReadFromJsonAsync<List<ListQuestionBankCategoriesResultItem>>();
+
+            Assert.Contains(list!, x => x.Id == mine.Id);
+            Assert.Contains(list!, x => x.Id == global.Id);
+            Assert.DoesNotContain(list!, x => x.Id == theirs.Id);
+        }
+
+        [Fact]
         public async Task Create_a_child_category_under_a_real_parent_succeeds_and_list_filters_by_category_type()
         {
             var client = _factory.CreateClient();

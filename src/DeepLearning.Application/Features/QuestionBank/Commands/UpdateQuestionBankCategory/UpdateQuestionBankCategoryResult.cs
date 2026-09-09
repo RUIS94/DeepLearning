@@ -7,5 +7,6 @@ namespace DeepLearning.Application.Features.QuestionBank.Commands.UpdateQuestion
         CategoryType CategoryType,
         string Name,
         Guid? ParentId,
-        string? Description);
+        string? Description,
+        Guid? ExamTypeId);
 }

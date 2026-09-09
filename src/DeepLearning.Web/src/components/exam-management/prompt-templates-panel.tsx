@@ -80,7 +80,13 @@ const defaultValues: PromptTemplateFormInput = {
   isActive: true,
 };
 
-export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreateHandle> }) {
+export function PromptTemplatesPanel({
+  examTypeId,
+  createRef,
+}: {
+  examTypeId?: string;
+  createRef?: Ref<CrudCreateHandle>;
+}) {
   const t = useT();
   const { AiOperationTypeLabel, SubjectCategoryLabel, TemplateLayerLabel } = useEnumLabels();
   // 稳定顺序：按下面这份业务排序展示各用途分组（未列出的类型排在末尾，按枚举值兜底）。
@@ -108,17 +114,21 @@ export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreate
   const queryClient = useQueryClient();
   const examTypes = useQuery({ queryKey: ["admin", "exam-types"], queryFn: listExamTypes });
 
-  const listKey = ["admin", "prompt-templates"];
+  const listKey = ["admin", "prompt-templates", examTypeId ?? null];
   const templates = useQuery({
     queryKey: listKey,
-    // 不传 isActive -> 后端返回全部(含停用)，管理页需要看得到停用的行
-    queryFn: () => listPromptTemplates(),
+    // 不传 isActive -> 后端返回全部(含停用)，管理页需要看得到停用的行。
+    // 传 examTypeId + includeGlobalScope -> 当前考试类型的行 + 共享(exam_type_id IS NULL)的行。
+    queryFn: () =>
+      listPromptTemplates(examTypeId ? { examTypeId, includeGlobalScope: true } : undefined),
   });
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["admin", "prompt-templates"] });
 
   const examTypeName = (id: string) => (examTypes.data ?? []).find((e) => e.id === id)?.name ?? id;
   const columns = buildColumns(t, { TemplateLayerLabel, SubjectCategoryLabel }, examTypeName);
+  // 新建时默认挂到当前考试类型（仍可在表单里改成"共享"或其它）。
+  const defaults: PromptTemplateFormInput = { ...defaultValues, examTypeId: examTypeId ?? "" };
 
   const fields: CrudField<PromptTemplateFormInput>[] = [
     {
@@ -183,6 +193,8 @@ export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreate
 
   return (
     <div className="space-y-6">
+      <p className="text-xs text-muted-foreground">{t("examMgmt.sharedNotice")}</p>
+
       {/* 新建按钮提到了 Tab 同行，这里只留一个不预选用途的弹窗入口。 */}
       <CrudTable
         dialogOnly
@@ -190,7 +202,7 @@ export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreate
         isLoading={false}
         schema={promptTemplateFormSchema}
         fields={fields}
-        defaultValues={defaultValues}
+        defaultValues={defaults}
         dialogTitle={t("examMgmt.tpl.dialogTitle")}
         onCreate={createTemplate}
         onChanged={invalidate}
@@ -215,7 +227,7 @@ export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreate
             // 后端 PUT /prompt-templates/{id} 只更新 templateContent/version/isActive，
             // 关联与用途/分层改了也不会生效——编辑时置灰，避免用户白改一场。
             lockOnEdit={["examTypeId", "subjectCategory", "templateType", "layer"]}
-            defaultValues={{ ...defaultValues, templateType: group.value }}
+            defaultValues={{ ...defaults, templateType: group.value }}
             dialogTitle={t("examMgmt.tpl.dialogTitleGroup", { group: group.label })}
             emptyMessage={t("examMgmt.tpl.emptyGroup", { group: group.label })}
             onCreate={createTemplate}

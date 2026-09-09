@@ -7,5 +7,6 @@ namespace DeepLearning.Application.Features.QuestionBank.Commands.CreateQuestion
         CategoryType CategoryType,
         string Name,
         Guid? ParentId,
+        Guid? ExamTypeId,
         DateTimeOffset CreatedAt);
 }

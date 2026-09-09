@@ -97,7 +97,7 @@ namespace DeepLearning.UnitTests.Infrastructure.BackgroundJobs
         };
 
         [Fact]
-        public async Task Sends_one_command_per_exam_type_times_user_times_difficulty_tier_times_trailing_week()
+        public async Task Sends_one_command_per_user_times_difficulty_tier_times_trailing_week()
         {
             var examType = NewExamType();
             var userIds = new List<Guid> { Guid.NewGuid(), Guid.NewGuid() };
@@ -111,9 +111,13 @@ namespace DeepLearning.UnitTests.Infrastructure.BackgroundJobs
 
             await job.RunAsync(CancellationToken.None);
 
-            // 1 exam type x 2 users x 3 difficulty tiers x 12 trailing weeks (LookbackWeeks).
-            Assert.Equal(1 * 2 * 3 * 12, mediator.SentRequests.Count);
+            // 2 users x 3 difficulty tiers x 12 trailing weeks (LookbackWeeks) — one exam type,
+            // so no per-exam-type multiplier.
+            Assert.Equal(2 * 3 * 12, mediator.SentRequests.Count);
             Assert.All(mediator.SentRequests, r => Assert.IsType<GenerateProgressTrendSnapshotCommand>(r));
+            Assert.All(
+                mediator.SentRequests.Cast<GenerateProgressTrendSnapshotCommand>(),
+                c => Assert.Equal(examType.Id, c.ExamTypeId));
 
             var forFirstUser = mediator.SentRequests
                 .Cast<GenerateProgressTrendSnapshotCommand>()
@@ -123,6 +127,35 @@ namespace DeepLearning.UnitTests.Infrastructure.BackgroundJobs
             Assert.Contains(forFirstUser, c => c.DifficultyTier == "easy");
             Assert.Contains(forFirstUser, c => c.DifficultyTier == "medium");
             Assert.Contains(forFirstUser, c => c.DifficultyTier == "hard");
+        }
+
+        [Fact]
+        public async Task Multiple_active_exam_types_still_narrate_against_exactly_one_the_earliest_created()
+        {
+            // progress_snapshots has no exam_type_id, so the job must not fan out over every
+            // active exam type (that silently made whichever ran last win). It narrates against
+            // one — the earliest-created — regardless of how many are active.
+            var older = NewExamType();
+            older.CreatedAt = new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            var newer = NewExamType();
+            newer.CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+            var userIds = new List<Guid> { Guid.NewGuid(), Guid.NewGuid() };
+            var mediator = new FakeMediator();
+
+            var job = new ProgressSnapshotJob(
+                new FakeExamTypeRepository([newer, older]),
+                new FakeProgressRepository(userIds),
+                mediator,
+                NullLogger<ProgressSnapshotJob>.Instance);
+
+            await job.RunAsync(CancellationToken.None);
+
+            // Still 2 users x 3 tiers x 12 weeks — NOT doubled by the second exam type.
+            Assert.Equal(2 * 3 * 12, mediator.SentRequests.Count);
+            Assert.All(
+                mediator.SentRequests.Cast<GenerateProgressTrendSnapshotCommand>(),
+                c => Assert.Equal(older.Id, c.ExamTypeId));
         }
 
         [Fact]

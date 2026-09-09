@@ -8,11 +8,16 @@ namespace DeepLearning.Application.Features.QuestionBank.Commands.CreateQuestion
     public class CreateQuestionBankCategoryCommandHandler : IRequestHandler<CreateQuestionBankCategoryCommand, CreateQuestionBankCategoryResult>
     {
         private readonly IQuestionBankCategoryRepository _categoryRepository;
+        private readonly IExamTypeRepository _examTypeRepository;
         private readonly IUnitOfWork _unitOfWork;
 
-        public CreateQuestionBankCategoryCommandHandler(IQuestionBankCategoryRepository categoryRepository, IUnitOfWork unitOfWork)
+        public CreateQuestionBankCategoryCommandHandler(
+            IQuestionBankCategoryRepository categoryRepository,
+            IExamTypeRepository examTypeRepository,
+            IUnitOfWork unitOfWork)
         {
             _categoryRepository = categoryRepository;
+            _examTypeRepository = examTypeRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -24,6 +29,12 @@ namespace DeepLearning.Application.Features.QuestionBank.Commands.CreateQuestion
                     ?? throw new NotFoundException(nameof(QuestionBankCategory), parentId);
             }
 
+            if (request.ExamTypeId is { } examTypeId)
+            {
+                _ = await _examTypeRepository.GetByIdAsync(examTypeId, cancellationToken)
+                    ?? throw new NotFoundException(nameof(ExamType), examTypeId);
+            }
+
             var category = new QuestionBankCategory
             {
                 Id = Guid.NewGuid(),
@@ -31,13 +42,15 @@ namespace DeepLearning.Application.Features.QuestionBank.Commands.CreateQuestion
                 Name = request.Name,
                 ParentId = request.ParentId,
                 Description = request.Description,
+                ExamTypeId = request.ExamTypeId,
                 CreatedAt = DateTimeOffset.UtcNow,
             };
 
             await _categoryRepository.AddAsync(category, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            return new CreateQuestionBankCategoryResult(category.Id, category.CategoryType, category.Name, category.ParentId, category.CreatedAt);
+            return new CreateQuestionBankCategoryResult(
+                category.Id, category.CategoryType, category.Name, category.ParentId, category.ExamTypeId, category.CreatedAt);
         }
     }
 }

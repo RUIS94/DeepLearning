@@ -30,7 +30,12 @@ namespace DeepLearning.Application.Interfaces
             Guid? baselineOverrideId,
             CancellationToken cancellationToken = default);
 
-        Task<List<StandardOverride>> ListAsync(OverrideStatus? status, CancellationToken cancellationToken = default);
+        /// <param name="examTypeId">
+        /// When set, restricts to that exam type's rows plus legacy/global ones
+        /// (<c>exam_type_id IS NULL</c>) — the admin surface view. Null = every row.
+        /// </param>
+        Task<List<StandardOverride>> ListAsync(
+            OverrideStatus? status, Guid? examTypeId = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Active correction patches that apply to a given exam type — <c>status = active</c> and

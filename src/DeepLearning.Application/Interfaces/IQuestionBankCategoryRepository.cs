@@ -7,7 +7,12 @@ namespace DeepLearning.Application.Interfaces
     {
         Task<QuestionBankCategory?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
-        Task<List<QuestionBankCategory>> ListAsync(CategoryType? categoryType, CancellationToken cancellationToken = default);
+        /// <param name="examTypeId">
+        /// When set, restricts to that exam type's categories plus global ones
+        /// (<c>exam_type_id IS NULL</c>). Null = every category.
+        /// </param>
+        Task<List<QuestionBankCategory>> ListAsync(
+            CategoryType? categoryType, Guid? examTypeId = null, CancellationToken cancellationToken = default);
 
         Task AddAsync(QuestionBankCategory category, CancellationToken cancellationToken = default);
 

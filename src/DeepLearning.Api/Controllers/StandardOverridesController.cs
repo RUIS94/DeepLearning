@@ -25,8 +25,9 @@ namespace DeepLearning.Api.Controllers
             => Ok(await _mediator.Send(new GetStandardOverrideByIdQuery(id), cancellationToken));
 
         [HttpGet]
-        public async Task<ActionResult<List<StandardOverrideResultItem>>> List(OverrideStatus? status, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new ListStandardOverridesQuery(status), cancellationToken));
+        public async Task<ActionResult<List<StandardOverrideResultItem>>> List(
+            OverrideStatus? status, Guid? examTypeId, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new ListStandardOverridesQuery(status, examTypeId), cancellationToken));
 
         [HttpPost("{id:guid}/activate")]
         public async Task<ActionResult<ActivateStandardOverrideResult>> Activate(Guid id, CancellationToken cancellationToken)

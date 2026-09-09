@@ -28,7 +28,7 @@ const statusTone: Record<number, string> = {
   [OverrideStatus.deprecated]: "bg-muted text-muted-foreground",
 };
 
-export function StandardOverridesPanel() {
+export function StandardOverridesPanel({ examTypeId }: { examTypeId?: string }) {
   const t = useT();
   const { OverrideStatusLabel } = useEnumLabels();
   const scopeLabel: Record<number, string> = {
@@ -37,8 +37,9 @@ export function StandardOverridesPanel() {
   };
   const queryClient = useQueryClient();
   const overrides = useQuery({
-    queryKey: ["standard-overrides"],
-    queryFn: () => listStandardOverrides(),
+    queryKey: ["standard-overrides", examTypeId ?? null],
+    // 传 examTypeId -> 该考试类型的修正 + 历史/全局(exam_type_id IS NULL)的修正。
+    queryFn: () => listStandardOverrides(undefined, examTypeId),
   });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["standard-overrides"] });
   const [deprecating, setDeprecating] = useState<StandardOverride | null>(null);
@@ -59,7 +60,8 @@ export function StandardOverridesPanel() {
 
   return (
     <>
-      <p className="mb-4 text-sm text-muted-foreground">{t("examMgmt.override.intro")}</p>
+      <p className="mb-1 text-sm text-muted-foreground">{t("examMgmt.override.intro")}</p>
+      <p className="mb-4 text-xs text-muted-foreground">{t("examMgmt.sharedNotice")}</p>
 
       {overrides.isPending ? (
         <div className="space-y-4">
@@ -85,6 +87,11 @@ export function StandardOverridesPanel() {
                     >
                       {OverrideStatusLabel[o.status]}
                     </Badge>
+                    {o.examTypeId === null ? (
+                      <Badge variant="outline" className="border-border text-muted-foreground">
+                        {t("examMgmt.scopeGlobalBadge")}
+                      </Badge>
+                    ) : null}
                   </div>
                   <p className="text-sm leading-relaxed text-muted-foreground">
                     {o.revisedRuleText}

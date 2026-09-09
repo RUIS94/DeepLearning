@@ -9,12 +9,16 @@ namespace DeepLearning.Application.Features.QuestionBank.Commands.UpdateQuestion
         : IRequestHandler<UpdateQuestionBankCategoryCommand, UpdateQuestionBankCategoryResult>
     {
         private readonly IQuestionBankCategoryRepository _categoryRepository;
+        private readonly IExamTypeRepository _examTypeRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public UpdateQuestionBankCategoryCommandHandler(
-            IQuestionBankCategoryRepository categoryRepository, IUnitOfWork unitOfWork)
+            IQuestionBankCategoryRepository categoryRepository,
+            IExamTypeRepository examTypeRepository,
+            IUnitOfWork unitOfWork)
         {
             _categoryRepository = categoryRepository;
+            _examTypeRepository = examTypeRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -30,14 +34,21 @@ namespace DeepLearning.Application.Features.QuestionBank.Commands.UpdateQuestion
                     ?? throw new NotFoundException(nameof(QuestionBankCategory), parentId);
             }
 
+            if (request.ExamTypeId is { } examTypeId)
+            {
+                _ = await _examTypeRepository.GetByIdAsync(examTypeId, cancellationToken)
+                    ?? throw new NotFoundException(nameof(ExamType), examTypeId);
+            }
+
             category.Name = request.Name;
             category.ParentId = request.ParentId;
             category.Description = request.Description;
+            category.ExamTypeId = request.ExamTypeId;
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return new UpdateQuestionBankCategoryResult(
-                category.Id, category.CategoryType, category.Name, category.ParentId, category.Description);
+                category.Id, category.CategoryType, category.Name, category.ParentId, category.Description, category.ExamTypeId);
         }
     }
 }

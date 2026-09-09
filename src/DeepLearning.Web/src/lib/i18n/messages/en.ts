@@ -261,6 +261,13 @@ const en = {
   "examMgmt.cat.deleteTitle": 'Delete category "{name}"?',
   "examMgmt.cat.deleteDesc":
     "The backend rejects (conflict) if the category has children or is referenced by questions.",
+  "examMgmt.cat.fieldScope": "Scope",
+  "examMgmt.cat.scopeThisExam": "This exam type",
+  "examMgmt.cat.scopeGlobal": "Global (all exam types)",
+  "examMgmt.cat.colScope": "Scope",
+  "examMgmt.scopeGlobalBadge": "Global",
+  "examMgmt.sharedNotice":
+    "This tab is shared across exam types: it shows this exam type's own entries plus global ones.",
 
   // 考试管理 · 评分维度 tab
   "examMgmt.dim.colScale": "Scale",
