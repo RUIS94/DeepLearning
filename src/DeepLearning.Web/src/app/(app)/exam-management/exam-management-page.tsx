@@ -6,12 +6,7 @@ import { Settings2 } from "lucide-react";
 import { PageShell } from "@/components/shell/page-shell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ErrorBanner } from "@/components/shared/ai-loading-state";
 import {
   Table,

@@ -65,7 +65,9 @@ export function QuestionRecordsModal({
                     className="flex items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm transition-colors hover:bg-muted"
                   >
                     <span className="flex items-center gap-2">
-                      <Badge variant="outline" className="border-transparent">{SubmissionStatusLabel[s.status] ?? s.status}</Badge>
+                      <Badge variant="outline" className="border-transparent">
+                        {SubmissionStatusLabel[s.status] ?? s.status}
+                      </Badge>
                       <span className="text-xs text-muted-foreground">
                         {formatDate(s.submittedAt ?? s.createdAt)}
                       </span>
