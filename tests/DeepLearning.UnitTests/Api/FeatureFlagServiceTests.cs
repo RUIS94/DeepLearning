@@ -23,6 +23,9 @@ namespace DeepLearning.UnitTests.Api
 
             public Task<List<FeatureFlag>> ListAsync(CancellationToken cancellationToken = default)
                 => Task.FromResult(_row is null ? new List<FeatureFlag>() : [_row]);
+
+            public Task SetEnabledAsync(string key, bool enabled, CancellationToken cancellationToken = default)
+                => throw new NotImplementedException();
         }
 
         private static IMemoryCache NewCache() => new MemoryCache(new MemoryCacheOptions());

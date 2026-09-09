@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageShell } from "@/components/shell/page-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LlmProvidersPanel } from "@/app/(app)/admin/llm-providers/llm-providers-page";
@@ -11,9 +12,73 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
 import { showToast } from "@/components/ui/toast";
-import { useI18n, useT } from "@/lib/i18n";
+import { listFeatureFlags, setFeatureFlag } from "@/lib/api/feature-flags";
+import { ApiError } from "@/lib/api/fetcher";
+import { useI18n, useT, type MessageKey } from "@/lib/i18n";
 import { LOCALES, LOCALE_LABELS, type Locale } from "@/lib/i18n/config";
+
+function FeatureToggles() {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const flags = useQuery({ queryKey: ["feature-flags"], queryFn: listFeatureFlags });
+
+  const toggle = useMutation({
+    mutationFn: ({ key, enabled }: { key: string; enabled: boolean }) =>
+      setFeatureFlag(key, enabled),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["feature-flags"] });
+      showToast({ title: t("settings.features.saved"), variant: "success" });
+    },
+    onError: (err) =>
+      showToast({
+        title: t("settings.features.saveFailed"),
+        description: err instanceof ApiError ? (err.problem?.title ?? "") : "",
+        variant: "error",
+      }),
+  });
+
+  return (
+    <div className="max-w-md space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold">{t("settings.features.title")}</h3>
+        <p className="text-sm text-muted-foreground">{t("settings.features.description")}</p>
+      </div>
+
+      {flags.isPending ? (
+        <div className="space-y-3">
+          <Skeleton className="h-12 w-full rounded-lg" />
+          <Skeleton className="h-12 w-full rounded-lg" />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {(flags.data ?? []).map((flag) => (
+            <div
+              key={flag.key}
+              className="flex items-start justify-between gap-4 rounded-lg border border-border p-3"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium">
+                  {t(`settings.features.flag.${flag.key}` as MessageKey)}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {t(`settings.features.flag.${flag.key}.desc` as MessageKey)}
+                </p>
+              </div>
+              <Switch
+                checked={flag.enabled}
+                disabled={toggle.isPending}
+                onCheckedChange={(enabled) => toggle.mutate({ key: flag.key, enabled })}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function GeneralSettings() {
   const t = useT();
@@ -27,21 +92,25 @@ function GeneralSettings() {
   }
 
   return (
-    <div className="max-w-md space-y-2">
-      <Label htmlFor="language-select">{t("settings.language.label")}</Label>
-      <Select value={locale} onValueChange={handleChange}>
-        <SelectTrigger id="language-select">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {LOCALES.map((code) => (
-            <SelectItem key={code} value={code}>
-              {LOCALE_LABELS[code]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <p className="text-sm text-muted-foreground">{t("settings.language.description")}</p>
+    <div className="space-y-8">
+      <div className="max-w-md space-y-2">
+        <Label htmlFor="language-select">{t("settings.language.label")}</Label>
+        <Select value={locale} onValueChange={handleChange}>
+          <SelectTrigger id="language-select">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {LOCALES.map((code) => (
+              <SelectItem key={code} value={code}>
+                {LOCALE_LABELS[code]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-sm text-muted-foreground">{t("settings.language.description")}</p>
+      </div>
+
+      <FeatureToggles />
     </div>
   );
 }

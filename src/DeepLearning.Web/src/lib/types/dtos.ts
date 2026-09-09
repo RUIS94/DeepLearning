@@ -503,6 +503,15 @@ export interface WeakPoint {
   priority: number;
 }
 
+export interface FeatureFlag {
+  key: string;
+  /** 生效值：有行取行值，无行取代码默认值。 */
+  enabled: boolean;
+  scope: string;
+  /** false = feature_flags 里还没有这一行，enabled 显示的是代码默认值。 */
+  hasRow: boolean;
+}
+
 export interface ProgressSnapshot {
   id: string;
   periodStart: string;

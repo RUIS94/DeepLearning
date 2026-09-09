@@ -84,5 +84,10 @@ namespace DeepLearning.Api.Constants
         {
             public const string Base = $"{Prefix}/review-library";
         }
+
+        public static class FeatureFlags
+        {
+            public const string Base = $"{Prefix}/feature-flags";
+        }
     }
 }

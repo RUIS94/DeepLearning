@@ -101,6 +101,17 @@ const en = {
     "Which language the interface is shown in. This does not change stored content such as questions or AI output.",
   "settings.language.saved": "Language updated",
   "settings.language.saveFailed": "Couldn't save the language preference",
+  "settings.features.title": "Feature toggles",
+  "settings.features.description":
+    "Turn optional surfaces on or off. A change takes effect within a few seconds.",
+  "settings.features.saved": "Feature toggle updated",
+  "settings.features.saveFailed": "Couldn't update the feature toggle",
+  "settings.features.flag.question_bank_enabled": "Question bank",
+  "settings.features.flag.question_bank_enabled.desc":
+    "Question-bank categorization, tagging and category filtering. Off = those endpoints return 404.",
+  "settings.features.flag.review_library_enabled": "Review library",
+  "settings.features.flag.review_library_enabled.desc":
+    "The cross-question sentence-pattern and vocabulary review pages. Off = those endpoints return 404.",
 
   // ---- 题库 / 练习列表页 ----
   "practice.title": "Question Bank",

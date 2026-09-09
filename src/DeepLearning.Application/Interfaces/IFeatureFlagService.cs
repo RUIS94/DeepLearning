@@ -8,5 +8,12 @@ namespace DeepLearning.Application.Interfaces
     public interface IFeatureFlagService
     {
         Task<bool> IsEnabledAsync(string key, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Drops the cached value for <paramref name="key"/> so the next read hits the DB — called
+        /// by the set-flag command so a toggle from the settings UI takes effect immediately
+        /// rather than after the cache TTL.
+        /// </summary>
+        void Invalidate(string key);
     }
 }

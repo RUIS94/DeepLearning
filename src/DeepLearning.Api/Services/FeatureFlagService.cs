@@ -43,5 +43,7 @@ namespace DeepLearning.Api.Services
 
             return enabled;
         }
+
+        public void Invalidate(string key) => _cache.Remove($"feature-flag:{key}");
     }
 }

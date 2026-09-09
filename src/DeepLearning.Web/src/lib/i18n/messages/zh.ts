@@ -97,6 +97,16 @@ const zh: Record<MessageKey, string> = {
   "settings.language.description": "界面以哪种语言显示。不会改变题目、AI 输出等已存储的内容。",
   "settings.language.saved": "语言已更新",
   "settings.language.saveFailed": "语言偏好保存失败",
+  "settings.features.title": "功能开关",
+  "settings.features.description": "打开或关闭可选功能模块，改动几秒内生效。",
+  "settings.features.saved": "功能开关已更新",
+  "settings.features.saveFailed": "功能开关更新失败",
+  "settings.features.flag.question_bank_enabled": "题库",
+  "settings.features.flag.question_bank_enabled.desc":
+    "题库的分类、打标签、按分类筛选。关闭后这些接口返回 404。",
+  "settings.features.flag.review_library_enabled": "复习库",
+  "settings.features.flag.review_library_enabled.desc":
+    "跨题目的句型 / 词汇复习页。关闭后这些接口返回 404。",
 
   // ---- 题库 / 练习列表页 ----
   "practice.title": "题库",
