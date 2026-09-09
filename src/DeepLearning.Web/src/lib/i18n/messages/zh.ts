@@ -675,6 +675,15 @@ const zh: Record<MessageKey, string> = {
   "profile.displayName": "显示名称",
   "profile.email": "邮箱",
   "profile.placeholder": "占位页面。",
+
+  // ---- 倒计时组件 ----
+  "countdown.duration.75": "75 分钟",
+  "countdown.duration.60": "60 分钟",
+  "countdown.duration.45": "45 分钟",
+  "countdown.start": "开始",
+  "countdown.pause": "暂停",
+  "countdown.reset": "重置",
+  "countdown.finished": "时间到！",
 };
 
 export default zh;

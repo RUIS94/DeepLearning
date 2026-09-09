@@ -213,3 +213,23 @@
   line-height: 2;
   letter-spacing: 0.015em;
 }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+@utility animate-shake {
+  animation: shake 0.8s cubic-bezier(.36,.07,.19,.97) infinite;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 oklch(0.56 0.2 27 / 0.5); }
+  70% { box-shadow: 0 0 0 12px oklch(0.56 0.2 27 / 0); }
+  100% { box-shadow: 0 0 0 0 oklch(0.56 0.2 27 / 0); }
+}
+
+@utility animate-pulse-ring {
+  animation: pulse-ring 1.2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}

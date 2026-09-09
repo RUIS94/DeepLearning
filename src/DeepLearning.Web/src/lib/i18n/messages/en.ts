@@ -715,6 +715,15 @@ const en = {
   "profile.displayName": "Display Name",
   "profile.email": "Email",
   "profile.placeholder": "Placeholder page.",
+
+  // ---- 倒计时组件 ----
+  "countdown.duration.75": "75 min",
+  "countdown.duration.60": "60 min",
+  "countdown.duration.45": "45 min",
+  "countdown.start": "Start",
+  "countdown.pause": "Pause",
+  "countdown.reset": "Reset",
+  "countdown.finished": "Time's up!",
 } as const;
 
 export type MessageKey = keyof typeof en;
