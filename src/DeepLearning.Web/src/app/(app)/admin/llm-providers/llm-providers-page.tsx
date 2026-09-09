@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, PlusCircle } from "lucide-react";
 import { AdminShell } from "@/components/shared/admin-shell";
@@ -11,6 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -36,6 +45,7 @@ import type {
   LlmProviderSettings,
 } from "@/lib/types/dtos";
 import { useT, type TranslateFn } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 const PROVIDER_LABEL: Record<string, string> = {
   claude: "Claude (Anthropic)",
@@ -50,13 +60,38 @@ const opTypeLabel = (t: TranslateFn, op: AiOperationType): string =>
 const FOLLOW_GLOBAL_VALUE = "__follow_global__";
 const FOLLOW_PROVIDER_MODEL_VALUE = "__follow_provider_model__";
 const THINKING_FOLLOW_PROVIDER = "__follow__";
+const EFFORT_AUTO = "__auto__";
+const EFFORT_OPTIONS = ["low", "medium", "high"] as const;
 const THINKING_ON = "on";
 const THINKING_OFF = "off";
+
+/** 任务名列自适应，其余 4 列固定等宽——表头和每一行都用这套模板，列自然对齐。 */
+const OVERRIDE_ROW_GRID =
+  "grid grid-cols-[minmax(140px,1fr)_9rem_9rem_9rem_9rem] items-center gap-2";
+
+/** 未固定供应商时，model/thinking/effort 三列没有实际含义，用一个禁用的占位格显示
+ * 「跟随全局」——和供应商列此时的值一致，让整行读起来是「全部跟随全局」，且不破坏等宽的列对齐。 */
+function FollowGlobalCell({ label }: { label: string }) {
+  return (
+    <div className="flex h-8 w-full items-center rounded-md border border-input bg-transparent px-3 text-xs text-muted-foreground/70">
+      {label}
+    </div>
+  );
+}
+
+/** 一行「标签 + 控件」，控件靠右、宽度收紧，不再包 border 盒子。 */
+function SettingRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1.5">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  );
+}
 
 function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
   const t = useT();
   const queryClient = useQueryClient();
-  const [newModel, setNewModel] = useState("");
 
   const models = useQuery({
     queryKey: ["admin", "llm-provider-models", settings.providerKey],
@@ -83,107 +118,189 @@ function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
     mutationFn: (model: string) => selectLlmProviderModel(settings.providerKey, model),
     onSuccess: invalidateAll,
   });
-  const addModel = useMutation({
-    mutationFn: (model: string) => addLlmProviderModel(settings.providerKey, model),
-    onSuccess: () => {
-      setNewModel("");
-      invalidateAll();
-    },
-  });
 
   return (
-    <Card className="border-border shadow-none">
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle className="flex items-center gap-2 text-base">
+    <Card className="shadow-none">
+      <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 pb-3">
+        <CardTitle className="text-sm">
           {PROVIDER_LABEL[settings.providerKey] ?? settings.providerKey}
-          {settings.isActive ? (
-            <Badge variant="outline" className="border-transparent bg-success/12 text-success">
-              <CheckCircle2 className="size-3.5" />
-              {t("llm.inUse")}
-            </Badge>
-          ) : null}
         </CardTitle>
-        {!settings.isActive ? (
+        {settings.isActive ? (
+          <Badge variant="outline" className="gap-1 border-transparent bg-success/12 text-success">
+            <CheckCircle2 className="size-3.5" />
+            {t("llm.inUse")}
+          </Badge>
+        ) : (
           <Button
             size="sm"
-            variant="outline"
+            variant="ghost"
+            className="h-7 bg-accent px-3 text-xs text-accent-foreground hover:bg-accent/80"
             disabled={activate.isPending}
             onClick={() => activate.mutate()}
           >
             {t("llm.setAsCurrent")}
           </Button>
-        ) : null}
+        )}
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between rounded-lg border border-border p-3">
-          <div>
-            <p className="text-sm font-medium">{t("llm.thinkingLabel")}</p>
-            <p className="text-xs text-muted-foreground">{t("llm.thinkingHint")}</p>
+      <CardContent className="pb-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">{t("llm.currentModel")}</Label>
+            {models.isPending ? (
+              <Skeleton className="h-8 w-full" />
+            ) : (
+              <Select
+                {...(settings.currentModel ? { value: settings.currentModel } : {})}
+                onValueChange={(model) => selectModel.mutate(model)}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder={t("llm.noCurrentModel")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(models.data ?? []).map((m) => (
+                    <SelectItem key={m.model} value={m.model}>
+                      {m.label ?? m.model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
-          <Switch
-            checked={settings.thinkingEnabled}
-            disabled={updateSettings.isPending}
-            onCheckedChange={(checked) => updateSettings.mutate({ thinkingEnabled: checked })}
-          />
-        </div>
 
-        <div className="space-y-2">
-          <Label>Effort</Label>
-          <Input
-            defaultValue={settings.effort ?? ""}
-            placeholder="low / medium / high"
-            onBlur={(e) => {
-              if (e.target.value !== (settings.effort ?? "")) {
-                updateSettings.mutate({ effort: e.target.value || null });
-              }
-            }}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>{t("llm.currentModel")}</Label>
-          {models.isPending ? (
-            <Skeleton className="h-9 w-full" />
-          ) : (
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Effort</Label>
             <Select
-              {...(settings.currentModel ? { value: settings.currentModel } : {})}
-              onValueChange={(model) => selectModel.mutate(model)}
+              value={settings.effort ?? EFFORT_AUTO}
+              disabled={updateSettings.isPending}
+              onValueChange={(value) =>
+                updateSettings.mutate({ effort: value === EFFORT_AUTO ? null : value })
+              }
             >
-              <SelectTrigger>
-                <SelectValue placeholder={t("llm.noCurrentModel")} />
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(models.data ?? []).map((m) => (
-                  <SelectItem key={m.model} value={m.model}>
-                    {m.label ?? m.model}
+                <SelectItem value={EFFORT_AUTO}>{t("llm.effortDefault")}</SelectItem>
+                {EFFORT_OPTIONS.map((level) => (
+                  <SelectItem key={level} value={level}>
+                    {level}
+                  </SelectItem>
+                ))}
+                {settings.effort && !EFFORT_OPTIONS.includes(settings.effort as never) ? (
+                  <SelectItem value={settings.effort}>{settings.effort}</SelectItem>
+                ) : null}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <SettingRow label={t("llm.thinkingLabel")}>
+            <Switch
+              checked={settings.thinkingEnabled}
+              disabled={updateSettings.isPending}
+              onCheckedChange={(checked) => updateSettings.mutate({ thinkingEnabled: checked })}
+            />
+          </SettingRow>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** 「先选供应商 → 输入 model id → 保存」的独立弹窗，取代原先每张卡片里的添加行。 */
+function AddModelDialog({ providerKeys }: { providerKeys: string[] }) {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [providerKey, setProviderKey] = useState(providerKeys[0] ?? "");
+  const [model, setModel] = useState("");
+  const [label, setLabel] = useState("");
+
+  const addModel = useMutation({
+    mutationFn: () => addLlmProviderModel(providerKey, model.trim(), label.trim() || null),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "llm-provider-settings"] });
+      queryClient.invalidateQueries({
+        queryKey: ["admin", "llm-provider-models", providerKey],
+      });
+      setModel("");
+      setLabel("");
+      setOpen(false);
+    },
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) {
+          setModel("");
+          setLabel("");
+          addModel.reset();
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button size="sm" variant="secondary" className="gap-1.5">
+          <PlusCircle className="size-4" />
+          {t("llm.addModelTitle")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{t("llm.addModelTitle")}</DialogTitle>
+          <DialogDescription>{t("llm.addModelDialogHint")}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>{t("llm.fieldProvider")}</Label>
+            <Select value={providerKey} onValueChange={setProviderKey}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {providerKeys.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {PROVIDER_LABEL[key] ?? key}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">{t("llm.addModelLabel")}</Label>
-          <div className="flex gap-2">
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("llm.fieldModelId")}</Label>
             <Input
-              value={newModel}
-              onChange={(e) => setNewModel(e.target.value)}
+              autoFocus
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
               placeholder={t("llm.addModelPh")}
             />
-            <Button
-              size="icon"
-              variant="outline"
-              disabled={!newModel.trim() || addModel.isPending}
-              onClick={() => addModel.mutate(newModel.trim())}
-            >
-              <PlusCircle className="size-4" />
-            </Button>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("llm.fieldLabelOptional")}</Label>
+            <Input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder={t("llm.addModelLabelPh")}
+            />
           </div>
           {addModel.isError ? <ErrorBanner error={addModel.error} /> : null}
         </div>
-      </CardContent>
-    </Card>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOpen(false)}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            disabled={!providerKey || !model.trim() || addModel.isPending}
+            onClick={() => addModel.mutate()}
+          >
+            {t("common.save")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -231,23 +348,31 @@ function OperationOverrideRow({
   const busy = set.isPending || clear.isPending;
 
   return (
-    <div className="space-y-2 rounded-lg border border-border p-2.5">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm">{opTypeLabel(t, row.operationType)}</span>
+    <div className="py-2">
+      <div className={OVERRIDE_ROW_GRID}>
+        <span className="min-w-0 truncate text-sm" title={opTypeLabel(t, row.operationType)}>
+          {opTypeLabel(t, row.operationType)}
+        </span>
+
         <Select
           value={row.providerKey ?? FOLLOW_GLOBAL_VALUE}
           disabled={busy}
           onValueChange={(value) =>
             value === FOLLOW_GLOBAL_VALUE
               ? clear.mutate()
-              : set.mutate({ providerKey: value, model: null, thinkingEnabled: null, effort: null })
+              : set.mutate({
+                  providerKey: value,
+                  model: null,
+                  thinkingEnabled: null,
+                  effort: null,
+                })
           }
         >
-          <SelectTrigger className="w-56">
+          <SelectTrigger className="h-8 w-full text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={FOLLOW_GLOBAL_VALUE}>{t("llm.followGlobalProvider")}</SelectItem>
+            <SelectItem value={FOLLOW_GLOBAL_VALUE}>{t("llm.followGlobalShort")}</SelectItem>
             {providerKeys.map((key) => (
               <SelectItem key={key} value={key}>
                 {PROVIDER_LABEL[key] ?? key}
@@ -255,90 +380,113 @@ function OperationOverrideRow({
             ))}
           </SelectContent>
         </Select>
-      </div>
 
-      {row.providerKey !== null ? (
-        <div className="flex items-center justify-end gap-3 pl-3">
-          <Select
-            value={row.model ?? FOLLOW_PROVIDER_MODEL_VALUE}
-            disabled={busy || models.isPending}
-            onValueChange={(value) =>
-              set.mutate({
-                providerKey: row.providerKey!,
-                model: value === FOLLOW_PROVIDER_MODEL_VALUE ? null : value,
-                thinkingEnabled: row.thinkingEnabled,
-                effort: row.effort,
-              })
-            }
-          >
-            <SelectTrigger className="w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={FOLLOW_PROVIDER_MODEL_VALUE}>
-                {t("llm.followProviderModel")}
-              </SelectItem>
-              {(models.data ?? []).map((m) => (
-                <SelectItem key={m.model} value={m.model}>
-                  {m.label ?? m.model}
+        {row.providerKey !== null ? (
+          <>
+            <Select
+              value={row.model ?? FOLLOW_PROVIDER_MODEL_VALUE}
+              disabled={busy || models.isPending}
+              onValueChange={(value) =>
+                set.mutate({
+                  providerKey: row.providerKey!,
+                  model: value === FOLLOW_PROVIDER_MODEL_VALUE ? null : value,
+                  thinkingEnabled: row.thinkingEnabled,
+                  effort: row.effort,
+                })
+              }
+            >
+              <SelectTrigger className="h-8 w-full text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={FOLLOW_PROVIDER_MODEL_VALUE}>
+                  {t("llm.providerDefault")}
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                {(models.data ?? []).map((m) => (
+                  <SelectItem key={m.model} value={m.model}>
+                    {m.label ?? m.model}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <Select
-            value={
-              row.thinkingEnabled === null
-                ? THINKING_FOLLOW_PROVIDER
-                : row.thinkingEnabled
-                  ? THINKING_ON
-                  : THINKING_OFF
-            }
-            disabled={busy}
-            onValueChange={(value) =>
-              set.mutate({
-                providerKey: row.providerKey!,
-                model: row.model,
-                thinkingEnabled: value === THINKING_FOLLOW_PROVIDER ? null : value === THINKING_ON,
-                effort: row.effort,
-              })
-            }
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={THINKING_FOLLOW_PROVIDER}>
-                {t("llm.thinkingFollowProvider")}
-              </SelectItem>
-              <SelectItem value={THINKING_ON}>{t("llm.thinkingOn")}</SelectItem>
-              <SelectItem value={THINKING_OFF}>{t("llm.thinkingOff")}</SelectItem>
-            </SelectContent>
-          </Select>
+            <Select
+              value={
+                row.thinkingEnabled === null
+                  ? THINKING_FOLLOW_PROVIDER
+                  : row.thinkingEnabled
+                    ? THINKING_ON
+                    : THINKING_OFF
+              }
+              disabled={busy}
+              onValueChange={(value) =>
+                set.mutate({
+                  providerKey: row.providerKey!,
+                  model: row.model,
+                  thinkingEnabled:
+                    value === THINKING_FOLLOW_PROVIDER ? null : value === THINKING_ON,
+                  effort: row.effort,
+                })
+              }
+            >
+              <SelectTrigger className="h-8 w-full text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={THINKING_FOLLOW_PROVIDER}>{t("llm.providerDefault")}</SelectItem>
+                <SelectItem value={THINKING_ON}>{t("llm.thinkingOnShort")}</SelectItem>
+                <SelectItem value={THINKING_OFF}>{t("llm.thinkingOffShort")}</SelectItem>
+              </SelectContent>
+            </Select>
 
-          <Input
-            key={row.effort ?? ""}
-            defaultValue={row.effort ?? ""}
-            placeholder={t("llm.effortFollowProvider")}
-            className="w-40"
-            disabled={busy}
-            onBlur={(e) => {
-              const value = e.target.value.trim() || null;
-              if (value !== row.effort) {
+            <Select
+              value={row.effort ?? EFFORT_AUTO}
+              disabled={busy}
+              onValueChange={(value) =>
                 set.mutate({
                   providerKey: row.providerKey!,
                   model: row.model,
                   thinkingEnabled: row.thinkingEnabled,
-                  effort: value,
-                });
+                  effort: value === EFFORT_AUTO ? null : value,
+                })
               }
-            }}
-          />
+            >
+              <SelectTrigger className="h-8 w-full text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={EFFORT_AUTO}>{t("llm.providerDefault")}</SelectItem>
+                {EFFORT_OPTIONS.map((level) => (
+                  <SelectItem key={level} value={level}>
+                    {level}
+                  </SelectItem>
+                ))}
+                {row.effort && !EFFORT_OPTIONS.includes(row.effort as never) ? (
+                  <SelectItem value={row.effort}>{row.effort}</SelectItem>
+                ) : null}
+              </SelectContent>
+            </Select>
+          </>
+        ) : (
+          // 未固定供应商——model/thinking/effort 都跟随全局，用同样的文案显示，保持列对齐。
+          <>
+            <FollowGlobalCell label={t("llm.followGlobalShort")} />
+            <FollowGlobalCell label={t("llm.followGlobalShort")} />
+            <FollowGlobalCell label={t("llm.followGlobalShort")} />
+          </>
+        )}
+      </div>
+
+      {set.isError ? (
+        <div className="mt-1">
+          <ErrorBanner error={set.error} />
         </div>
       ) : null}
-
-      {set.isError ? <ErrorBanner error={set.error} /> : null}
-      {clear.isError ? <ErrorBanner error={clear.error} /> : null}
+      {clear.isError ? (
+        <div className="mt-1">
+          <ErrorBanner error={clear.error} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -352,24 +500,46 @@ function OperationOverridesPanel({ providerKeys }: { providerKeys: string[] }) {
   });
 
   return (
-    <Card className="border-border shadow-none">
-      <CardHeader>
-        <CardTitle className="text-base">{t("llm.perTaskTitle")}</CardTitle>
+    <Card className="shadow-none">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm">{t("llm.perTaskTitle")}</CardTitle>
         <p className="text-xs text-muted-foreground">{t("llm.perTaskHint")}</p>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent>
         {overrides.isPending ? (
           <div className="space-y-2">
             {Array.from({ length: 10 }, (_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
+              <Skeleton key={i} className="h-9 w-full" />
             ))}
           </div>
         ) : overrides.isError ? (
           <ErrorBanner error={overrides.error} />
         ) : (
-          (overrides.data ?? []).map((row) => (
-            <OperationOverrideRow key={row.operationType} row={row} providerKeys={providerKeys} />
-          ))
+          <div className="-mx-1 overflow-x-auto px-1 py-1">
+            <div className="min-w-[760px] pr-1">
+              <div
+                className={cn(
+                  OVERRIDE_ROW_GRID,
+                  "pb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70",
+                )}
+              >
+                <span />
+                <span>{t("llm.fieldProvider")}</span>
+                <span>{t("llm.fieldModel")}</span>
+                <span>{t("llm.thinkingShort")}</span>
+                <span>{t("llm.effortShort")}</span>
+              </div>
+              <div className="divide-y divide-border/60">
+                {(overrides.data ?? []).map((row) => (
+                  <OperationOverrideRow
+                    key={row.operationType}
+                    row={row}
+                    providerKeys={providerKeys}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>
@@ -378,6 +548,7 @@ function OperationOverridesPanel({ providerKeys }: { providerKeys: string[] }) {
 
 /** 纯内容(无页面外壳),供 /admin/llm-providers 页与 /settings 的「AI 供应商」tab 复用。 */
 export function LlmProvidersPanel() {
+  const t = useT();
   const settings = useQuery({
     queryKey: ["admin", "llm-provider-settings"],
     queryFn: listLlmProviderSettings,
@@ -387,7 +558,7 @@ export function LlmProvidersPanel() {
     return (
       <div className="grid gap-4 sm:grid-cols-2">
         {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-72 w-full rounded-xl" />
+          <Skeleton key={i} className="h-44 w-full rounded-xl" />
         ))}
       </div>
     );
@@ -395,14 +566,21 @@ export function LlmProvidersPanel() {
   if (settings.isError) {
     return <ErrorBanner error={settings.error} />;
   }
+
+  const providerKeys = (settings.data ?? []).map((s) => s.providerKey);
+
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">{t("llm.description")}</p>
+        <AddModelDialog providerKeys={providerKeys} />
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         {(settings.data ?? []).map((s) => (
           <ProviderCard key={s.providerKey} settings={s} />
         ))}
       </div>
-      <OperationOverridesPanel providerKeys={(settings.data ?? []).map((s) => s.providerKey)} />
+      <OperationOverridesPanel providerKeys={providerKeys} />
     </div>
   );
 }

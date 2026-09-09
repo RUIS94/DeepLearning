@@ -414,7 +414,21 @@ const en = {
   "llm.effortFollowProvider": "Effort: follow provider",
   "llm.perTaskTitle": "Per-task provider customization",
   "llm.perTaskHint":
-    "Bind a fixed provider, model, and thinking toggle for a single task, unaffected by the \"Set as current provider\" switch above. Leave blank = follow the global current provider / that provider's own current model / that provider's own thinking default.",
+    "Per-task override, independent of the global provider above. Unset fields fall back automatically.",
+  "llm.addModelTitle": "Add model",
+  "llm.addModelDialogHint": "Pick the provider first, then enter the model id it serves.",
+  "llm.fieldProvider": "Provider",
+  "llm.fieldModelId": "Model id",
+  "llm.fieldLabelOptional": "Display label (optional)",
+  "llm.addModelLabelPh": "e.g. Opus 5.2",
+  "llm.effortDefault": "Default",
+  "llm.fieldModel": "Model",
+  "llm.thinkingShort": "Thinking",
+  "llm.effortShort": "Effort",
+  "llm.thinkingOnShort": "On",
+  "llm.thinkingOffShort": "Off",
+  "llm.followGlobalShort": "Follow global",
+  "llm.providerDefault": "Provider default",
 
   // ---- 标准修正详情页 ----
   "overrideDetail.title": "Standard Revision Detail",

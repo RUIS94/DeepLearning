@@ -392,8 +392,21 @@ const zh: Record<MessageKey, string> = {
   "llm.thinkingOff": "Thinking：关闭",
   "llm.effortFollowProvider": "Effort：跟随供应商",
   "llm.perTaskTitle": "按任务定制供应商",
-  "llm.perTaskHint":
-    "为单个任务绑定固定的供应商、模型、thinking 开关，不受上方「设为当前供应商」切换影响。留空 = 跟随全局当前供应商 / 该供应商自己的当前模型 / 该供应商自己的 thinking 默认值。",
+  "llm.perTaskHint": "单任务级覆盖，独立于上方全局供应商设置；未设置的项自动跟随默认值。",
+  "llm.addModelTitle": "添加模型",
+  "llm.addModelDialogHint": "先选择供应商，再输入该供应商对应的模型 id。",
+  "llm.fieldProvider": "供应商",
+  "llm.fieldModelId": "模型 id",
+  "llm.fieldLabelOptional": "显示名称（可选）",
+  "llm.addModelLabelPh": "例如 Opus 5.2",
+  "llm.effortDefault": "默认",
+  "llm.fieldModel": "模型",
+  "llm.thinkingShort": "Thinking",
+  "llm.effortShort": "Effort",
+  "llm.thinkingOnShort": "开",
+  "llm.thinkingOffShort": "关",
+  "llm.followGlobalShort": "跟随全局",
+  "llm.providerDefault": "供应商默认",
 
   // ---- 标准修正详情页 ----
   "overrideDetail.title": "标准修正详情",
