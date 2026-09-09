@@ -371,3 +371,5 @@ FodyWeavers.xsd
 
 # CodeGraph local index (machine-local, has its own nested .gitignore too)
 .codegraph/
+
+ref/
