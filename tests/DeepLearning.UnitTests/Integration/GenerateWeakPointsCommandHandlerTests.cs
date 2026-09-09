@@ -69,6 +69,9 @@ namespace DeepLearning.UnitTests.Integration
                     .Select(s => s.CreatedAt)
                     .ToList());
 
+            public Task<List<Guid>> ListRecentGradedIdsAsync(int take, CancellationToken cancellationToken = default)
+                => Task.FromResult(new List<Guid>());
+
             public Task<List<GradingResult>> GetGradingResultsAsync(Guid submissionId, CancellationToken cancellationToken = default) => Task.FromResult(_gradingResults);
 
             public Task<List<ErrorListItem>> GetErrorListAsync(Guid submissionId, CancellationToken cancellationToken = default) => Task.FromResult(_errors);

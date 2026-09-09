@@ -42,6 +42,14 @@ namespace DeepLearning.Application.Interfaces
         /// </summary>
         Task<List<DateTimeOffset>> ListRecentGradedCreatedAtAsync(Guid userId, int count, CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Ids of the most recently graded submissions (graded / regraded / archived), newest
+        /// first — the sample set for <c>PromptRegressionTestJob</c>. Not scoped to an exam type
+        /// because submissions/questions carry none yet (design doc §9.4); with one exam type
+        /// "recent graded" is exactly "recent graded for this exam type".
+        /// </summary>
+        Task<List<Guid>> ListRecentGradedIdsAsync(int take, CancellationToken cancellationToken = default);
+
         Task<List<GradingResult>> GetGradingResultsAsync(Guid submissionId, CancellationToken cancellationToken = default);
 
         Task<List<ErrorListItem>> GetErrorListAsync(Guid submissionId, CancellationToken cancellationToken = default);

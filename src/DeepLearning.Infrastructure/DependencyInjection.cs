@@ -79,6 +79,7 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<IReferenceTranslationRepository, ReferenceTranslationRepository>();
             services.AddScoped<IQuestionBankCategoryRepository, QuestionBankCategoryRepository>();
             services.AddScoped<ISeedReferenceLinkRepository, SeedReferenceLinkRepository>();
+            services.AddScoped<IFeatureFlagRepository, FeatureFlagRepository>();
 
             // One IGradingResultInterpreter per assessment_dimensions.scale_type — GradeSubmissionCommandHandler
             // picks the matching one via DI's IEnumerable<IGradingResultInterpreter>.
@@ -173,6 +174,9 @@ namespace DeepLearning.Infrastructure
 
             services.AddScoped<ProgressSnapshotJob>();
             services.AddScoped<StrandedGradingReclaimJob>();
+            services.AddScoped<RubricCalibrationReportJob>();
+            // Not a recurring job — triggered on demand (prompt-regression CLI verb / dashboard).
+            services.AddScoped<PromptRegressionTestJob>();
             services.AddScoped<GradeSubmissionJob>();
             // Grading is queued rather than run on the request thread — see IGradingJobQueue.
             services.AddScoped<IGradingJobQueue, HangfireGradingJobQueue>();

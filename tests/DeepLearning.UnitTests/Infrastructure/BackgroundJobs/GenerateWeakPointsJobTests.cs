@@ -74,6 +74,9 @@ namespace DeepLearning.UnitTests.Infrastructure.BackgroundJobs
             public Task<List<DateTimeOffset>> ListRecentGradedCreatedAtAsync(Guid userId, int count, CancellationToken cancellationToken = default)
                 => throw new NotSupportedException();
 
+            public Task<List<Guid>> ListRecentGradedIdsAsync(int take, CancellationToken cancellationToken = default)
+                => throw new NotSupportedException();
+
             public Task<List<GradingResult>> GetGradingResultsAsync(Guid submissionId, CancellationToken cancellationToken = default)
                 => throw new NotSupportedException();
 

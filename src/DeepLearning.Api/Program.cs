@@ -73,6 +73,11 @@ builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
+// feature_flags gate (design doc §六 / §11.2 Step 10) — [FeatureGate("...")] on 题库/复习库
+// controllers consults this; short-cached so it isn't a SELECT per request.
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<IFeatureFlagService, DeepLearning.Api.Services.FeatureFlagService>();
+
 var app = builder.Build();
 
 // Which database this process is actually attached to, first thing in the log. AddInfrastructure has
@@ -94,6 +99,13 @@ if (args is ["sql", var sqlVerb, ..])
 if (args is ["db", var dbVerb, ..])
 {
     return await DeepLearning.Api.DbCli.RunAsync(dbVerb, args[2..], app.Services);
+}
+
+// `dotnet run --project src/DeepLearning.Api -- prompt-regression <examTypeId> [sampleSize] [--apply]`
+// — design doc §7's prompt-regression check (skeleton). Dry run unless --apply is passed.
+if (args is ["prompt-regression", ..])
+{
+    return await DeepLearning.Api.PromptRegressionCli.RunAsync(args[1..], app.Services);
 }
 
 // Configure the HTTP request pipeline.
@@ -159,6 +171,15 @@ RecurringJob.AddOrUpdate<StrandedGradingReclaimJob>(
     "reclaim-stranded-grading-hourly",
     job => job.RunAsync(CancellationToken.None),
     Cron.Hourly);
+
+// Design doc §10.6 / §11.2 Step 10's calibration report — weekly digest of the
+// standard_overrides that turned active recently, so a reviewer can spot-check them against the
+// official rubric before long-term dispute-driven drift sets in. Skeleton: logs the roll-up
+// today; the AI cross-check is a marked TODO in the job.
+RecurringJob.AddOrUpdate<RubricCalibrationReportJob>(
+    "rubric-calibration-weekly",
+    job => job.RunAsync(CancellationToken.None),
+    Cron.Weekly);
 
 app.Run();
 return 0;

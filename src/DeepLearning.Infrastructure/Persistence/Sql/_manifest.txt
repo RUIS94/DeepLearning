@@ -120,3 +120,7 @@ add_vocab_semantic_drift_prompt_template.sql
 #     (NAATI CT):作用域 shared_methodology→exam_specific,写入三维度官方通过线,点评与
 #     keyTurningPoint 判据改为按「达标/临界/未达标」及跨线事件驱动。删除旧 shared 行。 ---
 reset_progress_trend_prompt_v1_exam_specific.sql
+
+# --- 2026-09-09: feature_flags 初始行 (question_bank_enabled / review_library_enabled = true)。
+#     设计文档 §六 功能开关 / §11.2 Step 10;[FeatureGate] 过滤器读它,缺行按 FeatureFlags.Defaults 兜底。 ---
+seed_feature_flags.sql

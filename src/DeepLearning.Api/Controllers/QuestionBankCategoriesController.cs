@@ -1,4 +1,6 @@
 using DeepLearning.Api.Constants;
+using DeepLearning.Api.Filters;
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Features.QuestionBank.Commands.CreateQuestionBankCategory;
 using DeepLearning.Application.Features.QuestionBank.Commands.DeleteQuestionBankCategory;
 using DeepLearning.Application.Features.QuestionBank.Commands.TagQuestionWithCategory;
@@ -13,6 +15,7 @@ namespace DeepLearning.Api.Controllers
 {
     [ApiController]
     [Route(ApiRoutes.QuestionBankCategories.Base)]
+    [FeatureGate(FeatureFlags.QuestionBankEnabled)]
     public class QuestionBankCategoriesController : ControllerBase
     {
         private readonly IMediator _mediator;

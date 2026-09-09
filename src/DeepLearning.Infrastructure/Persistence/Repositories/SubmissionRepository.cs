@@ -54,6 +54,16 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
                 .Select(x => x.CreatedAt)
                 .ToListAsync(cancellationToken);
 
+        public Task<List<Guid>> ListRecentGradedIdsAsync(int take, CancellationToken cancellationToken = default)
+            => _context.Submissions
+                .Where(x => x.Status == SubmissionStatus.graded
+                    || x.Status == SubmissionStatus.regraded
+                    || x.Status == SubmissionStatus.archived)
+                .OrderByDescending(x => x.UpdatedAt)
+                .Take(take)
+                .Select(x => x.Id)
+                .ToListAsync(cancellationToken);
+
         public Task<List<GradingResult>> GetGradingResultsAsync(Guid submissionId, CancellationToken cancellationToken = default)
             => _context.GradingResults
                 .Where(x => x.SubmissionId == submissionId)

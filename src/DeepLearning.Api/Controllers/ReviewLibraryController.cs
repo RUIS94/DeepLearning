@@ -1,4 +1,6 @@
 using DeepLearning.Api.Constants;
+using DeepLearning.Api.Filters;
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Features.ReviewLibrary.Commands.MarkPatternReviewed;
 using DeepLearning.Application.Features.ReviewLibrary.Commands.MarkVocabReviewed;
 using DeepLearning.Application.Features.ReviewLibrary.Queries.ListReviewPatterns;
@@ -12,6 +14,7 @@ namespace DeepLearning.Api.Controllers
 {
     [ApiController]
     [Route(ApiRoutes.ReviewLibrary.Base)]
+    [FeatureGate(FeatureFlags.ReviewLibraryEnabled)]
     public class ReviewLibraryController : ControllerBase
     {
         private readonly IMediator _mediator;

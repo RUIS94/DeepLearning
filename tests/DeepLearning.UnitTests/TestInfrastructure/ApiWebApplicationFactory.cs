@@ -68,6 +68,14 @@ namespace DeepLearning.UnitTests.TestInfrastructure
                 // an API test only needs the enqueue recorded, not run.
                 services.AddSingleton<RecordingVocabGlossaryQueue>();
                 services.AddScoped<IVocabGlossaryQueue>(sp => sp.GetRequiredService<RecordingVocabGlossaryQueue>());
+
+                // Feature-flag reads are cached for 15s in production; across a shared-DB test
+                // collection that would let one test's "flag absent -> default on" result mask a
+                // later test that inserts a disabled row. Zero TTL = always read fresh.
+                services.AddScoped<IFeatureFlagService>(sp => new DeepLearning.Api.Services.FeatureFlagService(
+                    sp.GetRequiredService<IFeatureFlagRepository>(),
+                    sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(),
+                    TimeSpan.Zero));
             });
         }
 
