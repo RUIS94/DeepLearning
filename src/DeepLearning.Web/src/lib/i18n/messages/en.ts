@@ -227,7 +227,7 @@ const en = {
   "examMgmt.configTitle": "Configuration · {name}",
   "examMgmt.configTitleFallback": "Exam Configuration",
   "examMgmt.configDescription":
-    "Scoring Dimensions, Error Taxonomies, Question Categories, Prompt Templates, Weak Point Catalog, and Standard Overrides.",
+    "Manage the grading rubric, AI prompts, and reference data that drive this exam type.",
   "examMgmt.tab.dimensions": "Scoring Dimensions",
   "examMgmt.tab.errorTaxonomies": "Error Taxonomies",
   "examMgmt.tab.categories": "Question Categories",
@@ -347,6 +347,7 @@ const en = {
   "examMgmt.wpc.sourceCategory": "Source category",
   "examMgmt.wpc.targetCategory": "Target category",
   "examMgmt.wpc.merge": "Merge",
+  "examMgmt.wpc.mergeTitle": "Merge weak-point categories",
 
   // 考试管理 · 标准修正 tab
   "examMgmt.override.promoted": "Promoted to active",

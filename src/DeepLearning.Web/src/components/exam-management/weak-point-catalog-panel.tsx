@@ -23,6 +23,15 @@ import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -54,23 +63,9 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
     queryKey: ["admin", "weak-point-categories"],
     queryFn: () => listWeakPointCategories(),
   });
-  const categoryNameById = new Map((categories.data ?? []).map((c) => [c.id, c.name]));
   const categoryOptions = (categories.data ?? []).map((c) => ({ value: c.id, label: c.name }));
 
   const columns: CrudColumn<WeakPointCatalogEntry>[] = [
-    {
-      key: "category",
-      header: t("examMgmt.wpc.colCategory"),
-      render: (c) =>
-        c.categoryId
-          ? (categoryNameById.get(c.categoryId) ?? "—")
-          : t("examMgmt.wpc.categoryPending"),
-    },
-    {
-      key: "code",
-      header: "code",
-      render: (c) => <span className="font-mono text-xs">{c.code}</span>,
-    },
     { key: "name", header: t("common.name"), render: (c) => c.name },
     {
       key: "match",
@@ -90,8 +85,8 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
             c.status === WeakPointCatalogStatus.proposed
               ? "border-warning/40 text-warning-foreground"
               : c.status === WeakPointCatalogStatus.deprecated
-                ? "border-border text-muted-foreground"
-                : "border-accent/40 text-accent"
+                ? "border-destructive/40 text-destructive"
+                : "border-success/40 text-success"
           }
         >
           {WeakPointCatalogStatusLabel[c.status]}
@@ -140,54 +135,82 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
     status: String(WeakPointCatalogStatus.active),
   };
 
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: key });
+
+  const commonTableProps = {
+    hideCreate: true as const,
+    columns,
+    isLoading: catalog.isPending || categories.isPending,
+    loadError: catalog.error ?? categories.error,
+    getRowId: (c: WeakPointCatalogEntry) => c.id,
+    schema: weakPointCatalogFormSchema,
+    fields,
+    defaultValues,
+    dialogTitle: t("examMgmt.wpc.dialogTitle"),
+    onCreate: (values: WeakPointCatalogFormInput) =>
+      createWeakPointCatalogEntry({
+        categoryId: values.categoryId,
+        code: values.code,
+        name: values.name,
+        description: values.description,
+        defaultDimensionKey: values.defaultDimensionKey || null,
+        defaultErrorCategory: values.defaultErrorCategory || null,
+      }),
+    toFormValues: (c: WeakPointCatalogEntry) => ({
+      categoryId: c.categoryId ?? "",
+      code: c.code,
+      name: c.name,
+      description: c.description,
+      defaultDimensionKey: c.defaultDimensionKey ?? "",
+      defaultErrorCategory: c.defaultErrorCategory ?? "",
+      status: String(c.status),
+    }),
+    onUpdate: (id: string, values: WeakPointCatalogFormInput) =>
+      updateWeakPointCatalogEntry(id, {
+        name: values.name,
+        description: values.description,
+        defaultDimensionKey: values.defaultDimensionKey || "",
+        defaultErrorCategory: values.defaultErrorCategory || "",
+        status: Number(values.status),
+      }),
+    onChanged: invalidate,
+  };
+
+  // 按 8 大类拆表：先按种类列表顺序，未归类的行单独一张表垫底。
+  const entries = catalog.data ?? [];
+  const groups: { id: string; name: string; rows: WeakPointCatalogEntry[] }[] = [
+    ...(categories.data ?? []).map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      rows: entries.filter((e) => e.categoryId === cat.id),
+    })),
+    {
+      id: "__uncategorized",
+      name: t("examMgmt.wpc.categoryPending"),
+      rows: entries.filter((e) => !e.categoryId),
+    },
+  ].filter((g) => g.rows.length > 0 || g.id !== "__uncategorized");
+
   return (
-    <div className="space-y-4">
-      <MergeControl
-        entries={catalog.data ?? []}
-        onMerged={() => queryClient.invalidateQueries({ queryKey: key })}
-      />
-      <CrudTable
-        openCreateRef={createRef}
-        hideCreate
-        columns={columns}
-        items={catalog.data}
-        isLoading={catalog.isPending || categories.isPending}
-        loadError={catalog.error ?? categories.error}
-        getRowId={(c) => c.id}
-        schema={weakPointCatalogFormSchema}
-        fields={fields}
-        defaultValues={defaultValues}
-        dialogTitle={t("examMgmt.wpc.dialogTitle")}
-        onCreate={(values) =>
-          createWeakPointCatalogEntry({
-            categoryId: values.categoryId,
-            code: values.code,
-            name: values.name,
-            description: values.description,
-            defaultDimensionKey: values.defaultDimensionKey || null,
-            defaultErrorCategory: values.defaultErrorCategory || null,
-          })
-        }
-        toFormValues={(c) => ({
-          categoryId: c.categoryId ?? "",
-          code: c.code,
-          name: c.name,
-          description: c.description,
-          defaultDimensionKey: c.defaultDimensionKey ?? "",
-          defaultErrorCategory: c.defaultErrorCategory ?? "",
-          status: String(c.status),
-        })}
-        onUpdate={(id, values) =>
-          updateWeakPointCatalogEntry(id, {
-            name: values.name,
-            description: values.description,
-            defaultDimensionKey: values.defaultDimensionKey || "",
-            defaultErrorCategory: values.defaultErrorCategory || "",
-            status: Number(values.status),
-          })
-        }
-        onChanged={() => queryClient.invalidateQueries({ queryKey: key })}
-      />
+    <div className="space-y-6">
+      {catalog.isPending || categories.isPending ? (
+        <CrudTable {...commonTableProps} openCreateRef={createRef} items={undefined} />
+      ) : (
+        groups.map((group, i) => (
+          <CrudTable
+            key={group.id}
+            {...commonTableProps}
+            openCreateRef={i === 0 ? createRef : undefined}
+            title={
+              <div className="flex flex-1 items-center justify-between gap-4">
+                <h3 className="text-sm font-semibold">{group.name}</h3>
+                {i === 0 ? <MergeControl entries={entries} onMerged={invalidate} /> : null}
+              </div>
+            }
+            items={group.rows}
+          />
+        ))
+      )}
     </div>
   );
 }
@@ -200,6 +223,7 @@ function MergeControl({
   onMerged: () => void;
 }) {
   const t = useT();
+  const [open, setOpen] = useState(false);
   const [fromId, setFromId] = useState("");
   const [toId, setToId] = useState("");
   const options = entries.filter((e) => e.status !== WeakPointCatalogStatus.deprecated);
@@ -217,6 +241,7 @@ function MergeControl({
       });
       setFromId("");
       setToId("");
+      setOpen(false);
       onMerged();
     },
     onError: (err) =>
@@ -228,9 +253,26 @@ function MergeControl({
   });
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-lg border border-dashed border-border p-4">
-      <div className="space-y-1">
-        <p className="text-xs text-muted-foreground">{t("examMgmt.wpc.mergeHint")}</p>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) {
+          setFromId("");
+          setToId("");
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          {t("examMgmt.wpc.merge")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("examMgmt.wpc.mergeTitle")}</DialogTitle>
+          <DialogDescription>{t("examMgmt.wpc.mergeHint")}</DialogDescription>
+        </DialogHeader>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={fromId} onValueChange={setFromId}>
             <SelectTrigger className="h-9 w-52 text-sm">
@@ -260,14 +302,15 @@ function MergeControl({
             </SelectContent>
           </Select>
         </div>
-      </div>
-      <Button
-        variant="outline"
-        disabled={!fromId || !toId || fromId === toId || merge.isPending}
-        onClick={() => merge.mutate()}
-      >
-        {t("examMgmt.wpc.merge")}
-      </Button>
-    </div>
+        <DialogFooter>
+          <Button
+            disabled={!fromId || !toId || fromId === toId || merge.isPending}
+            onClick={() => merge.mutate()}
+          >
+            {t("examMgmt.wpc.merge")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

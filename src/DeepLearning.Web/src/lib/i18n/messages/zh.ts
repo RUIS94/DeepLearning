@@ -215,7 +215,7 @@ const zh: Record<MessageKey, string> = {
   "examMgmt.configure": "配置",
   "examMgmt.configTitle": "配置 · {name}",
   "examMgmt.configTitleFallback": "考试配置",
-  "examMgmt.configDescription": "评分维度、错误分类、题目分类、提示词模板、薄弱点目录与标准修正。",
+  "examMgmt.configDescription": "管理该考试类型的评分标准、AI 提示词与相关配置数据。",
   "examMgmt.tab.dimensions": "评分维度",
   "examMgmt.tab.errorTaxonomies": "错误分类",
   "examMgmt.tab.categories": "题目分类",
@@ -328,6 +328,7 @@ const zh: Record<MessageKey, string> = {
   "examMgmt.wpc.sourceCategory": "来源种类",
   "examMgmt.wpc.targetCategory": "目标种类",
   "examMgmt.wpc.merge": "合并",
+  "examMgmt.wpc.mergeTitle": "合并薄弱点种类",
 
   // 考试管理 · 标准修正 tab
   "examMgmt.override.promoted": "已提升为生效",

@@ -59,11 +59,11 @@ const buildColumns = (
     header: t("common.status"),
     render: (row) =>
       row.isActive ? (
-        <Badge variant="outline" className="border-transparent bg-success/12 text-success">
+        <Badge variant="outline" className="border-success/40 text-success">
           {t("examMgmt.tpl.active")}
         </Badge>
       ) : (
-        <Badge variant="outline" className="text-muted-foreground">
+        <Badge variant="outline" className="border-destructive/40 text-destructive">
           {t("examMgmt.tpl.disabled")}
         </Badge>
       ),
