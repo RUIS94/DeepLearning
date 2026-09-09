@@ -38,6 +38,7 @@ const zh: Record<MessageKey, string> = {
   "common.description": "说明",
   "common.status": "状态",
   "common.code": "代码",
+  "common.action": "操作",
 
   // ---- 错误 / 404 页 ----
   "notFound.title": "页面未找到",
@@ -241,6 +242,8 @@ const zh: Record<MessageKey, string> = {
   "examMgmt.cat.parentNone": "无（顶层分类）",
   "examMgmt.cat.fieldDescription": "描述（可选）",
   "examMgmt.cat.colSystem": "体系",
+  "examMgmt.cat.domainTitle": "领域分类",
+  "examMgmt.cat.scenarioTitle": "场景分类",
   "examMgmt.cat.colParent": "上级分类",
   "examMgmt.cat.dialogTitle": "新建题库分类",
   "examMgmt.cat.deleteTitle": "删除分类「{name}」？",

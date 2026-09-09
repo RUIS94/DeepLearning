@@ -1136,6 +1136,12 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
 
             foreach (var finding in collected)
             {
+                // The DTO type is non-nullable here, but the payload it is deserialised from can
+                // still carry an explicit "explanation": null / "suggestion": null. Pin the
+                // contract before anything compares .Length on them.
+                finding.Explanation ??= string.Empty;
+                finding.Suggestion ??= string.Empty;
+
                 var span = SpanOf(finding, translation);
                 var fallback = Normalise(finding.UserTextSnippet);
 
@@ -1166,7 +1172,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                     existing.Q2WrongReading = finding.Q2WrongReading;
                 }
 
-                if ((finding.Explanation?.Length ?? 0) > (existing.Explanation?.Length ?? 0))
+                if (finding.Explanation.Length > existing.Explanation.Length)
                 {
                     existing.Explanation = finding.Explanation;
                     existing.Suggestion = finding.Suggestion;

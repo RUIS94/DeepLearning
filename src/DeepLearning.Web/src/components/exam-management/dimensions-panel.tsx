@@ -23,11 +23,6 @@ const buildColumns = (
   t: TranslateFn,
   ScaleTypeLabel: EnumLabels["ScaleTypeLabel"],
 ): CrudColumn<AssessmentDimension>[] => [
-  {
-    key: "dimensionKey",
-    header: "Key",
-    render: (d) => <span className="font-mono text-xs">{d.dimensionKey}</span>,
-  },
   { key: "dimensionName", header: t("common.name"), render: (d) => d.dimensionName },
   {
     key: "scaleType",

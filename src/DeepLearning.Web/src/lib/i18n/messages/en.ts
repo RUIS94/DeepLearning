@@ -39,6 +39,7 @@ const en = {
   "common.description": "Description",
   "common.status": "Status",
   "common.code": "Code",
+  "common.action": "Action",
 
   // ---- 错误 / 404 页 ----
   "notFound.title": "Page not found",
@@ -253,6 +254,8 @@ const en = {
   "examMgmt.cat.parentNone": "None (top-level category)",
   "examMgmt.cat.fieldDescription": "Description (optional)",
   "examMgmt.cat.colSystem": "System",
+  "examMgmt.cat.domainTitle": "Domain categories",
+  "examMgmt.cat.scenarioTitle": "Scenario categories",
   "examMgmt.cat.colParent": "Parent category",
   "examMgmt.cat.dialogTitle": "New question-bank category",
   "examMgmt.cat.deleteTitle": 'Delete category "{name}"?',

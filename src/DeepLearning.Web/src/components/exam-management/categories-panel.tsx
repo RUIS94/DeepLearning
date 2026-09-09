@@ -32,6 +32,7 @@ import {
   type QuestionBankCategoryFormInput,
 } from "@/lib/validation/admin";
 import type { QuestionBankCategory } from "@/lib/types/dtos";
+import { CategoryType } from "@/lib/types/enums";
 import { useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
 
@@ -59,9 +60,9 @@ function TagQuestionCard({ categories }: { categories: QuestionBankCategory[] })
         <CardTitle className="text-base">{t("examMgmt.tag.title")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <Select value={categoryId} onValueChange={setCategoryId}>
-            <SelectTrigger>
+            <SelectTrigger className="sm:flex-1">
               <SelectValue placeholder={t("examMgmt.tag.selectCategory")} />
             </SelectTrigger>
             <SelectContent>
@@ -73,7 +74,7 @@ function TagQuestionCard({ categories }: { categories: QuestionBankCategory[] })
             </SelectContent>
           </Select>
           <Select value={questionId} onValueChange={setQuestionId}>
-            <SelectTrigger>
+            <SelectTrigger className="sm:flex-1">
               <SelectValue placeholder={t("examMgmt.tag.selectQuestion")} />
             </SelectTrigger>
             <SelectContent>
@@ -84,11 +85,15 @@ function TagQuestionCard({ categories }: { categories: QuestionBankCategory[] })
               ))}
             </SelectContent>
           </Select>
+          <Button
+            className="sm:shrink-0"
+            disabled={!categoryId || !questionId || tag.isPending}
+            onClick={() => tag.mutate()}
+          >
+            <Tag className="size-4" />
+            {tag.isPending ? t("examMgmt.tag.tagging") : t("examMgmt.tag.tag")}
+          </Button>
         </div>
-        <Button disabled={!categoryId || !questionId || tag.isPending} onClick={() => tag.mutate()}>
-          <Tag className="size-4" />
-          {tag.isPending ? t("examMgmt.tag.tagging") : t("examMgmt.tag.tag")}
-        </Button>
         <AiLoadingState
           status={
             tag.isPending ? "pending" : tag.isSuccess ? "success" : tag.isError ? "error" : "idle"
@@ -139,11 +144,6 @@ export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandl
   ];
 
   const columns: CrudColumn<QuestionBankCategory>[] = [
-    {
-      key: "categoryType",
-      header: t("examMgmt.cat.colSystem"),
-      render: (c) => CategoryTypeLabel[c.categoryType],
-    },
     { key: "name", header: t("common.name"), render: (c) => c.name },
     {
       key: "parentId",
@@ -153,47 +153,56 @@ export function CategoriesPanel({ createRef }: { createRef?: Ref<CrudCreateHandl
     { key: "description", header: t("common.description"), render: (c) => c.description ?? "—" },
   ];
 
+  const commonTableProps = {
+    hideCreate: true as const,
+    columns,
+    isLoading: categories.isPending,
+    loadError: categories.error,
+    getRowId: (c: QuestionBankCategory) => c.id,
+    schema: questionBankCategoryFormSchema,
+    fields,
+    defaultValues,
+    dialogTitle: t("examMgmt.cat.dialogTitle"),
+    onCreate: (values: QuestionBankCategoryFormInput) =>
+      createQuestionBankCategory({
+        ...values,
+        parentId: values.parentId || null,
+        description: values.description || null,
+      }),
+    toFormValues: (c: QuestionBankCategory) => ({
+      categoryType: c.categoryType,
+      name: c.name,
+      parentId: c.parentId ?? "",
+      description: c.description ?? "",
+    }),
+    onUpdate: (id: string, values: QuestionBankCategoryFormInput) =>
+      updateQuestionBankCategory(id, {
+        name: values.name,
+        parentId: values.parentId || null,
+        description: values.description || null,
+      }),
+    onDelete: (id: string) => deleteQuestionBankCategory(id),
+    deleteConfirm: (c: QuestionBankCategory) => ({
+      title: t("examMgmt.cat.deleteTitle", { name: c.name }),
+      description: t("examMgmt.cat.deleteDesc"),
+    }),
+    onChanged: invalidate,
+  };
+
+  const domainItems = categories.data?.filter((c) => c.categoryType === CategoryType.domain);
+  const scenarioItems = categories.data?.filter((c) => c.categoryType === CategoryType.scenario);
+
   return (
     <div className="space-y-6">
-      <CrudTable
-        openCreateRef={createRef}
-        hideCreate
-        columns={columns}
-        items={categories.data}
-        isLoading={categories.isPending}
-        loadError={categories.error}
-        getRowId={(c) => c.id}
-        schema={questionBankCategoryFormSchema}
-        fields={fields}
-        defaultValues={defaultValues}
-        dialogTitle={t("examMgmt.cat.dialogTitle")}
-        onCreate={(values) =>
-          createQuestionBankCategory({
-            ...values,
-            parentId: values.parentId || null,
-            description: values.description || null,
-          })
-        }
-        toFormValues={(c) => ({
-          categoryType: c.categoryType,
-          name: c.name,
-          parentId: c.parentId ?? "",
-          description: c.description ?? "",
-        })}
-        onUpdate={(id, values) =>
-          updateQuestionBankCategory(id, {
-            name: values.name,
-            parentId: values.parentId || null,
-            description: values.description || null,
-          })
-        }
-        onDelete={(id) => deleteQuestionBankCategory(id)}
-        deleteConfirm={(c) => ({
-          title: t("examMgmt.cat.deleteTitle", { name: c.name }),
-          description: t("examMgmt.cat.deleteDesc"),
-        })}
-        onChanged={invalidate}
-      />
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">{t("examMgmt.cat.domainTitle")}</h3>
+        <CrudTable openCreateRef={createRef} items={domainItems} {...commonTableProps} />
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">{t("examMgmt.cat.scenarioTitle")}</h3>
+        <CrudTable items={scenarioItems} {...commonTableProps} />
+      </section>
 
       <TagQuestionCard categories={categories.data ?? []} />
     </div>

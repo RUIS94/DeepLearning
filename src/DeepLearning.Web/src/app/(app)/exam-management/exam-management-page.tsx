@@ -4,9 +4,14 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Settings2 } from "lucide-react";
 import { PageShell } from "@/components/shell/page-shell";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ErrorBanner } from "@/components/shared/ai-loading-state";
 import {
   Table,
@@ -36,33 +41,42 @@ export function ExamManagementPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t("common.code")}</TableHead>
                 <TableHead>{t("common.name")}</TableHead>
                 <TableHead>{t("examMgmt.col.subjectCategory")}</TableHead>
                 <TableHead>{t("common.description")}</TableHead>
                 <TableHead>{t("common.status")}</TableHead>
-                <TableHead className="w-24 text-right">{t("examMgmt.col.configuration")}</TableHead>
+                <TableHead className="w-16 text-right">{t("common.action")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(examTypes.data ?? []).map((e) => (
                 <TableRow key={e.id}>
-                  <TableCell className="text-numeric font-mono text-xs">{e.code}</TableCell>
                   <TableCell>{e.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{SubjectCategoryLabel[e.subjectCategory]}</Badge>
-                  </TableCell>
+                  <TableCell>{SubjectCategoryLabel[e.subjectCategory]}</TableCell>
                   <TableCell className="max-w-md text-sm text-muted-foreground">
                     {e.description ?? "—"}
                   </TableCell>
-                  <TableCell>{e.isActive ? t("common.enabled") : t("common.disabled")}</TableCell>
+                  <TableCell
+                    className={
+                      e.isActive ? "font-medium text-success" : "font-medium text-destructive"
+                    }
+                  >
+                    {e.isActive ? t("common.enabled") : t("common.disabled")}
+                  </TableCell>
                   <TableCell className="text-right">
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/exam-management/${e.id}`}>
-                        <Settings2 className="size-3.5" />
-                        {t("examMgmt.configure")}
-                      </Link>
-                    </Button>
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button asChild size="icon" variant="ghost" className="size-8">
+                            <Link href={`/exam-management/${e.id}`}>
+                              <Settings2 className="size-4" />
+                              <span className="sr-only">{t("examMgmt.configure")}</span>
+                            </Link>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{t("examMgmt.configure")}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </TableCell>
                 </TableRow>
               ))}

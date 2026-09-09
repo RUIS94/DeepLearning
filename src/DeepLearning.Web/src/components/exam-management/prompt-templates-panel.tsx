@@ -18,6 +18,7 @@ import {
 } from "@/lib/api/exam-config";
 import { promptTemplateFormSchema, type PromptTemplateFormInput } from "@/lib/validation/admin";
 import type { PromptTemplate } from "@/lib/types/dtos";
+import { AiOperationType } from "@/lib/types/enums";
 import { useT, type TranslateFn } from "@/lib/i18n";
 import { useEnumLabels, type EnumLabels } from "@/lib/i18n/enum-labels";
 
@@ -82,10 +83,28 @@ const defaultValues: PromptTemplateFormInput = {
 export function PromptTemplatesPanel({ createRef }: { createRef?: Ref<CrudCreateHandle> }) {
   const t = useT();
   const { AiOperationTypeLabel, SubjectCategoryLabel, TemplateLayerLabel } = useEnumLabels();
-  // 稳定顺序：按枚举值升序展示各用途分组。
+  // 稳定顺序：按下面这份业务排序展示各用途分组（未列出的类型排在末尾，按枚举值兜底）。
+  const groupOrder: number[] = [
+    AiOperationType.question_gen,
+    AiOperationType.grading,
+    AiOperationType.followup,
+    AiOperationType.followup_summary,
+    AiOperationType.score_challenge_summary,
+    AiOperationType.deep_learning,
+    AiOperationType.vocab_semantic_drift,
+    AiOperationType.weak_point_classification,
+    AiOperationType.weak_point_detection_criteria,
+    AiOperationType.weak_point_recheck,
+    AiOperationType.progress_trend,
+    AiOperationType.standard_revision,
+  ];
+  const rank = (value: number) => {
+    const i = groupOrder.indexOf(value);
+    return i === -1 ? groupOrder.length + value : i;
+  };
   const templateTypeGroups = Object.entries(AiOperationTypeLabel)
     .map(([value, label]) => ({ value: Number(value), label }))
-    .sort((a, b) => a.value - b.value);
+    .sort((a, b) => rank(a.value) - rank(b.value));
   const queryClient = useQueryClient();
   const examTypes = useQuery({ queryKey: ["admin", "exam-types"], queryFn: listExamTypes });
 

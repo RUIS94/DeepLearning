@@ -14,11 +14,6 @@ import type { ErrorTaxonomy } from "@/lib/types/dtos";
 import { useT, type TranslateFn } from "@/lib/i18n";
 
 const buildColumns = (t: TranslateFn): CrudColumn<ErrorTaxonomy>[] => [
-  {
-    key: "categoryKey",
-    header: "Key",
-    render: (row) => <span className="font-mono text-xs">{row.categoryKey}</span>,
-  },
   { key: "categoryName", header: t("common.name"), render: (row) => row.categoryName },
   {
     key: "description",
