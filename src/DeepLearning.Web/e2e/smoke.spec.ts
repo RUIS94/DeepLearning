@@ -17,8 +17,10 @@ const EMAIL = process.env["E2E_USER_EMAIL"];
 const PASSWORD = process.env["E2E_USER_PASSWORD"];
 
 test.skip(
-  !EMAIL || !PASSWORD,
-  "E2E_USER_EMAIL / E2E_USER_PASSWORD not set — put them in src/DeepLearning.Web/.env.e2e.local",
+  //!EMAIL || !PASSWORD,
+  //"E2E_USER_EMAIL / E2E_USER_PASSWORD not set — put them in src/DeepLearning.Web/.env.e2e.local",
+  true,
+  "Intentionally disabled — this spec writes real submissions to Supabase. Re-enable only after confirming target DB and adding post-test cleanup.",
 );
 
 test("login → open a TaskA question → submit → grading starts as the real Supabase user (C1)", async ({
