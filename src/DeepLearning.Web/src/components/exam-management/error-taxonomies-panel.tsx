@@ -12,6 +12,7 @@ import { createErrorTaxonomy, listErrorTaxonomiesByExamType } from "@/lib/api/ex
 import { errorTaxonomyFormSchema, type ErrorTaxonomyFormInput } from "@/lib/validation/admin";
 import type { ErrorTaxonomy } from "@/lib/types/dtos";
 import { useT, type TranslateFn } from "@/lib/i18n";
+import { qk } from "@/lib/query-keys";
 
 const buildColumns = (t: TranslateFn): CrudColumn<ErrorTaxonomy>[] => [
   { key: "categoryName", header: t("common.name"), render: (row) => row.categoryName },
@@ -62,9 +63,13 @@ export function ErrorTaxonomiesPanel({
   const columns = buildColumns(t);
   const fields = buildFields(t);
   const queryClient = useQueryClient();
-  const key = ["admin", "error-taxonomies", examTypeId];
+  // 合并前这里自成一个 ["admin","error-taxonomies",examTypeId] 命名空间，跟
+  // useErrorTaxonomies(hooks/use-exam-config.ts)读同一个 listErrorTaxonomiesByExamType(examTypeId)
+  // 接口却用 ["exam-config","error-taxonomies",examTypeId]——在这里新建错误类别不会让
+  // import-question-panel 等消费 useErrorTaxonomies 的地方失效。现在共用一个
+  // qk.examConfigErrorTaxonomies 命名空间（代码复用扫描_07_优化计划.md §4.1b）。
   const taxonomies = useQuery({
-    queryKey: key,
+    queryKey: qk.examConfigErrorTaxonomies(examTypeId),
     queryFn: () => listErrorTaxonomiesByExamType(examTypeId),
   });
 
@@ -88,7 +93,9 @@ export function ErrorTaxonomiesPanel({
           exampleCases: values.exampleCases || null,
         })
       }
-      onChanged={() => queryClient.invalidateQueries({ queryKey: key })}
+      onChanged={() =>
+        queryClient.invalidateQueries({ queryKey: qk.examConfigErrorTaxonomies(examTypeId) })
+      }
     />
   );
 }

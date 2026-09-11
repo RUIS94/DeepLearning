@@ -18,6 +18,8 @@ import type { AssessmentDimension } from "@/lib/types/dtos";
 import { formatDate } from "@/lib/band";
 import { useT, type TranslateFn } from "@/lib/i18n";
 import { useEnumLabels, type EnumLabels } from "@/lib/i18n/enum-labels";
+import { qk } from "@/lib/query-keys";
+import { enumOptions } from "@/lib/enum-options";
 
 const buildColumns = (
   t: TranslateFn,
@@ -59,7 +61,7 @@ const buildFields = (
     label: t("examMgmt.dim.fieldScaleType"),
     kind: "select",
     valueType: "number",
-    options: Object.entries(ScaleTypeLabel).map(([v, l]) => ({ value: v, label: l })),
+    options: enumOptions(ScaleTypeLabel),
   },
   {
     name: "passThreshold",
@@ -72,10 +74,7 @@ const buildFields = (
     label: t("examMgmt.dim.fieldApplicableTaskType"),
     kind: "select",
     valueType: "number",
-    options: [
-      { value: "-1", label: t("examMgmt.dim.taskTypeAny") },
-      ...Object.entries(TaskTypeLabel).map(([v, l]) => ({ value: v, label: l })),
-    ],
+    options: [{ value: "-1", label: t("examMgmt.dim.taskTypeAny") }, ...enumOptions(TaskTypeLabel)],
   },
   {
     name: "levelDescriptions",
@@ -147,12 +146,17 @@ export function DimensionsPanel({
   const columns = buildColumns(t, ScaleTypeLabel);
   const fields = buildFields(t, ScaleTypeLabel, TaskTypeLabel);
   const queryClient = useQueryClient();
-  const key = ["admin", "dimensions", examTypeId];
+  // 合并前这里自成一个 ["admin","dimensions",examTypeId] 命名空间，跟 grading-result-panel.tsx
+  // 读同一个 listAssessmentDimensions(examTypeId) 接口却用 ["assessment-dimensions",examTypeId]——
+  // 在这里编辑评分维度（含 passThreshold）不会让批改结果页已缓存的维度数据失效，要等它自己下次
+  // 重新拉取才会看到新值。现在共用一个 qk.assessmentDimensions 命名空间，两边同步失效
+  // （代码复用扫描_07_优化计划.md §4.1b）。
   const dimensions = useQuery({
-    queryKey: key,
+    queryKey: qk.assessmentDimensions(examTypeId),
     queryFn: () => listAssessmentDimensions(examTypeId),
   });
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: key });
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: qk.assessmentDimensions(examTypeId) });
 
   const all = dimensions.data ?? [];
   const taskA = all.filter((d) => d.applicableTaskType !== 1);

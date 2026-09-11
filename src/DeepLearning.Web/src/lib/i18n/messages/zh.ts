@@ -154,6 +154,7 @@ const zh: Record<MessageKey, string> = {
   "weakPoints.classificationUpdated": "归类已更新",
   "weakPoints.classificationFailed": "归类失败",
   "weakPoints.empty": "暂无薄弱点。继续练习，AI 会自动识别并归类。",
+  "weakPoints.uncategorized": "未归类",
   "weakPointCard.priority": "{priority}优先级",
   "weakPointCard.firstDetected": "首次发现 {date}",
   "weakPointCard.lastSeen": "最近一次 {date}",

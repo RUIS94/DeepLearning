@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { findOverlappingAnnotations } from "./submission";
+import { findOverlappingAnnotations, isValidRange, isWithinBounds } from "./task-b-ranges";
 
 /**
  * 镜像后端 `ImportUserQuestionValidator`（AGENTS.md 里点名"这是最值得参考的一个校验器"）：
@@ -78,14 +78,14 @@ export const importUserQuestionSchema = z
     }
     const len = flawedTranslationText.length;
     seededErrors.forEach((e, i) => {
-      if (e.positionStart >= e.positionEnd) {
+      if (!isValidRange(e.positionStart, e.positionEnd)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "v.endGtStartPosition",
           path: ["taskB", "seededErrors", i, "positionEnd"],
         });
       }
-      if (e.positionStart < 0 || e.positionEnd > len) {
+      if (!isWithinBounds(e.positionStart, e.positionEnd, len)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `v.rangeWithinLength::${len}`,

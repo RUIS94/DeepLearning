@@ -474,8 +474,9 @@ export interface GenerateDeepLearningContentResponse extends DeepLearningContent
 
 export interface WeakPoint {
   id: string;
-  /** catalog kind name, or the legacy "{维度} - {类别}" label, or "(未归类)". */
-  label: string;
+  /** catalog kind name, or the legacy "{维度} - {类别}" label. Null when neither exists — the
+   * frontend picks the "uncategorized" text, not the backend (see lib/i18n messages "weakPoint.uncategorized"). */
+  label: string | null;
   /** Per-learner rolling AI summary of how this learner manifests the weak point. */
   patternSummary: string | null;
   firstDetectedAt: string;

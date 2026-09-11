@@ -2,7 +2,6 @@ using System.Text.Json.Serialization;
 using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Common;
-using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
 
 namespace DeepLearning.Infrastructure.Ai
@@ -71,73 +70,48 @@ namespace DeepLearning.Infrastructure.Ai
                 return empty;
             }
 
-            var aiCallLog = new AiCallLog
-            {
-                Id = Guid.NewGuid(),
-                RequestType = AiOperationType.vocab_semantic_drift,
-                Status = CallStatus.calling,
-                AttemptCount = 1,
-                MaxRetries = 3,
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
-
-            try
-            {
-                await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.vocab_semantic_drift, cancellationToken);
-                var payload = await AdaptiveCompletionRunner.RunAsync(
-                    _aiCallRetryExecutor,
-                    llmClient,
-                    aiCallLog,
-                    prompt,
-                    initialBudget: AiOutputBudget.ShortInitial,
-                    maxBudget: AiOutputBudget.ShortMax,
-                    parse: ParsePayload,
-                    temperature: 0m,
-                    cancellationToken: cancellationToken);
-
-                // Map the AI's echoed englishExpr back to the caller's canonical_key.
-                var keyByNormalized = items
-                    .GroupBy(i => Normalize(i.EnglishExpr))
-                    .ToDictionary(g => g.Key, g => g.First().CanonicalKey);
-
-                var result = new Dictionary<string, string>();
-                foreach (var r in payload.Results ?? [])
+            return await AiCallScope.RunAsync(
+                _aiCallLogRepository,
+                _unitOfWork,
+                AiOperationType.vocab_semantic_drift,
+                async aiCallLog =>
                 {
-                    if (r.Changed != true
-                        || string.IsNullOrWhiteSpace(r.UpdatedSemantics)
-                        || string.IsNullOrWhiteSpace(r.EnglishExpr)
-                        || !keyByNormalized.TryGetValue(Normalize(r.EnglishExpr), out var canonicalKey))
+                    var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.vocab_semantic_drift, cancellationToken);
+                    var payload = await AdaptiveCompletionRunner.RunAsync(
+                        _aiCallRetryExecutor,
+                        llmClient,
+                        aiCallLog,
+                        prompt,
+                        initialBudget: AiOutputBudget.ShortInitial,
+                        maxBudget: AiOutputBudget.ShortMax,
+                        parse: ParsePayload,
+                        temperature: 0m,
+                        cancellationToken: cancellationToken);
+
+                    // Map the AI's echoed englishExpr back to the caller's canonical_key.
+                    var keyByNormalized = items
+                        .GroupBy(i => Normalize(i.EnglishExpr))
+                        .ToDictionary(g => g.Key, g => g.First().CanonicalKey);
+
+                    var result = new Dictionary<string, string>();
+                    foreach (var r in payload.Results ?? [])
                     {
-                        continue;
+                        if (r.Changed != true
+                            || string.IsNullOrWhiteSpace(r.UpdatedSemantics)
+                            || string.IsNullOrWhiteSpace(r.EnglishExpr)
+                            || !keyByNormalized.TryGetValue(Normalize(r.EnglishExpr), out var canonicalKey))
+                        {
+                            continue;
+                        }
+
+                        result[canonicalKey] = r.UpdatedSemantics.Trim();
                     }
 
-                    result[canonicalKey] = r.UpdatedSemantics.Trim();
-                }
-
-                aiCallLog.Status = CallStatus.success;
-                aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
-                await _unitOfWork.SaveChangesAsync(CancellationToken.None);
-                return result;
-            }
-            catch (Exception ex)
-            {
-                try
-                {
-                    aiCallLog.Status = CallStatus.final_failure;
-                    aiCallLog.LastErrorMessage = $"Vocab semantic-drift analysis failed: {ex.Message}";
-                    aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
-                    await _unitOfWork.SaveChangesAsync(CancellationToken.None);
-                }
-                catch
-                {
-                    // ignored
-                }
-
-                return empty;
-            }
+                    return result;
+                },
+                onFailure: _ => empty,
+                failureMessagePrefix: "Vocab semantic-drift analysis failed",
+                cancellationToken);
         }
 
         // TextNormalization.CanonicalKey caps at 255 (the canonical_key column length) — matching

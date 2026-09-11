@@ -10,7 +10,8 @@ import { AiGeneratePanel } from "@/components/practice/ai-generate-panel";
 import { useImportPanel } from "@/components/practice/import-question-panel";
 import { QuestionRecordsModal } from "@/components/practice/question-records-modal";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonList } from "@/components/shared/skeleton-list";
+import { EmptyState } from "@/components/shared/empty-state";
 import {
   Select,
   SelectContent,
@@ -26,6 +27,8 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import type { QuestionListItem } from "@/lib/types/dtos";
+import { qk } from "@/lib/query-keys";
+import { enumOptions } from "@/lib/enum-options";
 
 const ALL = "all";
 
@@ -54,9 +57,9 @@ export function PracticePage() {
     router.push(`/practice/${questionId}`);
   });
 
-  const categories = useQuery({ queryKey: ["categories"], queryFn: () => listCategories() });
+  const categories = useQuery({ queryKey: qk.categories(), queryFn: () => listCategories() });
   const questions = useQuery({
-    queryKey: ["questions", taskType, difficulty, categoryId, userId],
+    queryKey: qk.questions(taskType, difficulty, categoryId, userId),
     queryFn: () =>
       listQuestions({
         taskType: taskType === ALL ? undefined : Number(taskType),
@@ -90,9 +93,9 @@ export function PracticePage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>{t("practice.filter.allTaskTypes")}</SelectItem>
-            {Object.entries(TaskTypeLabel).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
+            {enumOptions(TaskTypeLabel).map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -104,9 +107,9 @@ export function PracticePage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>{t("practice.filter.allDifficulties")}</SelectItem>
-            {Object.entries(DifficultyLabel).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
+            {enumOptions(DifficultyLabel).map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -128,11 +131,11 @@ export function PracticePage() {
       </div>
 
       {questions.isPending ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <Skeleton key={i} className="h-40 w-full rounded-xl" />
-          ))}
-        </div>
+        <SkeletonList
+          count={6}
+          itemClassName="h-40 rounded-xl"
+          containerClassName="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        />
       ) : questions.data?.length ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {questions.data.map((q) => (
@@ -140,9 +143,7 @@ export function PracticePage() {
           ))}
         </div>
       ) : (
-        <p className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
-          {t("practice.empty")}
-        </p>
+        <EmptyState>{t("practice.empty")}</EmptyState>
       )}
 
       <AiGeneratePanel open={genOpen} onOpenChange={setGenOpen} gen={gen} />

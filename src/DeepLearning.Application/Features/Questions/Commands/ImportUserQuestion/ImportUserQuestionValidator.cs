@@ -63,22 +63,15 @@ namespace DeepLearning.Application.Features.Questions.Commands.ImportUserQuestio
         private static bool AllSeededErrorsFitWithinFlawedText(ImportUserQuestionCommand command)
         {
             var length = command.FlawedTranslationText?.Length ?? 0;
+            // Deliberately not TaskBSeededErrorValidation.AllWithinBounds here: this rule only
+            // checks the upper bound (PositionEnd <= length) — PositionStart >= 0 and
+            // PositionEnd > PositionStart are already their own separate per-item rules above
+            // with their own field names/messages, so folding them in here would double-report.
             return command.SeededErrors.All(e => e.PositionStart >= 0 && e.PositionEnd <= length);
         }
 
         private static bool NotOverlap(List<SeededErrorInput> errors)
-        {
-            var sorted = errors.OrderBy(e => e.PositionStart).ToList();
-            for (var i = 1; i < sorted.Count; i++)
-            {
-                if (sorted[i].PositionStart < sorted[i - 1].PositionEnd)
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
+            => TaskBSeededErrorValidation.NoOverlaps(errors.Select(e => new TaskBSeededErrorValidation.Range(e.PositionStart, e.PositionEnd, string.Empty)));
 
         private static bool BeValidJsonOrNull(string? value)
         {

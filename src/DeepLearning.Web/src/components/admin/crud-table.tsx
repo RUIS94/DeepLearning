@@ -23,6 +23,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { showToast } from "@/components/ui/toast";
 import { ApiError } from "@/lib/api/fetcher";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -410,9 +411,7 @@ export function CrudTable<TItem, TFormValues extends FieldValues>({
           </Table>
         </div>
       ) : (
-        <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-          {emptyMsg}
-        </p>
+        <EmptyState>{emptyMsg}</EmptyState>
       )}
 
       {onDelete ? (

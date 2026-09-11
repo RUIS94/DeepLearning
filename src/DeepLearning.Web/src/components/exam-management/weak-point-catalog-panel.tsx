@@ -39,7 +39,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { showToast } from "@/components/ui/toast";
-import { ApiError } from "@/lib/api/fetcher";
+import { apiErrorMessage } from "@/lib/api/fetcher";
+import { qk } from "@/lib/query-keys";
 
 /** 薄弱点种类现在是全局共享的（不再按考试类型划分，见 策划书 §1.2），这个面板只是仍挂在考试配置页下展示。 */
 export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreateHandle> }) {
@@ -54,13 +55,12 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
     },
   ];
   const queryClient = useQueryClient();
-  const key = ["admin", "weak-point-catalog"];
   const catalog = useQuery({
-    queryKey: key,
+    queryKey: qk.adminWeakPointCatalog(),
     queryFn: () => listWeakPointCatalog(),
   });
   const categories = useQuery({
-    queryKey: ["admin", "weak-point-categories"],
+    queryKey: qk.adminWeakPointCategories(),
     queryFn: () => listWeakPointCategories(),
   });
   const categoryOptions = (categories.data ?? []).map((c) => ({ value: c.id, label: c.name }));
@@ -135,7 +135,7 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
     status: String(WeakPointCatalogStatus.active),
   };
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: key });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: qk.adminWeakPointCatalog() });
 
   const commonTableProps = {
     hideCreate: true as const,
@@ -248,7 +248,7 @@ function MergeControl({
       showToast({
         variant: "error",
         title: t("examMgmt.wpc.mergeFailed"),
-        description: err instanceof ApiError ? (err.problem?.title ?? "") : "",
+        description: apiErrorMessage(err),
       }),
   });
 

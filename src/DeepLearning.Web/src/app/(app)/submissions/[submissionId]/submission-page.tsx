@@ -24,6 +24,7 @@ import {
 } from "@/lib/api/submissions";
 import { useExamType } from "@/hooks/use-exam-config";
 import { isResultVisible } from "@/lib/submission-status";
+import { qk } from "@/lib/query-keys";
 import {
   CheckpointImportance,
   SubmissionStatus,
@@ -69,7 +70,7 @@ export function SubmissionPage() {
   const [pointsOpen, setPointsOpen] = useState(true);
 
   const submission = useQuery({
-    queryKey: ["submission", submissionId],
+    queryKey: qk.submission(submissionId),
     queryFn: () => getSubmissionById(submissionId),
     // 批改期间不定时轮询——由下面的 gradingWatch 长轮询盯着，结束时才回来刷一次。
     // 唯一的例外是薄弱点还在后台生成时：那只是个标签，30 秒翻一次完全够用。
@@ -81,7 +82,7 @@ export function SubmissionPage() {
     },
   });
   const question = useQuery({
-    queryKey: ["question", submission.data?.questionId],
+    queryKey: qk.question(submission.data?.questionId),
     queryFn: () => getQuestionById(submission.data!.questionId),
     enabled: !!submission.data,
   });
@@ -105,7 +106,7 @@ export function SubmissionPage() {
   // 它就立刻返回，我们再去刷一次 submission 把结果显示出来。这样既不用高频打后端，也不用
   // 等下一个轮询周期才看到结果。
   const gradingWatch = useQuery({
-    queryKey: ["grading-status", submissionId],
+    queryKey: qk.gradingStatus(submissionId),
     queryFn: () => watchGradingStatus(submissionId, WATCH_SECONDS),
     enabled: watching,
     // 上一个请求返回后隔 1 秒再发下一个；terminal 之后停下，交给 enabled 收尾。
@@ -120,7 +121,7 @@ export function SubmissionPage() {
   // 后端给出结论的那一刻主动刷新，而不是等某个周期到点。
   useEffect(() => {
     if (gradingWatch.data?.terminal) {
-      queryClient.invalidateQueries({ queryKey: ["submission", submissionId] });
+      queryClient.invalidateQueries({ queryKey: qk.submission(submissionId) });
     }
   }, [gradingWatch.data?.terminal, gradingWatch.data?.status, queryClient, submissionId]);
 
@@ -128,7 +129,7 @@ export function SubmissionPage() {
   const regenerate = useMutation({
     mutationFn: () => regenerateWeakPoints(submissionId, examType.data!.id),
     retry: false,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["submission", submissionId] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.submission(submissionId) }),
   });
 
   const grade = useMutation({
@@ -142,7 +143,7 @@ export function SubmissionPage() {
     // 这个 mutation 只负责"把任务交出去"，成功不等于批改完成。
     onSuccess: () => {
       setEnqueuedAt(Date.now());
-      queryClient.invalidateQueries({ queryKey: ["submission", submissionId] });
+      queryClient.invalidateQueries({ queryKey: qk.submission(submissionId) });
     },
   });
 
@@ -223,7 +224,7 @@ export function SubmissionPage() {
               key={submissionId}
               submissionId={submissionId}
               onChanged={() =>
-                queryClient.invalidateQueries({ queryKey: ["submission", submissionId] })
+                queryClient.invalidateQueries({ queryKey: qk.submission(submissionId) })
               }
             />
           ) : null}

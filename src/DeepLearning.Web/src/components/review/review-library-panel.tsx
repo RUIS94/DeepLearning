@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/shared/empty-state";
 import { useReviewLibrary } from "@/components/review/use-review-library";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { MasteryLevel } from "@/lib/types/enums";
@@ -129,11 +130,11 @@ export function ReviewLibraryList({
   if (filtered.length === 0) {
     const label = kind === "patterns" ? t("review.lib.kindPatterns") : t("review.lib.kindVocab");
     return (
-      <p className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
+      <EmptyState>
         {rows.length === 0
           ? t("review.lib.emptyNone", { kind: label })
           : t("review.lib.emptyFiltered", { kind: label })}
-      </p>
+      </EmptyState>
     );
   }
 

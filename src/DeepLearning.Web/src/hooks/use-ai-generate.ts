@@ -8,6 +8,7 @@ import { listWeakPoints } from "@/lib/api/weak-points";
 import { useExamType } from "@/hooks/use-exam-config";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Difficulty, WeakPointStatus } from "@/lib/types/enums";
+import { qk } from "@/lib/query-keys";
 
 /** "random" = 提交时从已有选项里随机取一个真实值发给后端。 */
 export const RANDOM = "random";
@@ -43,14 +44,14 @@ export function useAiGenerate(onGenerated: (questionId: string) => void) {
   const currentUser = useCurrentUser();
   const [state, setState] = useState<AiGenerateState>(INITIAL);
 
-  const categories = useQuery({ queryKey: ["categories"], queryFn: () => listCategories() });
+  const categories = useQuery({ queryKey: qk.categories(), queryFn: () => listCategories() });
   const weakPoints = useQuery({
-    queryKey: ["weak-points", currentUser.data?.id, WeakPointStatus.active],
+    queryKey: qk.weakPoints(currentUser.data?.id, WeakPointStatus.active),
     queryFn: () => listWeakPoints(currentUser.data!.id, WeakPointStatus.active),
     enabled: !!currentUser.data,
   });
   const seeds = useQuery({
-    queryKey: ["questions", "seeds"],
+    queryKey: qk.questionsSeeds(),
     queryFn: () => listQuestions({ isSeedReference: true }),
   });
 

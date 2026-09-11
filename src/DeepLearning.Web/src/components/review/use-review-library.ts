@@ -7,6 +7,7 @@ import {
   reviewPattern,
   reviewVocabItem,
 } from "@/lib/api/review-library";
+import { qk } from "@/lib/query-keys";
 
 /**
  * 复习库（句型 + 词汇表达）共享的数据层：两个列表查询、两个「标记掌握程度」变更，
@@ -17,23 +18,23 @@ export function useReviewLibrary(userId: string | undefined) {
   const queryClient = useQueryClient();
 
   const patterns = useQuery({
-    queryKey: ["review-patterns", userId],
+    queryKey: qk.reviewPatterns(userId),
     queryFn: () => listReviewPatterns(userId!),
     enabled: !!userId,
   });
   const vocab = useQuery({
-    queryKey: ["review-vocab", userId],
+    queryKey: qk.reviewVocab(userId),
     queryFn: () => listReviewVocab(userId!),
     enabled: !!userId,
   });
 
   const markPattern = useMutation({
     mutationFn: (v: { id: string; level: number }) => reviewPattern(userId!, v.id, v.level),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["review-patterns"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.reviewPatternsAll() }),
   });
   const markVocab = useMutation({
     mutationFn: (v: { id: string; level: number }) => reviewVocabItem(userId!, v.id, v.level),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["review-vocab"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.reviewVocabAll() }),
   });
 
   const domains = Array.from(

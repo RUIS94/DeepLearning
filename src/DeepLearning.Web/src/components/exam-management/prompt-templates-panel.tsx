@@ -21,6 +21,8 @@ import type { PromptTemplate } from "@/lib/types/dtos";
 import { AiOperationType } from "@/lib/types/enums";
 import { useT, type TranslateFn } from "@/lib/i18n";
 import { useEnumLabels, type EnumLabels } from "@/lib/i18n/enum-labels";
+import { qk } from "@/lib/query-keys";
+import { enumOptions } from "@/lib/enum-options";
 
 // 「用途」不再单独成列——每个 templateType 拆成一张独立的表，用途写在小标题上。
 const buildColumns = (
@@ -112,18 +114,17 @@ export function PromptTemplatesPanel({
     .map(([value, label]) => ({ value: Number(value), label }))
     .sort((a, b) => rank(a.value) - rank(b.value));
   const queryClient = useQueryClient();
-  const examTypes = useQuery({ queryKey: ["admin", "exam-types"], queryFn: listExamTypes });
+  const examTypes = useQuery({ queryKey: qk.adminExamTypes(), queryFn: listExamTypes });
 
-  const listKey = ["admin", "prompt-templates", examTypeId ?? null];
   const templates = useQuery({
-    queryKey: listKey,
+    queryKey: qk.adminPromptTemplates(examTypeId ?? null),
     // 不传 isActive -> 后端返回全部(含停用)，管理页需要看得到停用的行。
     // 传 examTypeId + includeGlobalScope -> 当前考试类型的行 + 共享(exam_type_id IS NULL)的行。
     queryFn: () =>
       listPromptTemplates(examTypeId ? { examTypeId, includeGlobalScope: true } : undefined),
   });
   const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["admin", "prompt-templates"] });
+    queryClient.invalidateQueries({ queryKey: qk.adminPromptTemplatesAll() });
 
   const examTypeName = (id: string) => (examTypes.data ?? []).find((e) => e.id === id)?.name ?? id;
   const columns = buildColumns(t, { TemplateLayerLabel, SubjectCategoryLabel }, examTypeName);
@@ -147,7 +148,7 @@ export function PromptTemplatesPanel({
       valueType: "number",
       options: [
         { value: "-1", label: t("examMgmt.tpl.subjectNone") },
-        ...Object.entries(SubjectCategoryLabel).map(([v, l]) => ({ value: v, label: l })),
+        ...enumOptions(SubjectCategoryLabel),
       ],
     },
     {
@@ -155,14 +156,14 @@ export function PromptTemplatesPanel({
       label: t("examMgmt.tpl.fieldPurpose"),
       kind: "select",
       valueType: "number",
-      options: Object.entries(AiOperationTypeLabel).map(([v, l]) => ({ value: v, label: l })),
+      options: enumOptions(AiOperationTypeLabel),
     },
     {
       name: "layer",
       label: t("examMgmt.tpl.fieldLayer"),
       kind: "select",
       valueType: "number",
-      options: Object.entries(TemplateLayerLabel).map(([v, l]) => ({ value: v, label: l })),
+      options: enumOptions(TemplateLayerLabel),
     },
     {
       name: "templateContent",

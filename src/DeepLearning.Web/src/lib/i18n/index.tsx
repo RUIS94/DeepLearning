@@ -13,6 +13,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { updateUserLanguagePreference } from "@/lib/api/users";
+import { qk } from "@/lib/query-keys";
 import { DEFAULT_LOCALE, LOCALE_STORAGE_KEY, normalizeLocale, type Locale } from "./config";
 import en, { type MessageKey } from "./messages/en";
 import zh from "./messages/zh";
@@ -103,7 +104,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
         lastServerLocale.current = next;
         updateUserLanguagePreference(userId, next)
           .then(() => {
-            queryClient.invalidateQueries({ queryKey: ["current-user"] });
+            queryClient.invalidateQueries({ queryKey: qk.currentUser() });
           })
           .catch(() => {
             /* 落库失败：本地已生效，不打扰用户 */

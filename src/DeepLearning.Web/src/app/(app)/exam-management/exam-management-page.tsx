@@ -19,11 +19,12 @@ import {
 import { listExamTypes } from "@/lib/api/exam-config";
 import { useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
+import { qk } from "@/lib/query-keys";
 
 export function ExamManagementPage() {
   const t = useT();
   const { SubjectCategoryLabel } = useEnumLabels();
-  const examTypes = useQuery({ queryKey: ["admin", "exam-types"], queryFn: listExamTypes });
+  const examTypes = useQuery({ queryKey: qk.adminExamTypes(), queryFn: listExamTypes });
 
   return (
     <PageShell title={t("nav.examManagement")} description={t("examMgmt.description")}>

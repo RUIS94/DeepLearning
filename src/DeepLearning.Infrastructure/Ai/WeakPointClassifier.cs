@@ -105,144 +105,118 @@ namespace DeepLearning.Infrastructure.Ai
                 return WeakPointClassificationResult.Empty;
             }
 
-            var aiCallLog = new AiCallLog
-            {
-                Id = Guid.NewGuid(),
-                RequestType = AiOperationType.weak_point_classification,
-                Status = CallStatus.calling,
-                AttemptCount = 1,
-                MaxRetries = 3,
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
-
-            try
-            {
-                await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-                // Temperature 0: classification into a fixed catalog should be stable.
-                // ThinkingEnabled deliberately NOT set here — whether thinking runs is an
-                // admin-controlled default (LlmProviderSettings.ThinkingEnabled, on by
-                // default), not something this call forces off. Note the interaction if
-                // the admin leaves it on: Mimo, a common active provider, ignores
-                // temperature and top_p entirely while deep thinking is on (forced to
-                // 1.0 / 0.95), so Temperature: 0 has no effect in that case — a known
-                // tradeoff the admin is accepting by leaving thinking enabled, not a bug.
-                // Providers that declare no thinking parameter are unaffected either way.
-                //
-                // MaxTokens starts at 2048 but can double up to 8192 on a truncated attempt
-                // (AdaptiveCompletionRunner) — a submission with many errors spanning many
-                // distinct catalog codes (task two needs a pattern_summary per code touched)
-                // can genuinely need more than 2048 tokens; confirmed truncating for real on
-                // 2026-09-05 (23 errors / 11 codes, cut off mid-JSON at exactly 2048 tokens).
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.weak_point_classification, cancellationToken);
-                var payload = await AdaptiveCompletionRunner.RunAsync(
-                    _aiCallRetryExecutor,
-                    llmClient,
-                    aiCallLog,
-                    prompt,
-                    initialBudget: AiOutputBudget.ShortInitial,
-                    maxBudget: AiOutputBudget.ShortMax,
-                    parse: ParsePayload,
-                    temperature: 0m,
-                    cancellationToken: cancellationToken);
-
-                // Only `active` leaves are assignable / summarisable targets — a `proposed` code
-                // the model echoed back despite the prompt is dropped here (§1.4).
-                var activeCatalog = catalog.Where(c => c.Status == WeakPointCatalogStatus.active).ToList();
-                var idByCode = activeCatalog
-                    .GroupBy(c => c.Code, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
-                var codeByCode = activeCatalog
-                    .GroupBy(c => c.Code, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(g => g.Key, g => g.First().Code, StringComparer.OrdinalIgnoreCase);
-                var validErrorIds = errors.Select(e => e.ErrorListId).ToHashSet();
-
-                var categoryCodes = catalog
-                    .Where(c => c.Category is not null)
-                    .Select(c => c.Category!.Code)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                // Guard against re-proposing a code that already exists in ANY non-deprecated
-                // status — including a `proposed` row still awaiting review.
-                var existingCatalogCodes = catalog
-                    .Select(c => c.Code)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                var errorToCatalog = new Dictionary<Guid, Guid>();
-                var proposedLeaves = new List<ProposedCatalogLeaf>();
-                var proposedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var assignment in payload.Assignments ?? [])
+            // Degrade to the rule — never let classification break weak-point tracking.
+            return await AiCallScope.RunAsync(
+                _aiCallLogRepository,
+                _unitOfWork,
+                AiOperationType.weak_point_classification,
+                async aiCallLog =>
                 {
-                    if (Guid.TryParse(assignment.ErrorId, out var errorId)
-                        && validErrorIds.Contains(errorId)
-                        && !string.IsNullOrWhiteSpace(assignment.CatalogCode)
-                        && idByCode.TryGetValue(assignment.CatalogCode.Trim(), out var catalogId))
+                    // Temperature 0: classification into a fixed catalog should be stable.
+                    // ThinkingEnabled deliberately NOT set here — whether thinking runs is an
+                    // admin-controlled default (LlmProviderSettings.ThinkingEnabled, on by
+                    // default), not something this call forces off. Note the interaction if
+                    // the admin leaves it on: Mimo, a common active provider, ignores
+                    // temperature and top_p entirely while deep thinking is on (forced to
+                    // 1.0 / 0.95), so Temperature: 0 has no effect in that case — a known
+                    // tradeoff the admin is accepting by leaving thinking enabled, not a bug.
+                    // Providers that declare no thinking parameter are unaffected either way.
+                    //
+                    // MaxTokens starts at 2048 but can double up to 8192 on a truncated attempt
+                    // (AdaptiveCompletionRunner) — a submission with many errors spanning many
+                    // distinct catalog codes (task two needs a pattern_summary per code touched)
+                    // can genuinely need more than 2048 tokens; confirmed truncating for real on
+                    // 2026-09-05 (23 errors / 11 codes, cut off mid-JSON at exactly 2048 tokens).
+                    var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.weak_point_classification, cancellationToken);
+                    var payload = await AdaptiveCompletionRunner.RunAsync(
+                        _aiCallRetryExecutor,
+                        llmClient,
+                        aiCallLog,
+                        prompt,
+                        initialBudget: AiOutputBudget.ShortInitial,
+                        maxBudget: AiOutputBudget.ShortMax,
+                        parse: ParsePayload,
+                        temperature: 0m,
+                        cancellationToken: cancellationToken);
+
+                    // Only `active` leaves are assignable / summarisable targets — a `proposed` code
+                    // the model echoed back despite the prompt is dropped here (§1.4).
+                    var activeCatalog = catalog.Where(c => c.Status == WeakPointCatalogStatus.active).ToList();
+                    var idByCode = activeCatalog
+                        .GroupBy(c => c.Code, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
+                    var codeByCode = activeCatalog
+                        .GroupBy(c => c.Code, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(g => g.Key, g => g.First().Code, StringComparer.OrdinalIgnoreCase);
+                    var validErrorIds = errors.Select(e => e.ErrorListId).ToHashSet();
+
+                    var categoryCodes = catalog
+                        .Where(c => c.Category is not null)
+                        .Select(c => c.Category!.Code)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    // Guard against re-proposing a code that already exists in ANY non-deprecated
+                    // status — including a `proposed` row still awaiting review.
+                    var existingCatalogCodes = catalog
+                        .Select(c => c.Code)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    var errorToCatalog = new Dictionary<Guid, Guid>();
+                    var proposedLeaves = new List<ProposedCatalogLeaf>();
+                    var proposedCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var assignment in payload.Assignments ?? [])
                     {
-                        errorToCatalog[errorId] = catalogId;
-                        continue;
+                        if (Guid.TryParse(assignment.ErrorId, out var errorId)
+                            && validErrorIds.Contains(errorId)
+                            && !string.IsNullOrWhiteSpace(assignment.CatalogCode)
+                            && idByCode.TryGetValue(assignment.CatalogCode.Trim(), out var catalogId))
+                        {
+                            errorToCatalog[errorId] = catalogId;
+                            continue;
+                        }
+
+                        // Only meaningful when the AI left catalogCode null (an error placed into an
+                        // existing leaf never also proposes a new one) and the suggestion looks usable:
+                        // a valid lower_snake_case code, naming an existing category, not already a
+                        // catalog code or a duplicate of another proposal in this same response.
+                        var proposal = assignment.ProposedNewLeaf;
+                        if (proposal is null
+                            || string.IsNullOrWhiteSpace(proposal.Code)
+                            || string.IsNullOrWhiteSpace(proposal.CategoryCode)
+                            || string.IsNullOrWhiteSpace(proposal.Name)
+                            || string.IsNullOrWhiteSpace(proposal.Description))
+                        {
+                            continue;
+                        }
+
+                        var code = proposal.Code.Trim();
+                        if (!System.Text.RegularExpressions.Regex.IsMatch(code, "^[a-z0-9_]+$")
+                            || existingCatalogCodes.Contains(code)
+                            || !proposedCodes.Add(code)
+                            || !categoryCodes.Contains(proposal.CategoryCode.Trim()))
+                        {
+                            continue;
+                        }
+
+                        proposedLeaves.Add(new ProposedCatalogLeaf(
+                            proposal.CategoryCode.Trim(), code, proposal.Name.Trim(), proposal.Description.Trim()));
                     }
 
-                    // Only meaningful when the AI left catalogCode null (an error placed into an
-                    // existing leaf never also proposes a new one) and the suggestion looks usable:
-                    // a valid lower_snake_case code, naming an existing category, not already a
-                    // catalog code or a duplicate of another proposal in this same response.
-                    var proposal = assignment.ProposedNewLeaf;
-                    if (proposal is null
-                        || string.IsNullOrWhiteSpace(proposal.Code)
-                        || string.IsNullOrWhiteSpace(proposal.CategoryCode)
-                        || string.IsNullOrWhiteSpace(proposal.Name)
-                        || string.IsNullOrWhiteSpace(proposal.Description))
+                    var summaries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var s in payload.Summaries ?? [])
                     {
-                        continue;
+                        if (!string.IsNullOrWhiteSpace(s.CatalogCode)
+                            && !string.IsNullOrWhiteSpace(s.PatternSummary)
+                            && codeByCode.TryGetValue(s.CatalogCode.Trim(), out var canonicalCode))
+                        {
+                            summaries[canonicalCode] = s.PatternSummary!.Trim();
+                        }
                     }
 
-                    var code = proposal.Code.Trim();
-                    if (!System.Text.RegularExpressions.Regex.IsMatch(code, "^[a-z0-9_]+$")
-                        || existingCatalogCodes.Contains(code)
-                        || !proposedCodes.Add(code)
-                        || !categoryCodes.Contains(proposal.CategoryCode.Trim()))
-                    {
-                        continue;
-                    }
-
-                    proposedLeaves.Add(new ProposedCatalogLeaf(
-                        proposal.CategoryCode.Trim(), code, proposal.Name.Trim(), proposal.Description.Trim()));
-                }
-
-                var summaries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var s in payload.Summaries ?? [])
-                {
-                    if (!string.IsNullOrWhiteSpace(s.CatalogCode)
-                        && !string.IsNullOrWhiteSpace(s.PatternSummary)
-                        && codeByCode.TryGetValue(s.CatalogCode.Trim(), out var canonicalCode))
-                    {
-                        summaries[canonicalCode] = s.PatternSummary!.Trim();
-                    }
-                }
-
-                aiCallLog.Status = CallStatus.success;
-                aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
-                await _unitOfWork.SaveChangesAsync(CancellationToken.None);
-                return new WeakPointClassificationResult(errorToCatalog, summaries, proposedLeaves);
-            }
-            catch (Exception ex)
-            {
-                // Degrade to the rule — never let classification break weak-point tracking.
-                // Best-effort mark the log failed; swallow even that if it can't be written.
-                try
-                {
-                    aiCallLog.Status = CallStatus.final_failure;
-                    aiCallLog.LastErrorMessage = $"Weak-point classification failed: {ex.Message}";
-                    aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
-                    await _unitOfWork.SaveChangesAsync(CancellationToken.None);
-                }
-                catch
-                {
-                    // ignored
-                }
-
-                return WeakPointClassificationResult.Empty;
-            }
+                    return new WeakPointClassificationResult(errorToCatalog, summaries, proposedLeaves);
+                },
+                onFailure: _ => WeakPointClassificationResult.Empty,
+                failureMessagePrefix: "Weak-point classification failed",
+                cancellationToken);
         }
 
         private static ClassificationPayload ParsePayload(string rawText) => LlmJson.Parse<ClassificationPayload>(rawText);

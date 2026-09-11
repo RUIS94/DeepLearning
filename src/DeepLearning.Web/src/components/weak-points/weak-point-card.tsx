@@ -38,7 +38,9 @@ export function WeakPointCard({
       <CardContent className="flex flex-wrap items-start justify-between gap-4 p-5">
         <div className="min-w-64 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold">{weakPoint.label}</h3>
+            <h3 className="text-sm font-semibold">
+              {weakPoint.label ?? t("weakPoints.uncategorized")}
+            </h3>
             <Badge
               variant="outline"
               className={cn(

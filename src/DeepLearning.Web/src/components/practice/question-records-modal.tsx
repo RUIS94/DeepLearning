@@ -12,11 +12,12 @@ import {
 } from "@/components/ui/center-modal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonList } from "@/components/shared/skeleton-list";
 import { listSubmissions } from "@/lib/api/submissions";
 import { useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import { formatDate } from "@/lib/band";
+import { qk } from "@/lib/query-keys";
 
 /** 「打开做过的记录」—— 列出当前用户对某题的历史提交,点进去看当次批改结果。 */
 export function QuestionRecordsModal({
@@ -35,7 +36,7 @@ export function QuestionRecordsModal({
   const t = useT();
   const { SubmissionStatusLabel } = useEnumLabels();
   const records = useQuery({
-    queryKey: ["submissions", userId, questionId],
+    queryKey: qk.submissionsForQuestion(userId, questionId),
     queryFn: () => listSubmissions(userId!, questionId!),
     enabled: open && !!userId && !!questionId,
   });
@@ -46,11 +47,7 @@ export function QuestionRecordsModal({
         <CenterModalHeader title={t("records.modal.title")} description={questionTitle} />
         <CenterModalBody>
           {records.isPending ? (
-            <div className="space-y-2">
-              {[0, 1, 2].map((i) => (
-                <Skeleton key={i} className="h-14 w-full rounded-lg" />
-              ))}
-            </div>
+            <SkeletonList count={3} itemClassName="h-14 rounded-lg" />
           ) : (records.data ?? []).length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               {t("records.modal.empty")}

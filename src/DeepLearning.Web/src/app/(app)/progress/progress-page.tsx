@@ -8,6 +8,7 @@ import { BandTrendChart } from "@/components/progress/band-trend-chart";
 import { PassRateChart } from "@/components/progress/pass-rate-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/shared/empty-state";
 import {
   Select,
   SelectContent,
@@ -19,6 +20,7 @@ import { listProgress } from "@/lib/api/progress";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useT } from "@/lib/i18n";
 import { formatDate } from "@/lib/band";
+import { qk } from "@/lib/query-keys";
 
 const ALL = "all";
 
@@ -28,7 +30,7 @@ export function ProgressPage() {
   const currentUser = useCurrentUser();
 
   const snapshots = useQuery({
-    queryKey: ["progress", currentUser.data?.id, difficultyTier],
+    queryKey: qk.progress(currentUser.data?.id, difficultyTier),
     queryFn: () =>
       listProgress(currentUser.data!.id, difficultyTier === ALL ? undefined : difficultyTier),
     enabled: !!currentUser.data,
@@ -95,9 +97,7 @@ export function ProgressPage() {
           ) : null}
         </div>
       ) : (
-        <p className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
-          {t("progress.empty")}
-        </p>
+        <EmptyState>{t("progress.empty")}</EmptyState>
       )}
     </AppShell>
   );

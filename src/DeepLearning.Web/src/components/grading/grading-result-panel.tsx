@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { bandToColor } from "@/lib/band";
 import { isResultVisible } from "@/lib/submission-status";
+import { qk } from "@/lib/query-keys";
 import {
   ErrorSeverity,
   FollowUpThreadKind,
@@ -131,7 +132,7 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
   // 官方通过线 Band —— SubmissionDetail 不带，按当前 examType 拉一次 assessment-dimensions，按 key 映射。
   const examType = useExamType();
   const dimensions = useQuery({
-    queryKey: ["assessment-dimensions", examType.data?.id],
+    queryKey: qk.assessmentDimensions(examType.data?.id),
     queryFn: () => listAssessmentDimensions(examType.data!.id),
     enabled: !!examType.data?.id,
   });
@@ -142,7 +143,7 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
   const resultsVisible = isResultVisible(submission.status);
 
   const threads = useQuery({
-    queryKey: ["follow-up-threads", submission.id],
+    queryKey: qk.followUpThreads(submission.id),
     queryFn: () => listFollowUpThreads(submission.id),
     enabled: resultsVisible,
   });

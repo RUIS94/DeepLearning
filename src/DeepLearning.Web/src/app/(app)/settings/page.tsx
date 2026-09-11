@@ -16,26 +16,27 @@ import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { showToast } from "@/components/ui/toast";
 import { listFeatureFlags, setFeatureFlag } from "@/lib/api/feature-flags";
-import { ApiError } from "@/lib/api/fetcher";
+import { apiErrorMessage } from "@/lib/api/fetcher";
 import { useI18n, useT, type MessageKey } from "@/lib/i18n";
 import { LOCALES, LOCALE_LABELS, type Locale } from "@/lib/i18n/config";
+import { qk } from "@/lib/query-keys";
 
 function FeatureToggles() {
   const t = useT();
   const queryClient = useQueryClient();
-  const flags = useQuery({ queryKey: ["feature-flags"], queryFn: listFeatureFlags });
+  const flags = useQuery({ queryKey: qk.featureFlags(), queryFn: listFeatureFlags });
 
   const toggle = useMutation({
     mutationFn: ({ key, enabled }: { key: string; enabled: boolean }) =>
       setFeatureFlag(key, enabled),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["feature-flags"] });
+      queryClient.invalidateQueries({ queryKey: qk.featureFlags() });
       showToast({ title: t("settings.features.saved"), variant: "success" });
     },
     onError: (err) =>
       showToast({
         title: t("settings.features.saveFailed"),
-        description: err instanceof ApiError ? (err.problem?.title ?? "") : "",
+        description: apiErrorMessage(err),
         variant: "error",
       }),
   });

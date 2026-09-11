@@ -71,7 +71,11 @@ export const promptTemplateFormSchema = z
     // 上界取自 enums.ts 的 AiOperationType 本身，不再手写数字——之前硬编码 max(9) 曾经在枚举
     // 增到 10/11（score_challenge_summary/vocab_semantic_drift）后没同步，导致编辑这两类模板
     // 时 zodResolver 静默拦下提交。
-    templateType: z.number().int().min(0).max(Object.keys(AiOperationType).length - 1),
+    templateType: z
+      .number()
+      .int()
+      .min(0)
+      .max(Object.keys(AiOperationType).length - 1),
     layer: z.number().int().min(0).max(1),
     templateContent: z.string().trim().min(1, "v.templateContentRequired"),
     // 后端 CreatePromptTemplateCommand 要求显式传版本号，没有自动递增逻辑。

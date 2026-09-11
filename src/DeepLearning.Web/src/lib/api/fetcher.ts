@@ -26,6 +26,17 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The `err instanceof ApiError ? (err.problem?.title ?? "") : ""` ternary hand-copied at several
+ * mutation onError handlers for a toast's description (代码复用扫描_07_优化计划.md §4.4/R-W-13).
+ * Not for every error-to-string need in the app — crud-table.tsx's save/delete failure messages
+ * intentionally fall back to a status-specific string instead of "", so they keep their own inline
+ * logic rather than being forced through this.
+ */
+export function apiErrorMessage(err: unknown): string {
+  return err instanceof ApiError ? (err.problem?.title ?? "") : "";
+}
+
 export function createApiClient(
   baseUrl: string,
   getAuthHeader?: () => Promise<string | null>,

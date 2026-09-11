@@ -24,6 +24,7 @@ import { ErrorBanner } from "@/components/shared/ai-loading-state";
 import { RANDOM, type useAiGenerate } from "@/hooks/use-ai-generate";
 import { useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
+import { enumOptions } from "@/lib/enum-options";
 
 /**
  * AI 出题面板(SidePanel / “popup 右”)。表单与提交状态由父组件通过 useAiGenerate 持有,
@@ -66,9 +67,9 @@ export function AiGeneratePanel({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.entries(TaskTypeLabel).map(([v, l]) => (
-                        <SelectItem key={v} value={v}>
-                          {l}
+                      {enumOptions(TaskTypeLabel).map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -82,9 +83,9 @@ export function AiGeneratePanel({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={RANDOM}>{t("aiGen.random")}</SelectItem>
-                      {Object.entries(DifficultyLabel).map(([v, l]) => (
-                        <SelectItem key={v} value={v}>
-                          {l}
+                      {enumOptions(DifficultyLabel).map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -162,6 +162,7 @@ const en = {
   "weakPoints.classificationFailed": "Classification Failed",
   "weakPoints.empty":
     "No weak points yet. Keep practicing and AI will automatically identify and categorize them.",
+  "weakPoints.uncategorized": "Uncategorized",
   "weakPointCard.priority": "{priority} priority",
   "weakPointCard.firstDetected": "first detected {date}",
   "weakPointCard.lastSeen": "last seen {date}",

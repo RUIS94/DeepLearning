@@ -14,7 +14,7 @@ import {
   SidePanelHeader,
 } from "@/components/ui/side-panel";
 import { ErrorBanner } from "@/components/shared/ai-loading-state";
-import { SelectableSourceText } from "@/components/practice/selectable-source-text";
+import { TaskBAnnotator } from "@/components/practice/task-b-annotator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -41,8 +41,13 @@ import {
 import { tFormError, useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import type { MessageKey } from "@/lib/i18n/messages/en";
+import { qk } from "@/lib/query-keys";
+import { enumOptions } from "@/lib/enum-options";
+import { buildBrief } from "@/lib/brief";
 
-/** 后端 brief（jsonb）的四个可选子字段；`key` 是拼进 JSON 时用的键名，与答题页 parseBrief 对齐，不可改。 */
+/** 表单渲染用：后端 brief（jsonb）的四个可选子字段 + 各自的 i18n label/placeholder key。
+ * `key`（拼进 JSON 时用的键名）与 lib/brief.ts 的 BRIEF_FIELD_KEY 对齐，不可改——那边是
+ * buildBrief/parseBrief 共享的规范定义，这里只加这个表单特有的展示元数据。 */
 const BRIEF_FIELDS = [
   {
     name: "domain",
@@ -74,16 +79,6 @@ const BRIEF_FIELDS = [
   labelKey: MessageKey;
   placeholderKey: MessageKey;
 }[];
-
-/** 把非空子字段拼成后端 brief 的 JSON 字符串；全空则回 null。 */
-function buildBrief(brief: ImportUserQuestionFormInput["brief"]): string | null {
-  const obj: Record<string, string> = {};
-  for (const f of BRIEF_FIELDS) {
-    const v = brief?.[f.name]?.trim();
-    if (v) obj[f.key] = v;
-  }
-  return Object.keys(obj).length ? JSON.stringify(obj) : null;
-}
 
 const defaultValues: ImportUserQuestionFormInput = {
   taskType: TaskType.A,
@@ -125,7 +120,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
 
   const examType = useExamType();
   const errorTaxonomies = useErrorTaxonomies(examType.data?.id);
-  const categories = useQuery({ queryKey: ["categories"], queryFn: () => listCategories() });
+  const categories = useQuery({ queryKey: qk.categories(), queryFn: () => listCategories() });
   const selectedDraftTaxonomyId = draftTaxonomyId || errorTaxonomies.data?.[0]?.id || "";
 
   const form = useForm<ImportUserQuestionFormInput>({
@@ -183,7 +178,7 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
         title: t("import.imported.title"),
         description: t("practice.generated.description"),
       });
-      queryClient.invalidateQueries({ queryKey: ["questions"] });
+      queryClient.invalidateQueries({ queryKey: qk.questionsAll() });
       clearAll();
       setOpen(false);
       router.push(`/practice/${question.id}`);
@@ -237,9 +232,9 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {Object.entries(TaskTypeLabel).map(([v, l]) => (
-                                <SelectItem key={v} value={v}>
-                                  {l}
+                              {enumOptions(TaskTypeLabel).map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                  {o.label}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -261,9 +256,9 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {Object.entries(DifficultyLabel).map(([v, l]) => (
-                                <SelectItem key={v} value={v}>
-                                  {l}
+                              {enumOptions(DifficultyLabel).map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                  {o.label}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -405,9 +400,9 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                {Object.entries(CheckpointImportanceLabel).map(([v, l]) => (
-                                  <SelectItem key={v} value={v}>
-                                    {l}
+                                {enumOptions(CheckpointImportanceLabel).map((o) => (
+                                  <SelectItem key={o.value} value={o.value}>
+                                    {o.label}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -446,115 +441,57 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                       />
                     </div>
 
-                    {flawedText ? (
-                      <div className="space-y-3">
-                        <Label>{t("import.dragToAnnotate")}</Label>
-                        <SelectableSourceText
-                          text={flawedText}
-                          highlightRanges={seededErrors.fields.map((f) => ({
-                            positionStart: f.positionStart,
-                            positionEnd: f.positionEnd,
-                            tone: "seed" as const,
-                          }))}
-                          onSelectRange={(start, end) => {
-                            setDraft({ start, end });
-                            setDraftCorrected(flawedText.slice(start, end));
-                          }}
-                        />
-                      </div>
-                    ) : null}
-
-                    {draft ? (
-                      <div className="space-y-3 rounded-lg border border-primary/40 bg-primary/5 p-4">
-                        <p className="text-numeric text-xs text-muted-foreground">
-                          {t("import.selection", { start: draft.start, end: draft.end })}
-                        </p>
-                        <Select value={selectedDraftTaxonomyId} onValueChange={setDraftTaxonomyId}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(errorTaxonomies.data ?? []).map((tax) => (
-                              <SelectItem key={tax.id} value={tax.id}>
-                                {tax.categoryName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          value={draftCorrected}
-                          onChange={(e) => setDraftCorrected(e.target.value)}
-                          placeholder={t("import.correctTranslationPh")}
-                        />
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={!selectedDraftTaxonomyId}
-                            onClick={() => {
-                              seededErrors.append({
-                                positionStart: draft.start,
-                                positionEnd: draft.end,
-                                errorTaxonomyId: selectedDraftTaxonomyId,
-                                correctReferenceText: draftCorrected,
-                              });
-                              setDraft(null);
-                            }}
-                          >
-                            {t("import.addSeededError")}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setDraft(null)}
-                          >
-                            {t("common.cancel")}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <div className="space-y-2">
-                      <p className="text-numeric text-xs font-medium text-muted-foreground">
-                        {t("answer.annotatedCount", { count: seededErrors.fields.length })}
-                      </p>
-                      {seededErrors.fields.map((f, i) => (
-                        <div
-                          key={f.id}
-                          className="flex items-start justify-between gap-3 rounded-md border border-border p-3"
-                        >
-                          <div className="space-y-1 text-sm">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="border-accent/40 text-accent">
-                                {
-                                  errorTaxonomies.data?.find((tax) => tax.id === f.errorTaxonomyId)
-                                    ?.categoryName
-                                }
-                              </Badge>
-                              <span className="text-numeric text-xs text-muted-foreground">
-                                [{f.positionStart}, {f.positionEnd})
-                              </span>
-                            </div>
-                            <p>
-                              <span className="line-through opacity-60">
-                                {flawedText.slice(f.positionStart, f.positionEnd)}
-                              </span>
-                              <span className="mx-1">→</span>
-                              <span className="text-primary">{f.correctReferenceText}</span>
-                            </p>
-                          </div>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => seededErrors.remove(i)}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
+                    <TaskBAnnotator
+                      sourceText={flawedText}
+                      highlightTone="seed"
+                      showSourceText={flawedText.length > 0}
+                      dragHintLabel={t("import.dragToAnnotate")}
+                      items={seededErrors.fields.map((f) => ({
+                        key: f.id,
+                        start: f.positionStart,
+                        end: f.positionEnd,
+                        categoryLabel:
+                          errorTaxonomies.data?.find((tax) => tax.id === f.errorTaxonomyId)
+                            ?.categoryName ?? "",
+                        correctedText: f.correctReferenceText,
+                      }))}
+                      onRemoveItem={(i) => seededErrors.remove(i)}
+                      draft={draft}
+                      onSelectRange={(start, end) => {
+                        setDraft({ start, end });
+                        setDraftCorrected(flawedText.slice(start, end));
+                      }}
+                      onCancelDraft={() => setDraft(null)}
+                      taxonomyOptions={(errorTaxonomies.data ?? []).map((tax) => ({
+                        value: tax.id,
+                        label: tax.categoryName,
+                      }))}
+                      selectedTaxonomyValue={selectedDraftTaxonomyId}
+                      onSelectedTaxonomyValueChange={setDraftTaxonomyId}
+                      correctedText={draftCorrected}
+                      onCorrectedTextChange={setDraftCorrected}
+                      correctedTextPlaceholder={t("import.correctTranslationPh")}
+                      selectionText={
+                        draft ? t("import.selection", { start: draft.start, end: draft.end }) : ""
+                      }
+                      addButtonText={t("import.addSeededError")}
+                      addButtonDisabled={!selectedDraftTaxonomyId}
+                      cancelButtonText={t("common.cancel")}
+                      onAdd={() => {
+                        if (!draft) return;
+                        seededErrors.append({
+                          positionStart: draft.start,
+                          positionEnd: draft.end,
+                          errorTaxonomyId: selectedDraftTaxonomyId,
+                          correctReferenceText: draftCorrected,
+                        });
+                        setDraft(null);
+                      }}
+                      annotatedCountText={t("answer.annotatedCount", {
+                        count: seededErrors.fields.length,
+                      })}
+                      buttonType="button"
+                    />
                     {form.formState.errors.taskB ? (
                       <p className="text-xs text-destructive">
                         {tFormError(

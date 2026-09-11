@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidRange } from "./task-b-ranges";
 
 /**
  * 镜像后端 `CreateSubmissionValidator`（方案 §11、§3.9）：
@@ -15,7 +16,7 @@ export const taskBAnnotationSchema = z
     errorCategory: z.string().min(1, "v.selectErrorType"),
     correctedText: z.string().min(1, "v.enterCorrectedText"),
   })
-  .refine((a) => a.positionEnd > a.positionStart, {
+  .refine((a) => isValidRange(a.positionStart, a.positionEnd), {
     message: "v.selectionEndGtStart",
     path: ["positionEnd"],
   });
@@ -24,15 +25,6 @@ export const taskBContentSchema = z.array(taskBAnnotationSchema).min(1, "v.annot
 
 export type TaskBAnnotationInput = z.infer<typeof taskBAnnotationSchema>;
 
-/** 校验一组标注互不重叠（后端同一规则用于 TaskB 手工导入，这里对提交侧一并做前端提前拦截）。 */
-export function findOverlappingAnnotations(
-  annotations: { positionStart: number; positionEnd: number }[],
-) {
-  const sorted = [...annotations].sort((a, b) => a.positionStart - b.positionStart);
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i]!.positionStart < sorted[i - 1]!.positionEnd) {
-      return [sorted[i - 1], sorted[i]] as const;
-    }
-  }
-  return null;
-}
+/** 迁到 task-b-ranges.ts 后在这里重新导出——保持既有 import 路径（question-import.ts、
+ * submission.test.ts）不用改。 */
+export { findOverlappingAnnotations } from "./task-b-ranges";

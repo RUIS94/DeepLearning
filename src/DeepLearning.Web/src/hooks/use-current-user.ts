@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getSupabaseBrowserClient } from "@/lib/auth/supabase-client";
 import { getUserById } from "@/lib/api/users";
+import { qk } from "@/lib/query-keys";
 
 /**
  * 原型阶段占位用户 id——不是 public.users 表里真实存在的一行。Supabase Auth 还没配置
@@ -39,7 +40,7 @@ const FALLBACK_USER: CurrentUser = {
  */
 export function useCurrentUser() {
   return useQuery({
-    queryKey: ["current-user"],
+    queryKey: qk.currentUser(),
     queryFn: async (): Promise<CurrentUser | null> => {
       const supabase = getSupabaseBrowserClient();
       if (!supabase) return FALLBACK_USER;

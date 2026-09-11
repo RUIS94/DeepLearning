@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { listErrorTaxonomiesByExamType, listExamTypes } from "@/lib/api/exam-config";
+import { qk } from "@/lib/query-keys";
 
 /**
  * 应用目前只服务单一考试类型（NAATI CT）——取 /exam-types 列表第一条当作全局"当前 examType"
@@ -11,7 +12,7 @@ import { listErrorTaxonomiesByExamType, listExamTypes } from "@/lib/api/exam-con
  */
 export function useExamType() {
   return useQuery({
-    queryKey: ["exam-config", "exam-type"],
+    queryKey: qk.examConfigExamType(),
     queryFn: async () => {
       const list = await listExamTypes();
       return list[0] ?? null;
@@ -21,7 +22,7 @@ export function useExamType() {
 
 export function useErrorTaxonomies(examTypeId: string | undefined) {
   return useQuery({
-    queryKey: ["exam-config", "error-taxonomies", examTypeId],
+    queryKey: qk.examConfigErrorTaxonomies(examTypeId),
     queryFn: () => listErrorTaxonomiesByExamType(examTypeId!),
     enabled: !!examTypeId,
   });

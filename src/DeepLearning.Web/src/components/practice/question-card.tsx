@@ -5,11 +5,11 @@ import { ArrowRight, FileText, History, Upload } from "lucide-react";
 import type { QuestionListItem } from "@/lib/types/dtos";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Difficulty } from "@/lib/types/enums";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import { formatDate } from "@/lib/band";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { difficultyTextClass } from "@/lib/enum-tone";
 
 export function QuestionCard({
   question,
@@ -51,14 +51,7 @@ export function QuestionCard({
                 </Tooltip>
               </TooltipProvider>
             ) : null}
-            <span
-              className={cn(
-                "font-semibold",
-                question.difficulty === Difficulty.easy && "text-success",
-                question.difficulty === Difficulty.medium && "text-warning-foreground",
-                question.difficulty === Difficulty.hard && "text-destructive",
-              )}
-            >
+            <span className={cn("font-semibold", difficultyTextClass(question.difficulty))}>
               {DifficultyLabel[question.difficulty]}
             </span>
           </div>

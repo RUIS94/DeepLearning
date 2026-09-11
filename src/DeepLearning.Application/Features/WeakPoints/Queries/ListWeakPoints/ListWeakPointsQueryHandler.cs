@@ -18,7 +18,7 @@ namespace DeepLearning.Application.Features.WeakPoints.Queries.ListWeakPoints
 
             return weakPoints.Select(x => new WeakPointResultItem(
                 x.Id,
-                x.Catalog?.Name ?? x.Category ?? "(未归类)",
+                x.Catalog?.Name ?? x.Category,
                 x.PatternSummary,
                 x.FirstDetectedAt,
                 x.LastSeenAt,

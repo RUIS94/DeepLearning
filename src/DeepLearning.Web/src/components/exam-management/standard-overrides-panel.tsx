@@ -6,10 +6,11 @@ import { Scale } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SkeletonList } from "@/components/shared/skeleton-list";
+import { EmptyState } from "@/components/shared/empty-state";
 import { showToast } from "@/components/ui/toast";
-import { ApiError } from "@/lib/api/fetcher";
+import { apiErrorMessage } from "@/lib/api/fetcher";
 import {
   activateStandardOverride,
   deprecateStandardOverride,
@@ -21,12 +22,8 @@ import { cn } from "@/lib/utils";
 import type { StandardOverride } from "@/lib/types/dtos";
 import { useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
-
-const statusTone: Record<number, string> = {
-  [OverrideStatus.observing]: "bg-warning/20 text-warning-foreground",
-  [OverrideStatus.active]: "bg-success/12 text-success",
-  [OverrideStatus.deprecated]: "bg-muted text-muted-foreground",
-};
+import { qk } from "@/lib/query-keys";
+import { overrideStatusTone } from "@/lib/enum-tone";
 
 export function StandardOverridesPanel({ examTypeId }: { examTypeId?: string }) {
   const t = useT();
@@ -37,11 +34,11 @@ export function StandardOverridesPanel({ examTypeId }: { examTypeId?: string }) 
   };
   const queryClient = useQueryClient();
   const overrides = useQuery({
-    queryKey: ["standard-overrides", examTypeId ?? null],
+    queryKey: qk.standardOverrides(examTypeId ?? null),
     // 传 examTypeId -> 该考试类型的修正 + 历史/全局(exam_type_id IS NULL)的修正。
     queryFn: () => listStandardOverrides(undefined, examTypeId),
   });
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["standard-overrides"] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: qk.standardOverridesAll() });
   const [deprecating, setDeprecating] = useState<StandardOverride | null>(null);
 
   const activate = useMutation({
@@ -54,7 +51,7 @@ export function StandardOverridesPanel({ examTypeId }: { examTypeId?: string }) 
       showToast({
         variant: "error",
         title: t("examMgmt.override.promoteFailed"),
-        description: err instanceof ApiError ? (err.problem?.title ?? "") : "",
+        description: apiErrorMessage(err),
       }),
   });
 
@@ -64,11 +61,7 @@ export function StandardOverridesPanel({ examTypeId }: { examTypeId?: string }) 
       <p className="mb-4 text-xs text-muted-foreground">{t("examMgmt.sharedNotice")}</p>
 
       {overrides.isPending ? (
-        <div className="space-y-4">
-          {[0, 1].map((i) => (
-            <Skeleton key={i} className="h-24 w-full rounded-xl" />
-          ))}
-        </div>
+        <SkeletonList count={2} itemClassName="h-24 rounded-xl" containerClassName="space-y-4" />
       ) : overrides.data?.length ? (
         <div className="space-y-4">
           {overrides.data.map((o) => (
@@ -83,7 +76,7 @@ export function StandardOverridesPanel({ examTypeId }: { examTypeId?: string }) 
                     </Badge>
                     <Badge
                       variant="outline"
-                      className={cn("border-transparent", statusTone[o.status])}
+                      className={cn("border-transparent", overrideStatusTone[o.status])}
                     >
                       {OverrideStatusLabel[o.status]}
                     </Badge>
@@ -127,9 +120,7 @@ export function StandardOverridesPanel({ examTypeId }: { examTypeId?: string }) 
           ))}
         </div>
       ) : (
-        <p className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
-          {t("examMgmt.override.empty")}
-        </p>
+        <EmptyState>{t("examMgmt.override.empty")}</EmptyState>
       )}
 
       <ConfirmDialog
@@ -151,7 +142,7 @@ export function StandardOverridesPanel({ examTypeId }: { examTypeId?: string }) 
             showToast({
               variant: "error",
               title: t("examMgmt.override.deprecateFailed"),
-              description: err instanceof ApiError ? (err.problem?.title ?? "") : "",
+              description: apiErrorMessage(err),
             });
             throw err;
           }

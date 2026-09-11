@@ -16,12 +16,13 @@ import { PromptTemplatesPanel } from "@/components/exam-management/prompt-templa
 import { StandardOverridesPanel } from "@/components/exam-management/standard-overrides-panel";
 import { WeakPointCatalogPanel } from "@/components/exam-management/weak-point-catalog-panel";
 import { useT } from "@/lib/i18n";
+import { qk } from "@/lib/query-keys";
 
 export function ExamTypeConfigPage() {
   const t = useT();
   const { examTypeId } = useParams<{ examTypeId: string }>();
   const examType = useQuery({
-    queryKey: ["admin", "exam-type", examTypeId],
+    queryKey: qk.adminExamType(examTypeId),
     queryFn: () => getExamTypeById(examTypeId),
   });
 

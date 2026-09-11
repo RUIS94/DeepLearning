@@ -35,6 +35,8 @@ import type { QuestionBankCategory } from "@/lib/types/dtos";
 import { CategoryType } from "@/lib/types/enums";
 import { useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
+import { qk } from "@/lib/query-keys";
+import { enumOptions } from "@/lib/enum-options";
 
 const baseDefaultValues: QuestionBankCategoryFormInput = {
   categoryType: 0,
@@ -50,7 +52,7 @@ function TagQuestionCard({ categories }: { categories: QuestionBankCategory[] })
   const [categoryId, setCategoryId] = useState("");
   const [questionId, setQuestionId] = useState("");
   const questions = useQuery({
-    queryKey: ["admin", "questions-for-tagging"],
+    queryKey: qk.adminQuestionsForTagging(),
     queryFn: () => listQuestions(),
   });
   const tag = useMutation({ mutationFn: () => tagQuestionWithCategory(categoryId, questionId) });
@@ -119,13 +121,14 @@ export function CategoriesPanel({
   const { CategoryTypeLabel } = useEnumLabels();
   const queryClient = useQueryClient();
   const categories = useQuery({
-    queryKey: ["admin", "categories", examTypeId ?? null],
+    queryKey: qk.categories(examTypeId ?? null),
     queryFn: () => listCategories(examTypeId),
   });
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["admin", "categories"] });
-    queryClient.invalidateQueries({ queryKey: ["categories"] });
-  };
+  // 合并前这里要分别 invalidate ["admin","categories"] 和 ["categories"] 两个命名空间——
+  // categories-panel(admin)和 practice-page/import-question-panel(学员端)其实调的是同一个
+  // listCategories(examTypeId?) 接口，只是有没有传 examTypeId 的区别，现在共用一个 qk.categories
+  // 命名空间，一次 invalidate 就能覆盖所有 examTypeId 变体（代码复用扫描_07_优化计划.md §4.1b）。
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: qk.categoriesAll() });
 
   // 新建/编辑时"作用域"下拉：绑定当前考试类型 or 全局。examTypeId 缺失（理论上不会）时只留全局。
   const scopeOptions = examTypeId
@@ -145,7 +148,7 @@ export function CategoriesPanel({
       label: t("examMgmt.cat.fieldType"),
       kind: "select",
       valueType: "number",
-      options: Object.entries(CategoryTypeLabel).map(([v, l]) => ({ value: v, label: l })),
+      options: enumOptions(CategoryTypeLabel),
     },
     {
       name: "name",

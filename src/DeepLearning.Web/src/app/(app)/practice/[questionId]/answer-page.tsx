@@ -4,27 +4,18 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Highlighter, Send, Trash2 } from "lucide-react";
+import { Highlighter, Send } from "lucide-react";
 import { PageShell } from "@/components/shell/page-shell";
 import { ArticleText } from "@/components/shared/article-text";
 import { ErrorBanner } from "@/components/shared/ai-loading-state";
-import { SelectableSourceText } from "@/components/practice/selectable-source-text";
 import { DifficultyBadge, TaskTypeBadge } from "@/components/practice/difficulty-badge";
+import { TaskBAnnotator } from "@/components/practice/task-b-annotator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { CountdownTimer } from "@/components/ui/countdown-timer";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { getQuestionById, listSeedReferences } from "@/lib/api/questions";
 import { createSubmission } from "@/lib/api/submissions";
 import { useErrorTaxonomies, useExamType } from "@/hooks/use-exam-config";
@@ -33,48 +24,8 @@ import { QuestionOrigin, TaskType } from "@/lib/types/enums";
 import type { TaskBAnnotation } from "@/lib/types/dtos";
 import { taskAContentSchema, taskBContentSchema } from "@/lib/validation/submission";
 import { useT } from "@/lib/i18n";
-
-// 展示顺序：grid 逐行填充，两列 —— 第一行 Domain / Topic、Purpose，第二行 Text type、Audience。
-const BRIEF_ORDER = [
-  "domain",
-  "topic",
-  "领域",
-  "purpose",
-  "目的",
-  "textType",
-  "文本类型",
-  "audience",
-  "受众",
-];
-
-/**
- * brief 落在后端 jsonb 列（设计文档 §6.2：领域/文本类型/目的/受众），存的是一段 JSON 字符串。
- * 答题页不再把原始 JSON 丢给用户，而是拆成「label: value」两条一行展示。
- * 键可能是英文（domain/textType/purpose/audience）也可能是中文（领域/文本类型/目的/受众）；
- * labels 由调用方按当前界面语言传入。
- */
-function parseBrief(
-  brief: string | null,
-  labels: Record<string, string>,
-): { label: string; value: string }[] | null {
-  if (!brief) return null;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(brief);
-  } catch {
-    return null;
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-  const rank = (k: string) => {
-    const i = BRIEF_ORDER.indexOf(k);
-    return i === -1 ? BRIEF_ORDER.length : i;
-  };
-  const entries = Object.entries(parsed as Record<string, unknown>)
-    .filter(([, v]) => v != null && String(v).trim() !== "")
-    .sort(([a], [b]) => rank(a) - rank(b))
-    .map(([k, v]) => ({ label: labels[k] ?? k, value: String(v) }));
-  return entries.length ? entries : null;
-}
+import { qk } from "@/lib/query-keys";
+import { parseBrief } from "@/lib/brief";
 
 export function AnswerPage() {
   const t = useT();
@@ -84,12 +35,12 @@ export function AnswerPage() {
   const currentUser = useCurrentUser();
   const errorTaxonomies = useErrorTaxonomies(examType.data?.id);
   const question = useQuery({
-    queryKey: ["question", questionId],
+    queryKey: qk.question(questionId),
     queryFn: () => getQuestionById(questionId),
   });
   // design doc §11.2 Step 8 的真题溯源：AI 出题时参考了哪些真题种子，只对 ai_generated 题目有意义。
   const seedReferences = useQuery({
-    queryKey: ["seed-references", questionId],
+    queryKey: qk.seedReferences(questionId),
     queryFn: () => listSeedReferences(questionId),
     enabled: question.data?.origin === QuestionOrigin.ai_generated,
   });
@@ -148,7 +99,10 @@ export function AnswerPage() {
   const isTaskB = q.taskType === TaskType.B;
   const flawed = q.taskB?.flawedTranslationText ?? "";
   const briefEntries = parseBrief(q.brief, briefLabels);
-  const wordCount = q.wordCount ?? q.sourceText.trim().split(/\s+/).filter(Boolean).length;
+  // 直接信后端 WordCountCalculator 的结果，不在前端裸 split 兜底——中文/混排原文用空白分词
+  // 会得到一个错误的词数（代码复用扫描_07_优化计划.md §3.3）。q.wordCount 几乎不为 null，
+  // 真出现时显示占位符而不是猜一个数字。
+  const wordCount = q.wordCount ?? "—";
   // 提交前的前端校验镜像后端 CreateSubmissionValidator（方案 §11），提前拦截而非等后端 400。
   const contentValidation = isTaskB
     ? taskBContentSchema.safeParse(annotations)
@@ -237,114 +191,62 @@ export function AnswerPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-                <SelectableSourceText
-                  text={flawed}
-                  highlightRanges={annotations.map((a) => ({
-                    positionStart: a.positionStart,
-                    positionEnd: a.positionEnd,
-                    tone: "flag" as const,
+                <TaskBAnnotator
+                  sourceText={flawed}
+                  highlightTone="flag"
+                  items={annotations.map((a, i) => ({
+                    key: `${a.positionStart}-${a.positionEnd}-${i}`,
+                    start: a.positionStart,
+                    end: a.positionEnd,
+                    categoryLabel:
+                      errorTaxonomies.data?.find((tax) => tax.categoryKey === a.errorCategory)
+                        ?.categoryName ?? a.errorCategory,
+                    correctedText: a.correctedText,
                   }))}
+                  onRemoveItem={(i) => setAnnotations((prev) => prev.filter((_, idx) => idx !== i))}
+                  draft={draft}
                   onSelectRange={(start, end) => {
                     setDraft({ start, end });
                     setDraftCorrected(flawed.slice(start, end));
                   }}
+                  onCancelDraft={() => setDraft(null)}
+                  taxonomyOptions={(errorTaxonomies.data ?? []).map((tax) => ({
+                    value: tax.categoryKey,
+                    label: tax.categoryName,
+                  }))}
+                  selectedTaxonomyValue={selectedDraftCategory}
+                  onSelectedTaxonomyValueChange={setDraftCategory}
+                  errorTypeLabel={t("answer.errorType")}
+                  correctedText={draftCorrected}
+                  onCorrectedTextChange={setDraftCorrected}
+                  correctedTextLabel={t("answer.correctedText")}
+                  selectionText={
+                    draft
+                      ? t("answer.selection", {
+                          start: draft.start,
+                          end: draft.end,
+                          text: flawed.slice(draft.start, draft.end),
+                        })
+                      : ""
+                  }
+                  addButtonText={t("answer.addAnnotation")}
+                  addButtonDisabled={!selectedDraftCategory}
+                  cancelButtonText={t("common.cancel")}
+                  onAdd={() => {
+                    if (!draft) return;
+                    setAnnotations((prev) => [
+                      ...prev,
+                      {
+                        positionStart: draft.start,
+                        positionEnd: draft.end,
+                        errorCategory: selectedDraftCategory,
+                        correctedText: draftCorrected,
+                      },
+                    ]);
+                    setDraft(null);
+                  }}
+                  annotatedCountText={t("answer.annotatedCount", { count: annotations.length })}
                 />
-
-                {draft ? (
-                  <div className="space-y-3 rounded-lg border border-primary/40 bg-primary/5 p-4">
-                    <p className="text-numeric text-xs text-muted-foreground">
-                      {t("answer.selection", {
-                        start: draft.start,
-                        end: draft.end,
-                        text: flawed.slice(draft.start, draft.end),
-                      })}
-                    </p>
-                    <div className="space-y-2">
-                      <Label>{t("answer.errorType")}</Label>
-                      <Select value={selectedDraftCategory} onValueChange={setDraftCategory}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(errorTaxonomies.data ?? []).map((tax) => (
-                            <SelectItem key={tax.id} value={tax.categoryKey}>
-                              {tax.categoryName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>{t("answer.correctedText")}</Label>
-                      <Input
-                        value={draftCorrected}
-                        onChange={(e) => setDraftCorrected(e.target.value)}
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        disabled={!selectedDraftCategory}
-                        onClick={() => {
-                          setAnnotations((prev) => [
-                            ...prev,
-                            {
-                              positionStart: draft.start,
-                              positionEnd: draft.end,
-                              errorCategory: selectedDraftCategory,
-                              correctedText: draftCorrected,
-                            },
-                          ]);
-                          setDraft(null);
-                        }}
-                      >
-                        {t("answer.addAnnotation")}
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
-                        {t("common.cancel")}
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="space-y-2">
-                  <p className="text-numeric text-xs font-medium text-muted-foreground">
-                    {t("answer.annotatedCount", { count: annotations.length })}
-                  </p>
-                  {annotations.map((a, i) => (
-                    <div
-                      key={`${a.positionStart}-${a.positionEnd}-${i}`}
-                      className="flex items-start justify-between gap-3 rounded-md border border-border p-3"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="border-accent/40 text-accent">
-                            {errorTaxonomies.data?.find(
-                              (tax) => tax.categoryKey === a.errorCategory,
-                            )?.categoryName ?? a.errorCategory}
-                          </Badge>
-                          <span className="text-numeric text-xs text-muted-foreground">
-                            [{a.positionStart}, {a.positionEnd})
-                          </span>
-                        </div>
-                        <p className="text-sm">
-                          <span className="line-through opacity-60">
-                            {flawed.slice(a.positionStart, a.positionEnd)}
-                          </span>
-                          <span className="mx-1">→</span>
-                          <span className="text-primary">{a.correctedText}</span>
-                        </p>
-                      </div>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setAnnotations((prev) => prev.filter((_, idx) => idx !== i))}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
               </CardContent>
             </Card>
           ) : (

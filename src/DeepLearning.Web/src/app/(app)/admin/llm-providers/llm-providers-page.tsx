@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonList } from "@/components/shared/skeleton-list";
 import {
   activateLlmProvider,
   addLlmProviderModel,
@@ -46,6 +47,7 @@ import type {
 } from "@/lib/types/dtos";
 import { useT, type TranslateFn } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { qk } from "@/lib/query-keys";
 
 const PROVIDER_LABEL: Record<string, string> = {
   claude: "Claude (Anthropic)",
@@ -61,7 +63,10 @@ const FOLLOW_GLOBAL_VALUE = "__follow_global__";
 const FOLLOW_PROVIDER_MODEL_VALUE = "__follow_provider_model__";
 const THINKING_FOLLOW_PROVIDER = "__follow__";
 const EFFORT_AUTO = "__auto__";
-const EFFORT_OPTIONS = ["low", "medium", "high"] as const;
+// 与后端 LlmProviderSettings.Effort 的合法值对齐（Claude output_config.effort 的完整档位）——
+// 之前漏了 xhigh/max，管理员没法从下拉里选到这两档，只能等后端/数据库里已经有这个值时
+// 兜底渲染成"当前值本身"那个分支（见下方两处 EFFORT_OPTIONS.includes 判断）。
+const EFFORT_OPTIONS = ["low", "medium", "high", "xhigh", "max"] as const;
 const THINKING_ON = "on";
 const THINKING_OFF = "off";
 
@@ -94,14 +99,14 @@ function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
   const queryClient = useQueryClient();
 
   const models = useQuery({
-    queryKey: ["admin", "llm-provider-models", settings.providerKey],
+    queryKey: qk.adminLlmProviderModels(settings.providerKey),
     queryFn: () => listLlmProviderModels(settings.providerKey),
   });
 
   const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ["admin", "llm-provider-settings"] });
+    queryClient.invalidateQueries({ queryKey: qk.adminLlmProviderSettings() });
     queryClient.invalidateQueries({
-      queryKey: ["admin", "llm-provider-models", settings.providerKey],
+      queryKey: qk.adminLlmProviderModels(settings.providerKey),
     });
   };
 
@@ -223,9 +228,9 @@ function AddModelDialog({ providerKeys }: { providerKeys: string[] }) {
   const addModel = useMutation({
     mutationFn: () => addLlmProviderModel(providerKey, model.trim(), label.trim() || null),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "llm-provider-settings"] });
+      queryClient.invalidateQueries({ queryKey: qk.adminLlmProviderSettings() });
       queryClient.invalidateQueries({
-        queryKey: ["admin", "llm-provider-models", providerKey],
+        queryKey: qk.adminLlmProviderModels(providerKey),
       });
       setModel("");
       setLabel("");
@@ -317,7 +322,7 @@ function OperationOverrideRow({
   const t = useT();
   const queryClient = useQueryClient();
   const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["admin", "ai-operation-overrides"] });
+    queryClient.invalidateQueries({ queryKey: qk.adminAiOperationOverrides() });
 
   const set = useMutation({
     mutationFn: (patch: {
@@ -343,7 +348,7 @@ function OperationOverrideRow({
   // Only fetched once a provider is pinned — with no override there is nothing to pick a model
   // or thinking flag for, since both live on the override row itself.
   const models = useQuery({
-    queryKey: ["admin", "llm-provider-models", row.providerKey],
+    queryKey: qk.adminLlmProviderModels(row.providerKey),
     queryFn: () => listLlmProviderModels(row.providerKey!),
     enabled: row.providerKey !== null,
   });
@@ -498,7 +503,7 @@ function OperationOverrideRow({
 function OperationOverridesPanel({ providerKeys }: { providerKeys: string[] }) {
   const t = useT();
   const overrides = useQuery({
-    queryKey: ["admin", "ai-operation-overrides"],
+    queryKey: qk.adminAiOperationOverrides(),
     queryFn: listAiOperationOverrides,
   });
 
@@ -510,11 +515,7 @@ function OperationOverridesPanel({ providerKeys }: { providerKeys: string[] }) {
       </CardHeader>
       <CardContent>
         {overrides.isPending ? (
-          <div className="space-y-2">
-            {Array.from({ length: 10 }, (_, i) => (
-              <Skeleton key={i} className="h-9 w-full" />
-            ))}
-          </div>
+          <SkeletonList count={10} itemClassName="h-9" />
         ) : overrides.isError ? (
           <ErrorBanner error={overrides.error} />
         ) : (
@@ -553,7 +554,7 @@ function OperationOverridesPanel({ providerKeys }: { providerKeys: string[] }) {
 export function LlmProvidersPanel() {
   const t = useT();
   const settings = useQuery({
-    queryKey: ["admin", "llm-provider-settings"],
+    queryKey: qk.adminLlmProviderSettings(),
     queryFn: listLlmProviderSettings,
   });
 

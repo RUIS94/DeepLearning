@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ErrorBanner } from "@/components/shared/ai-loading-state";
+import { TypingBubble } from "@/components/shared/typing-bubble";
 import {
   addFollowUpMessage,
   closeFollowUpThread,
@@ -43,6 +44,7 @@ import type {
   FollowUpThreadDetail,
   FollowUpThreadSummary,
 } from "@/lib/types/dtos";
+import { qk } from "@/lib/query-keys";
 
 const NEW = "__new__";
 
@@ -100,11 +102,7 @@ function ChatWaiting({
   if (status === "pending") {
     return (
       <div className="flex flex-col items-start gap-1.5">
-        <div className="flex items-center gap-1 rounded-lg bg-muted px-3 py-2.5">
-          <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
-          <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
-          <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground" />
-        </div>
+        <TypingBubble />
         <span className="text-xs text-muted-foreground">{hint}</span>
       </div>
     );
@@ -201,7 +199,7 @@ export function FollowUpPanel({
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
   const threads = useQuery({
-    queryKey: ["follow-up-threads", submissionId],
+    queryKey: qk.followUpThreads(submissionId),
     queryFn: () => listFollowUpThreads(submissionId),
     // The default-trigger instance needs to know upfront whether a thread is already open
     // (so its button can say "查看进行中的追问"); the per-item instances only need it once opened.
@@ -245,16 +243,16 @@ export function FollowUpPanel({
   const viewingThreadId = composing || active === null ? null : active;
 
   const detail = useQuery({
-    queryKey: ["follow-up-thread", viewingThreadId],
+    queryKey: qk.followUpThread(viewingThreadId),
     queryFn: () => getFollowUpThread(viewingThreadId!),
     enabled: open && !!viewingThreadId,
     retry: false,
   });
 
   function applyResult(data: FollowUpThreadDetail) {
-    queryClient.setQueryData(["follow-up-thread", data.id], data);
-    queryClient.invalidateQueries({ queryKey: ["follow-up-threads", submissionId] });
-    queryClient.invalidateQueries({ queryKey: ["submission", submissionId] });
+    queryClient.setQueryData(qk.followUpThread(data.id), data);
+    queryClient.invalidateQueries({ queryKey: qk.followUpThreads(submissionId) });
+    queryClient.invalidateQueries({ queryKey: qk.submission(submissionId) });
     onChanged?.();
   }
 
@@ -435,7 +433,7 @@ export function FollowUpPanel({
                     clearDraft();
                     setConfirmingClose(false);
                     queryClient.invalidateQueries({
-                      queryKey: ["follow-up-threads", submissionId],
+                      queryKey: qk.followUpThreads(submissionId),
                     });
                   }}
                 >
@@ -524,11 +522,7 @@ export function FollowUpPanel({
                   </div>
                 </div>
                 <div className="flex items-start">
-                  <div className="flex items-center gap-1 rounded-lg bg-muted px-3 py-2.5">
-                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
-                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
-                    <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground" />
-                  </div>
+                  <TypingBubble />
                 </div>
               </>
             ) : null}

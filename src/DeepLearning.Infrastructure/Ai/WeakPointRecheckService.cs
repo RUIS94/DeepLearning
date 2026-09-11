@@ -1,7 +1,6 @@
 using System.Text.Json.Serialization;
 using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
-using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
 
 namespace DeepLearning.Infrastructure.Ai
@@ -67,88 +66,63 @@ namespace DeepLearning.Infrastructure.Ai
                 return new Dictionary<Guid, WeakPointRecheckOutcome>();
             }
 
-            var aiCallLog = new AiCallLog
-            {
-                Id = Guid.NewGuid(),
-                RequestType = AiOperationType.weak_point_recheck,
-                Status = CallStatus.calling,
-                AttemptCount = 1,
-                MaxRetries = 3,
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
-
-            try
-            {
-                await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-                // ThinkingEnabled left unset — follows the admin-configured
-                // LlmProviderSettings.ThinkingEnabled default (on unless turned off), not
-                // forced off here. See WeakPointClassifier's fuller note on the
-                // temperature/thinking interaction for providers like Mimo.
-                //
-                // MaxTokens can double up to 8192 on a truncated attempt (AdaptiveCompletionRunner)
-                // rather than staying fixed — see WeakPointClassifier's note on the 2026-09-05
-                // truncation incident this guards against.
-                var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.weak_point_recheck, cancellationToken);
-                var payload = await AdaptiveCompletionRunner.RunAsync(
-                    _aiCallRetryExecutor,
-                    llmClient,
-                    aiCallLog,
-                    prompt,
-                    initialBudget: AiOutputBudget.ShortInitial,
-                    maxBudget: AiOutputBudget.ShortMax,
-                    parse: ParsePayload,
-                    temperature: 0m,
-                    cancellationToken: cancellationToken);
-
-                var codeToWeakPointId = candidates
-                    .GroupBy(c => c.CatalogCode, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(g => g.Key, g => g.First().WeakPointId, StringComparer.OrdinalIgnoreCase);
-
-                var result = new Dictionary<Guid, WeakPointRecheckOutcome>();
-                foreach (var item in payload.Results ?? [])
+            return await AiCallScope.RunAsync(
+                _aiCallLogRepository,
+                _unitOfWork,
+                AiOperationType.weak_point_recheck,
+                async aiCallLog =>
                 {
-                    if (string.IsNullOrWhiteSpace(item.CatalogCode)
-                        || !codeToWeakPointId.TryGetValue(item.CatalogCode.Trim(), out var weakPointId))
+                    // ThinkingEnabled left unset — follows the admin-configured
+                    // LlmProviderSettings.ThinkingEnabled default (on unless turned off), not
+                    // forced off here. See WeakPointClassifier's fuller note on the
+                    // temperature/thinking interaction for providers like Mimo.
+                    //
+                    // MaxTokens can double up to 8192 on a truncated attempt (AdaptiveCompletionRunner)
+                    // rather than staying fixed — see WeakPointClassifier's note on the 2026-09-05
+                    // truncation incident this guards against.
+                    var llmClient = await _llmClientResolver.GetActiveClientAsync(AiOperationType.weak_point_recheck, cancellationToken);
+                    var payload = await AdaptiveCompletionRunner.RunAsync(
+                        _aiCallRetryExecutor,
+                        llmClient,
+                        aiCallLog,
+                        prompt,
+                        initialBudget: AiOutputBudget.ShortInitial,
+                        maxBudget: AiOutputBudget.ShortMax,
+                        parse: ParsePayload,
+                        temperature: 0m,
+                        cancellationToken: cancellationToken);
+
+                    var codeToWeakPointId = candidates
+                        .GroupBy(c => c.CatalogCode, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(g => g.Key, g => g.First().WeakPointId, StringComparer.OrdinalIgnoreCase);
+
+                    var result = new Dictionary<Guid, WeakPointRecheckOutcome>();
+                    foreach (var item in payload.Results ?? [])
                     {
-                        continue;
+                        if (string.IsNullOrWhiteSpace(item.CatalogCode)
+                            || !codeToWeakPointId.TryGetValue(item.CatalogCode.Trim(), out var weakPointId))
+                        {
+                            continue;
+                        }
+
+                        var outcome = item.Outcome?.Trim().ToLowerInvariant() switch
+                        {
+                            "resolved" => WeakPointRecheckOutcome.Resolved,
+                            "still_weak" => WeakPointRecheckOutcome.StillWeak,
+                            "not_present" => WeakPointRecheckOutcome.NotPresent,
+                            _ => (WeakPointRecheckOutcome?)null,
+                        };
+                        if (outcome is { } o)
+                        {
+                            result[weakPointId] = o;
+                        }
                     }
 
-                    var outcome = item.Outcome?.Trim().ToLowerInvariant() switch
-                    {
-                        "resolved" => WeakPointRecheckOutcome.Resolved,
-                        "still_weak" => WeakPointRecheckOutcome.StillWeak,
-                        "not_present" => WeakPointRecheckOutcome.NotPresent,
-                        _ => (WeakPointRecheckOutcome?)null,
-                    };
-                    if (outcome is { } o)
-                    {
-                        result[weakPointId] = o;
-                    }
-                }
-
-                aiCallLog.Status = CallStatus.success;
-                aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
-                await _unitOfWork.SaveChangesAsync(CancellationToken.None);
-                return result;
-            }
-            catch (Exception ex)
-            {
-                try
-                {
-                    aiCallLog.Status = CallStatus.final_failure;
-                    aiCallLog.LastErrorMessage = $"Weak-point recheck failed: {ex.Message}";
-                    aiCallLog.ResolvedAt = DateTimeOffset.UtcNow;
-                    await _unitOfWork.SaveChangesAsync(CancellationToken.None);
-                }
-                catch
-                {
-                    // ignored
-                }
-
-                return new Dictionary<Guid, WeakPointRecheckOutcome>();
-            }
+                    return result;
+                },
+                onFailure: _ => new Dictionary<Guid, WeakPointRecheckOutcome>(),
+                failureMessagePrefix: "Weak-point recheck failed",
+                cancellationToken);
         }
 
         private static RecheckPayload ParsePayload(string rawText) => LlmJson.Parse<RecheckPayload>(rawText);

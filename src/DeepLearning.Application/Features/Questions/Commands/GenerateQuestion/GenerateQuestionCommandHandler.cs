@@ -382,6 +382,10 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
         /// (domain/textType/purpose/audience) and the Chinese keys older rows used
         /// (领域/文本类型/目的/受众). All fields optional; each is trimmed and hard-capped to its
         /// column length so an over-verbose AI response can't fail the whole generation.
+        /// Frontend's independent copy of this same English/Chinese key-set knowledge is
+        /// src/DeepLearning.Web/src/lib/brief.ts's BRIEF_FIELD_ALIASES (that file points back
+        /// here too) — kept as two copies deliberately (different languages/layers), not a
+        /// shared-module target (代码复用扫描_07_优化计划.md §4.6).
         /// </summary>
         private static (string? Domain, string? TextType, string? Purpose, string? Audience) ParseBriefFields(JsonElement brief)
         {
@@ -494,26 +498,11 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             var flawedLength = payload.FlawedTranslationText.Length;
             var sorted = payload.SeededErrors.OrderBy(e => e.PositionStart).ToList();
 
-            for (var i = 0; i < sorted.Count; i++)
-            {
-                var error = sorted[i];
-
-                if (error.PositionStart < 0 || error.PositionEnd <= error.PositionStart || error.PositionEnd > flawedLength)
-                {
-                    throw new InvalidOperationException(
-                        $"seededError position [{error.PositionStart},{error.PositionEnd}) is out of bounds for the {flawedLength}-character flawedTranslationText.");
-                }
-
-                if (!taxonomiesByKey.ContainsKey(error.ErrorCategory))
-                {
-                    throw new InvalidOperationException($"seededError errorCategory '{error.ErrorCategory}' is not a known error taxonomy for this exam type.");
-                }
-
-                if (i > 0 && error.PositionStart < sorted[i - 1].PositionEnd)
-                {
-                    throw new InvalidOperationException("seededError position ranges must not overlap.");
-                }
-            }
+            TaskBSeededErrorValidation.Validate(
+                sorted.Select(e => new TaskBSeededErrorValidation.Range(e.PositionStart, e.PositionEnd, e.ErrorCategory)).ToList(),
+                flawedLength,
+                taxonomiesByKey.Keys.ToHashSet(),
+                "flawedTranslationText");
 
             // QuestionId is filled in by the caller once the Question's own Id is known.
             return sorted.Select(e => new TaskBSeededError

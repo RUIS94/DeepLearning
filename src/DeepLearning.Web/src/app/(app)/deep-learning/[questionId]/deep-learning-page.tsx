@@ -18,6 +18,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { SentencePattern, VocabExpression } from "@/lib/types/dtos";
+import { qk } from "@/lib/query-keys";
 
 /** breakdownSteps 后端存的是 AI 返回的原始 JSON（对象 {"主干": "...", ...} 或普通字符串）——两种都兜住。 */
 function BreakdownSteps({ raw }: { raw: string }) {
@@ -178,11 +179,11 @@ export function DeepLearningPage() {
   const queryClient = useQueryClient();
 
   const question = useQuery({
-    queryKey: ["question", questionId],
+    queryKey: qk.question(questionId),
     queryFn: () => getQuestionById(questionId),
   });
   const content = useQuery({
-    queryKey: ["deep-learning", questionId],
+    queryKey: qk.deepLearning(questionId),
     queryFn: () => generateDeepLearning(questionId, examType.data!.id),
     enabled: !!examType.data,
     // 这个 queryFn 会触发一次真实的 AI 生成（后端自身已重试 3 次），失败后前端不该再
@@ -198,7 +199,7 @@ export function DeepLearningPage() {
   // 追问 popup 与「当前提交」绑定——即本题最近一次提交。上一步（批改页）发起的追问用的是
   // 同一个 submissionId，所以在这里能原样看到、继续追问。
   const submissions = useQuery({
-    queryKey: ["submissions", currentUser.data?.id, questionId],
+    queryKey: qk.submissionsForQuestion(currentUser.data?.id, questionId),
     queryFn: () => listSubmissions(currentUser.data!.id, questionId),
     enabled: !!currentUser.data,
   });
@@ -238,7 +239,7 @@ export function DeepLearningPage() {
             <FollowUpPanel
               submissionId={submissionId}
               onChanged={() =>
-                queryClient.invalidateQueries({ queryKey: ["submission", submissionId] })
+                queryClient.invalidateQueries({ queryKey: qk.submission(submissionId) })
               }
             />
           ) : null}

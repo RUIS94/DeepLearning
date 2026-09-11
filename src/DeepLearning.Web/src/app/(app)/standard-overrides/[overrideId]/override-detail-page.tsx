@@ -16,12 +16,8 @@ import { formatDate } from "@/lib/band";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
-
-const statusTone: Record<number, string> = {
-  [OverrideStatus.observing]: "bg-warning/20 text-warning-foreground",
-  [OverrideStatus.active]: "bg-success/12 text-success",
-  [OverrideStatus.deprecated]: "bg-muted text-muted-foreground",
-};
+import { qk } from "@/lib/query-keys";
+import { overrideStatusTone } from "@/lib/enum-tone";
 
 export function OverrideDetailPage() {
   const t = useT();
@@ -33,12 +29,12 @@ export function OverrideDetailPage() {
   const { overrideId } = useParams<{ overrideId: string }>();
   const queryClient = useQueryClient();
   const override = useQuery({
-    queryKey: ["standard-override", overrideId],
+    queryKey: qk.standardOverride(overrideId),
     queryFn: () => getStandardOverrideById(overrideId),
   });
   const activate = useMutation({
     mutationFn: () => activateStandardOverride(overrideId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["standard-override", overrideId] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.standardOverride(overrideId) }),
   });
 
   return (
@@ -70,7 +66,7 @@ export function OverrideDetailPage() {
               </CardTitle>
               <Badge
                 variant="outline"
-                className={cn("border-transparent", statusTone[override.data.status])}
+                className={cn("border-transparent", overrideStatusTone[override.data.status])}
               >
                 {OverrideStatusLabel[override.data.status]}
               </Badge>
