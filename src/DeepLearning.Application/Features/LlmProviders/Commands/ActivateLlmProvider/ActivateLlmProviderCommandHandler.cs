@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Exceptions;
 using MediatR;
@@ -22,21 +23,18 @@ namespace DeepLearning.Application.Features.LlmProviders.Commands.ActivateLlmPro
 
             if (!target.IsActive)
             {
-                // Two separate saves, deliberately: the partial unique index on IsActive
-                // (WHERE is_active = true) is checked per-statement, not deferred, so setting
-                // the new row to true before the old one is set to false would transiently
-                // violate it within the same transaction.
                 var all = await _repository.ListAsync(cancellationToken);
-                foreach (var other in all.Where(x => x.IsActive && x.Id != target.Id))
-                {
-                    other.IsActive = false;
-                    other.UpdatedAt = DateTimeOffset.UtcNow;
-                }
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-                target.IsActive = true;
-                target.UpdatedAt = DateTimeOffset.UtcNow;
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                await ExclusiveFlag.SetAsync(
+                    all,
+                    target,
+                    get: x => x.IsActive,
+                    set: (x, v) =>
+                    {
+                        x.IsActive = v;
+                        x.UpdatedAt = DateTimeOffset.UtcNow;
+                    },
+                    _unitOfWork,
+                    cancellationToken);
             }
 
             return new ActivateLlmProviderResult(target.ProviderKey, target.IsActive);

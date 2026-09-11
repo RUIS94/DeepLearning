@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
@@ -33,7 +32,6 @@ namespace DeepLearning.Application.Features.Progress.Commands.GenerateProgressTr
         : IRequestHandler<GenerateProgressTrendSnapshotCommand, GenerateProgressTrendSnapshotResult>
     {
         private const int TrendHistoryWeeks = 4;
-        private static readonly JsonSerializerOptions PayloadJsonOptions = new() { PropertyNameCaseInsensitive = true };
 
         private readonly IExamTypeRepository _examTypeRepository;
         private readonly IProgressRepository _progressRepository;
@@ -223,12 +221,7 @@ namespace DeepLearning.Application.Features.Progress.Commands.GenerateProgressTr
             s.PassRate,
         };
 
-        private static TrendPayload ParsePayload(string rawText)
-        {
-            var json = StripMarkdownFence(rawText.Trim());
-            return JsonSerializer.Deserialize<TrendPayload>(json, PayloadJsonOptions)
-                ?? throw new InvalidOperationException("Deserialized to null.");
-        }
+        private static TrendPayload ParsePayload(string rawText) => LlmJson.Parse<TrendPayload>(rawText);
 
         // Same "structured output is a hard constraint" philosophy as every other AI-orchestration
         // handler in this codebase (design doc §10.3).
@@ -238,19 +231,6 @@ namespace DeepLearning.Application.Features.Progress.Commands.GenerateProgressTr
             {
                 throw new InvalidOperationException("trendNote must not be empty.");
             }
-        }
-
-        private static string StripMarkdownFence(string text)
-        {
-            if (!text.StartsWith("```", StringComparison.Ordinal))
-            {
-                return text;
-            }
-
-            var firstNewLine = text.IndexOf('\n');
-            var withoutOpeningFence = firstNewLine >= 0 ? text[(firstNewLine + 1)..] : text;
-            var closingFenceIndex = withoutOpeningFence.LastIndexOf("```", StringComparison.Ordinal);
-            return closingFenceIndex >= 0 ? withoutOpeningFence[..closingFenceIndex] : withoutOpeningFence;
         }
 
         private class TrendPayload

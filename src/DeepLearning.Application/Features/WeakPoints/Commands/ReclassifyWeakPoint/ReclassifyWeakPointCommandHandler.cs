@@ -47,18 +47,8 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.ReclassifyWeakPo
             bool merged;
             if (existingTarget is not null && existingTarget.Id != weakPoint.Id)
             {
-                var sourceOccurrences = await _weakPointRepository.ListOccurrencesByWeakPointAsync(weakPoint.Id, cancellationToken);
-                var targetOccurrences = await _weakPointRepository.ListOccurrencesByWeakPointAsync(existingTarget.Id, cancellationToken);
-                var targetSubmissionIds = targetOccurrences.Select(o => o.SubmissionId).ToHashSet();
-
-                var (_, delete) = WeakPointMerging.MergeInto(weakPoint, existingTarget, sourceOccurrences, targetSubmissionIds);
-                foreach (var occurrence in delete)
-                {
-                    _weakPointRepository.RemoveOccurrence(occurrence);
-                }
-
+                await WeakPointMerging.MergeAndCleanupAsync(weakPoint, existingTarget, _weakPointRepository, cancellationToken);
                 existingTarget.DetectionSource = "manual";
-                _weakPointRepository.RemoveWeakPoint(weakPoint);
                 merged = true;
             }
             else

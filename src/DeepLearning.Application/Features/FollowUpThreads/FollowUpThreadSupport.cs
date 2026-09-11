@@ -16,8 +16,6 @@ namespace DeepLearning.Application.Features.FollowUpThreads
     /// </summary>
     internal static class FollowUpThreadSupport
     {
-        private static readonly JsonSerializerOptions PayloadJsonOptions = new() { PropertyNameCaseInsensitive = true };
-
         public static async Task<FollowUpThreadContext> LoadContextAsync(
             Guid examTypeId,
             Submission submission,
@@ -128,13 +126,6 @@ namespace DeepLearning.Application.Features.FollowUpThreads
         public static HashSet<string> DimensionKeys(FollowUpThreadContext context)
             => context.Dimensions.Select(x => x.DimensionKey).ToHashSet();
 
-        public static T ParsePayload<T>(string rawText)
-        {
-            var json = StripMarkdownFence(rawText.Trim());
-            return JsonSerializer.Deserialize<T>(json, PayloadJsonOptions)
-                ?? throw new InvalidOperationException("Deserialized to null.");
-        }
-
         /// <summary>
         /// A per-round reply's verdict is optional now (design revision, 2026-09-02): a follow-up
         /// thread isn't only for disputing a judgment — it's also a place to ask about a knowledge
@@ -210,18 +201,6 @@ namespace DeepLearning.Application.Features.FollowUpThreads
             }
         }
 
-        private static string StripMarkdownFence(string text)
-        {
-            if (!text.StartsWith("```", StringComparison.Ordinal))
-            {
-                return text;
-            }
-
-            var firstNewLine = text.IndexOf('\n');
-            var withoutOpeningFence = firstNewLine >= 0 ? text[(firstNewLine + 1)..] : text;
-            var closingFenceIndex = withoutOpeningFence.LastIndexOf("```", StringComparison.Ordinal);
-            return closingFenceIndex >= 0 ? withoutOpeningFence[..closingFenceIndex] : withoutOpeningFence;
-        }
     }
 
     internal record FollowUpThreadContext(

@@ -26,6 +26,22 @@ namespace DeepLearning.Domain.Entities
         public User? User { get; set; }
 
         /// <summary>
+        /// Whether this submission has a grading result worth showing (as opposed to still being
+        /// drafted/graded/retried). Single source for "which statuses count as having a result" —
+        /// previously duplicated across a query handler and 2 frontend components (代码复用扫描
+        /// §7/R-W-11). Api's SubmissionsController.RegenerateWeakPoints has its own status guard
+        /// that currently does NOT include <see cref="SubmissionStatus.regraded"/> here — that gap
+        /// is tracked separately (a TODO on that controller action), not silently closed by this
+        /// property.
+        /// </summary>
+        public bool IsResultVisible => Status is SubmissionStatus.graded or SubmissionStatus.regraded
+            or SubmissionStatus.standard_revised or SubmissionStatus.under_dispute;
+
+        /// <summary>Whether a grading attempt is currently in flight for this submission.</summary>
+        public static bool IsGradingInProgress(SubmissionStatus status) =>
+            status is SubmissionStatus.submitted or SubmissionStatus.grading;
+
+        /// <summary>
         /// Design doc §4.1's submission/grading lifecycle state machine. GradingFailed→Grading
         /// is the retry path (re-calling grade on a submission whose previous attempt failed);
         /// Submitted→Grading only accepts the first attempt. Every other status pair is illegal.

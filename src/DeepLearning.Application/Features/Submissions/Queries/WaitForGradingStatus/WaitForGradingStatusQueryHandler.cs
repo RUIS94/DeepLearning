@@ -40,10 +40,6 @@ namespace DeepLearning.Application.Features.Submissions.Queries.WaitForGradingSt
             _submissionRepository = submissionRepository;
         }
 
-        /// <summary>Statuses that mean "a grading run is under way, keep waiting".</summary>
-        private static bool IsInProgress(SubmissionStatus status)
-            => status is SubmissionStatus.submitted or SubmissionStatus.grading;
-
         public async Task<WaitForGradingStatusResult> Handle(
             WaitForGradingStatusQuery request, CancellationToken cancellationToken)
         {
@@ -55,7 +51,7 @@ namespace DeepLearning.Application.Features.Submissions.Queries.WaitForGradingSt
                 var status = await _submissionRepository.GetStatusAsync(request.SubmissionId, cancellationToken)
                     ?? throw new NotFoundException(nameof(Submission), request.SubmissionId);
 
-                if (!IsInProgress(status))
+                if (!Submission.IsGradingInProgress(status))
                 {
                     return new WaitForGradingStatusResult(request.SubmissionId, status, true);
                 }

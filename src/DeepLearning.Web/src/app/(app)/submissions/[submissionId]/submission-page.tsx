@@ -23,6 +23,7 @@ import {
   watchGradingStatus,
 } from "@/lib/api/submissions";
 import { useExamType } from "@/hooks/use-exam-config";
+import { isResultVisible } from "@/lib/submission-status";
 import {
   CheckpointImportance,
   SubmissionStatus,
@@ -161,13 +162,7 @@ export function SubmissionPage() {
   }
 
   const s = submission.data;
-  // under_dispute 也算“已出批改结果”：一条追问线程存续期间 submission 会停在
-  // under_dispute（见 follow-up-panel.tsx），此时批改结果区域和追问入口都要照常显示。
-  const graded =
-    s.status === SubmissionStatus.graded ||
-    s.status === SubmissionStatus.standard_revised ||
-    s.status === SubmissionStatus.regraded ||
-    s.status === SubmissionStatus.under_dispute;
+  const graded = isResultVisible(s.status);
   const archived = s.status === SubmissionStatus.archived;
 
   // "批改中"以 submission 的真实状态为准，而不是那个几毫秒就返回的 POST——入队之后 mutation

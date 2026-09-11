@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
@@ -10,8 +9,6 @@ namespace DeepLearning.Infrastructure.Ai
     /// <inheritdoc cref="IWeakPointRecheckService"/>
     public class WeakPointRecheckService : IWeakPointRecheckService
     {
-        private static readonly JsonSerializerOptions PayloadJsonOptions = new() { PropertyNameCaseInsensitive = true };
-
         private readonly IExamConfigLoader _examConfigLoader;
         private readonly ILlmClientResolver _llmClientResolver;
         private readonly IAiCallRetryExecutor _aiCallRetryExecutor;
@@ -154,12 +151,7 @@ namespace DeepLearning.Infrastructure.Ai
             }
         }
 
-        private static RecheckPayload ParsePayload(string rawText)
-        {
-            var json = PromptJsonHelper.StripMarkdownFence(rawText.Trim());
-            return JsonSerializer.Deserialize<RecheckPayload>(json, PayloadJsonOptions)
-                ?? throw new InvalidOperationException("Weak-point recheck response deserialized to null.");
-        }
+        private static RecheckPayload ParsePayload(string rawText) => LlmJson.Parse<RecheckPayload>(rawText);
 
         private class RecheckPayload
         {

@@ -115,7 +115,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Queries.PreviewFollo
                     var payload = await AdaptiveCompletionRunner.RunAsync(
                         _aiCallRetryExecutor, llmClient, aiCallLog, prompt,
                         initialBudget: AiOutputBudget.MediumInitial, maxBudget: AiOutputBudget.MediumMax,
-                        parse: FollowUpThreadSupport.ParsePayload<ScoreChallengeSummaryPayload>,
+                        parse: LlmJson.Parse<ScoreChallengeSummaryPayload>,
                         validate: FollowUpThreadSupport.ValidateScoreChallengePayload,
                         cancellationToken: cancellationToken);
 
@@ -136,7 +136,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Queries.PreviewFollo
                     var payload = await AdaptiveCompletionRunner.RunAsync(
                         _aiCallRetryExecutor, llmClient, aiCallLog, prompt,
                         initialBudget: AiOutputBudget.MediumInitial, maxBudget: AiOutputBudget.MediumMax,
-                        parse: FollowUpThreadSupport.ParsePayload<FollowUpSummaryPayload>,
+                        parse: LlmJson.Parse<FollowUpSummaryPayload>,
                         validate: p => FollowUpThreadSupport.ValidateSummaryPayload(p, dimensionKeys),
                         cancellationToken: cancellationToken);
 

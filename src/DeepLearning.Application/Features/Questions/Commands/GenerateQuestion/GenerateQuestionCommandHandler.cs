@@ -13,8 +13,6 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
 {
     public class GenerateQuestionCommandHandler : IRequestHandler<GenerateQuestionCommand, GenerateQuestionResult>
     {
-        private static readonly JsonSerializerOptions PayloadJsonOptions = new() { PropertyNameCaseInsensitive = true };
-
         private readonly IExamTypeRepository _examTypeRepository;
         private readonly IUserRepository _userRepository;
         private readonly IQuestionRepository _questionRepository;
@@ -469,12 +467,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
-        private static GeneratedQuestionPayload ParsePayload(string rawText)
-        {
-            var json = StripMarkdownFence(rawText.Trim());
-            return JsonSerializer.Deserialize<GeneratedQuestionPayload>(json, PayloadJsonOptions)
-                ?? throw new InvalidOperationException("Deserialized to null.");
-        }
+        private static GeneratedQuestionPayload ParsePayload(string rawText) => LlmJson.Parse<GeneratedQuestionPayload>(rawText);
 
         /// <summary>
         /// Same structured-output-is-a-hard-constraint philosophy as GradeSubmissionCommandHandler's
@@ -533,19 +526,6 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
                 Note = e.Note,
                 CreatedAt = DateTimeOffset.UtcNow,
             }).ToList();
-        }
-
-        private static string StripMarkdownFence(string text)
-        {
-            if (!text.StartsWith("```", StringComparison.Ordinal))
-            {
-                return text;
-            }
-
-            var firstNewLine = text.IndexOf('\n');
-            var withoutOpeningFence = firstNewLine >= 0 ? text[(firstNewLine + 1)..] : text;
-            var closingFenceIndex = withoutOpeningFence.LastIndexOf("```", StringComparison.Ordinal);
-            return closingFenceIndex >= 0 ? withoutOpeningFence[..closingFenceIndex] : withoutOpeningFence;
         }
 
         private class GeneratedQuestionPayload

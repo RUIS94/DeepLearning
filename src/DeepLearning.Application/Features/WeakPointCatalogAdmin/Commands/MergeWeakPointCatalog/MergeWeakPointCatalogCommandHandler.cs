@@ -51,17 +51,7 @@ namespace DeepLearning.Application.Features.WeakPointCatalogAdmin.Commands.Merge
             {
                 if (toByUser.TryGetValue(weakPoint.UserId, out var target) && target.Id != weakPoint.Id)
                 {
-                    var sourceOccurrences = await _weakPointRepository.ListOccurrencesByWeakPointAsync(weakPoint.Id, cancellationToken);
-                    var targetOccurrences = await _weakPointRepository.ListOccurrencesByWeakPointAsync(target.Id, cancellationToken);
-                    var targetSubmissionIds = targetOccurrences.Select(o => o.SubmissionId).ToHashSet();
-
-                    var (_, delete) = WeakPointMerging.MergeInto(weakPoint, target, sourceOccurrences, targetSubmissionIds);
-                    foreach (var occurrence in delete)
-                    {
-                        _weakPointRepository.RemoveOccurrence(occurrence);
-                    }
-
-                    _weakPointRepository.RemoveWeakPoint(weakPoint);
+                    await WeakPointMerging.MergeAndCleanupAsync(weakPoint, target, _weakPointRepository, cancellationToken);
                     mergedCount++;
                 }
                 else

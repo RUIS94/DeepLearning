@@ -50,8 +50,6 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
     /// </summary>
     public class GradeSubmissionCommandHandler : IRequestHandler<GradeSubmissionCommand, GradeSubmissionResult>
     {
-        private static readonly JsonSerializerOptions PayloadJsonOptions = new() { PropertyNameCaseInsensitive = true };
-
         private const string StageEvidence = "evidence";
         private const string StageProofread = "proofread";
         private const string StageSweep = "sweep";
@@ -702,7 +700,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 prompt,
                 initialBudget: maxTokens,
                 maxBudget: MaxStageOutputTokens,
-                parse: ParsePayload<T>,
+                parse: LlmJson.Parse<T>,
                 validate: validate,
                 // Temperature 0: grading must be reproducible — the same submission against
                 // the same rubric should not swing bands run to run. (It is necessary, not
@@ -1302,26 +1300,6 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                         string.IsNullOrWhiteSpace(reportedVerdict?.Note) ? null : reportedVerdict.Note.Trim());
                 })
                 .ToList();
-        }
-
-        private static T ParsePayload<T>(string rawText)
-        {
-            var json = StripMarkdownFence(rawText.Trim());
-            return JsonSerializer.Deserialize<T>(json, PayloadJsonOptions)
-                ?? throw new InvalidOperationException("Deserialized to null.");
-        }
-
-        private static string StripMarkdownFence(string text)
-        {
-            if (!text.StartsWith("```", StringComparison.Ordinal))
-            {
-                return text;
-            }
-
-            var firstNewLine = text.IndexOf('\n');
-            var withoutOpeningFence = firstNewLine >= 0 ? text[(firstNewLine + 1)..] : text;
-            var closingFenceIndex = withoutOpeningFence.LastIndexOf("```", StringComparison.Ordinal);
-            return closingFenceIndex >= 0 ? withoutOpeningFence[..closingFenceIndex] : withoutOpeningFence;
         }
 
         private sealed record CheckpointVerdict(int Index, string CheckpointText, string Importance, string Verdict, string? Note);

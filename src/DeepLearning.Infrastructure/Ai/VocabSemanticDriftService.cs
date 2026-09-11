@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
@@ -10,8 +9,6 @@ namespace DeepLearning.Infrastructure.Ai
     /// <inheritdoc cref="IVocabSemanticDriftService"/>
     public class VocabSemanticDriftService : IVocabSemanticDriftService
     {
-        private static readonly JsonSerializerOptions PayloadJsonOptions = new() { PropertyNameCaseInsensitive = true };
-
         private readonly IExamConfigLoader _examConfigLoader;
         private readonly ILlmClientResolver _llmClientResolver;
         private readonly IAiCallRetryExecutor _aiCallRetryExecutor;
@@ -145,12 +142,7 @@ namespace DeepLearning.Infrastructure.Ai
         private static string Normalize(string value)
             => string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
 
-        private static DriftPayload ParsePayload(string rawText)
-        {
-            var json = PromptJsonHelper.StripMarkdownFence(rawText.Trim());
-            return JsonSerializer.Deserialize<DriftPayload>(json, PayloadJsonOptions)
-                ?? throw new InvalidOperationException("Vocab semantic-drift response deserialized to null.");
-        }
+        private static DriftPayload ParsePayload(string rawText) => LlmJson.Parse<DriftPayload>(rawText);
 
         private class DriftPayload
         {

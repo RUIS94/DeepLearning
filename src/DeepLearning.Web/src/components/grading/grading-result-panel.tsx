@@ -6,6 +6,7 @@ import type { SubmissionDetail } from "@/lib/types/dtos";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { bandToColor } from "@/lib/band";
+import { isResultVisible } from "@/lib/submission-status";
 import {
   ErrorSeverity,
   FollowUpThreadKind,
@@ -138,11 +139,7 @@ export function GradingResultPanel({ submission }: { submission: SubmissionDetai
     (dimensions.data ?? []).map((d) => [d.dimensionKey, parsePassBand(d.passThreshold)]),
   );
   // 结果区在这些状态下都在（见 submission-page 的 graded 判断），改判入口的可见性再据线程情况细分。
-  const resultsVisible =
-    submission.status === SubmissionStatus.graded ||
-    submission.status === SubmissionStatus.regraded ||
-    submission.status === SubmissionStatus.standard_revised ||
-    submission.status === SubmissionStatus.under_dispute;
+  const resultsVisible = isResultVisible(submission.status);
 
   const threads = useQuery({
     queryKey: ["follow-up-threads", submission.id],

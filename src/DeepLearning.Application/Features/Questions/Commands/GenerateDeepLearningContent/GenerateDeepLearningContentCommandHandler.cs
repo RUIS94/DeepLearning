@@ -22,8 +22,6 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
     /// </summary>
     public class GenerateDeepLearningContentCommandHandler : IRequestHandler<GenerateDeepLearningContentCommand, GenerateDeepLearningContentResult>
     {
-        private static readonly JsonSerializerOptions PayloadJsonOptions = new() { PropertyNameCaseInsensitive = true };
-
         private readonly IExamTypeRepository _examTypeRepository;
         private readonly IQuestionRepository _questionRepository;
         private readonly IReferenceTranslationRepository _referenceTranslationRepository;
@@ -286,12 +284,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                 vocab.Select(v => new VocabExpressionItem(v.Id, v.EnglishExpr, v.ChineseEquiv, v.ContextNote, v.Category, v.Domain, v.Scenario, v.FrequencyTag, v.LiteralTranslatable)).ToList(),
                 wasCached);
 
-        private static DeepLearningPayload ParsePayload(string rawText)
-        {
-            var json = StripMarkdownFence(rawText.Trim());
-            return JsonSerializer.Deserialize<DeepLearningPayload>(json, PayloadJsonOptions)
-                ?? throw new InvalidOperationException("Deserialized to null.");
-        }
+        private static DeepLearningPayload ParsePayload(string rawText) => LlmJson.Parse<DeepLearningPayload>(rawText);
 
         /// <summary>
         /// Same "structured output is a hard constraint" philosophy as every other AI-orchestration
@@ -336,19 +329,6 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             var collapsed = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
             var normalized = collapsed.ToLowerInvariant();
             return normalized.Length > 255 ? normalized[..255] : normalized;
-        }
-
-        private static string StripMarkdownFence(string text)
-        {
-            if (!text.StartsWith("```", StringComparison.Ordinal))
-            {
-                return text;
-            }
-
-            var firstNewLine = text.IndexOf('\n');
-            var withoutOpeningFence = firstNewLine >= 0 ? text[(firstNewLine + 1)..] : text;
-            var closingFenceIndex = withoutOpeningFence.LastIndexOf("```", StringComparison.Ordinal);
-            return closingFenceIndex >= 0 ? withoutOpeningFence[..closingFenceIndex] : withoutOpeningFence;
         }
 
         private class DeepLearningPayload

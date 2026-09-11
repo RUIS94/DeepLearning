@@ -3,7 +3,6 @@ using DeepLearning.Application.Features.StandardOverrides;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
-using DeepLearning.Domain.Events;
 using DeepLearning.Domain.Exceptions;
 using MediatR;
 
@@ -170,7 +169,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
                         prompt,
                         initialBudget: AiOutputBudget.MediumInitial,
                         maxBudget: AiOutputBudget.MediumMax,
-                        parse: FollowUpThreadSupport.ParsePayload<FollowUpSummaryPayload>,
+                        parse: LlmJson.Parse<FollowUpSummaryPayload>,
                         validate: p => FollowUpThreadSupport.ValidateSummaryPayload(p, dimensionKeys),
                         cancellationToken: cancellationToken);
                 }
@@ -276,25 +275,13 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
                 return;
             }
 
-            candidate.Status = OverrideStatus.active;
-            candidate.EffectiveFrom = DateTimeOffset.UtcNow;
-            candidate.AddDomainEvent(new StandardOverrideActivatedEvent
-            {
-                StandardOverrideId = candidate.Id,
-                Scope = candidate.Scope,
-                DimensionOrRule = candidate.DimensionOrRule,
-                PreviousOverrideId = candidate.PreviousOverrideId,
-                ActivatedAt = candidate.EffectiveFrom.Value,
-            });
-
+            StandardOverride? previous = null;
             if (candidate.PreviousOverrideId is { } previousId)
             {
-                var previous = await _standardOverrideRepository.GetByIdAsync(previousId, cancellationToken);
-                if (previous is not null)
-                {
-                    previous.Status = OverrideStatus.deprecated;
-                }
+                previous = await _standardOverrideRepository.GetByIdAsync(previousId, cancellationToken);
             }
+
+            StandardOverrideActivation.Activate(candidate, previous, DateTimeOffset.UtcNow);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
@@ -359,7 +346,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
                         prompt,
                         initialBudget: AiOutputBudget.MediumInitial,
                         maxBudget: AiOutputBudget.MediumMax,
-                        parse: FollowUpThreadSupport.ParsePayload<ScoreChallengeSummaryPayload>,
+                        parse: LlmJson.Parse<ScoreChallengeSummaryPayload>,
                         validate: FollowUpThreadSupport.ValidateScoreChallengePayload,
                         cancellationToken: cancellationToken);
                 }

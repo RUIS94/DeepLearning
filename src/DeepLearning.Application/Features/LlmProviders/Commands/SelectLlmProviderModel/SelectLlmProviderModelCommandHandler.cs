@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Exceptions;
 using MediatR;
@@ -22,19 +23,14 @@ namespace DeepLearning.Application.Features.LlmProviders.Commands.SelectLlmProvi
 
             if (!target.IsCurrent)
             {
-                // Two separate saves, deliberately: the partial unique index on ProviderKey
-                // (WHERE is_current = true) is checked per-statement, not deferred, so setting
-                // the new row to current before the old one is un-set would transiently
-                // violate it within the same transaction. Same pattern as ActivateLlmProvider.
                 var siblings = await _modelRepository.ListByProviderKeyAsync(request.ProviderKey, cancellationToken);
-                foreach (var other in siblings.Where(x => x.IsCurrent && x.Id != target.Id))
-                {
-                    other.IsCurrent = false;
-                }
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-                target.IsCurrent = true;
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                await ExclusiveFlag.SetAsync(
+                    siblings,
+                    target,
+                    get: x => x.IsCurrent,
+                    set: (x, v) => x.IsCurrent = v,
+                    _unitOfWork,
+                    cancellationToken);
             }
 
             return new SelectLlmProviderModelResult(target.ProviderKey, target.Model, target.IsCurrent);

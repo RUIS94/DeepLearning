@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
@@ -10,8 +9,6 @@ namespace DeepLearning.Infrastructure.Ai
     /// <inheritdoc cref="IWeakPointDetectionCriteriaGenerator"/>
     public class WeakPointDetectionCriteriaGenerator : IWeakPointDetectionCriteriaGenerator
     {
-        private static readonly JsonSerializerOptions PayloadJsonOptions = new() { PropertyNameCaseInsensitive = true };
-
         private readonly IExamConfigLoader _examConfigLoader;
         private readonly ILlmClientResolver _llmClientResolver;
         private readonly IAiCallRetryExecutor _aiCallRetryExecutor;
@@ -145,12 +142,7 @@ namespace DeepLearning.Infrastructure.Ai
             }
         }
 
-        private static DetectionCriteriaPayload ParsePayload(string rawText)
-        {
-            var json = PromptJsonHelper.StripMarkdownFence(rawText.Trim());
-            return JsonSerializer.Deserialize<DetectionCriteriaPayload>(json, PayloadJsonOptions)
-                ?? throw new InvalidOperationException("Weak-point detection-criteria response deserialized to null.");
-        }
+        private static DetectionCriteriaPayload ParsePayload(string rawText) => LlmJson.Parse<DetectionCriteriaPayload>(rawText);
 
         private class DetectionCriteriaPayload
         {

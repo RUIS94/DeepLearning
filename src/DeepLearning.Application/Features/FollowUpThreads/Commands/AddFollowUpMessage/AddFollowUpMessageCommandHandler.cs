@@ -121,7 +121,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.AddFollowUp
                     prompt,
                     initialBudget: AiOutputBudget.MediumInitial,
                     maxBudget: AiOutputBudget.MediumMax,
-                    parse: FollowUpThreadSupport.ParsePayload<FollowUpTurnPayload>,
+                    parse: LlmJson.Parse<FollowUpTurnPayload>,
                     validate: FollowUpThreadSupport.NormaliseTurnPayload,
                     cancellationToken: cancellationToken);
             }
