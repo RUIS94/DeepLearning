@@ -63,11 +63,11 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CreateFollo
 
         public async Task<FollowUpThreadResult> Handle(CreateFollowUpThreadCommand request, CancellationToken cancellationToken)
         {
-            _ = await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
-                ?? throw new NotFoundException(nameof(ExamType), request.ExamTypeId);
+            await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
+                .EnsureFoundAsync(nameof(ExamType), request.ExamTypeId);
 
-            _ = await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
-                ?? throw new NotFoundException(nameof(User), request.UserId);
+            await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
+                .EnsureFoundAsync(nameof(User), request.UserId);
 
             var submission = await _submissionRepository.GetByIdAsync(request.SubmissionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Submission), request.SubmissionId);

@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Exceptions;
@@ -21,17 +22,17 @@ namespace DeepLearning.Application.Features.ReviewLibrary.Commands.MarkVocabRevi
 
         public async Task<MarkVocabReviewedResult> Handle(MarkVocabReviewedCommand request, CancellationToken cancellationToken)
         {
-            _ = await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
-                ?? throw new NotFoundException(nameof(User), request.UserId);
-            _ = await _reviewLibraryRepository.GetGlossaryEntryByIdAsync(request.VocabId, cancellationToken)
-                ?? throw new NotFoundException(nameof(VocabGlossaryEntry), request.VocabId);
+            await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
+                .EnsureFoundAsync(nameof(User), request.UserId);
+            await _reviewLibraryRepository.GetGlossaryEntryByIdAsync(request.VocabId, cancellationToken)
+                .EnsureFoundAsync(nameof(VocabGlossaryEntry), request.VocabId);
 
             var now = DateTimeOffset.UtcNow;
-            var review = await _reviewLibraryRepository.GetUserVocabReviewAsync(request.UserId, request.VocabId, cancellationToken);
+            var existing = await _reviewLibraryRepository.GetUserVocabReviewAsync(request.UserId, request.VocabId, cancellationToken);
 
-            if (review is null)
-            {
-                review = new UserVocabReview
+            var review = await ReviewLibrarySupport.UpsertReviewAsync(
+                existing,
+                createNew: () => new UserVocabReview
                 {
                     Id = Guid.NewGuid(),
                     UserId = request.UserId,
@@ -40,14 +41,14 @@ namespace DeepLearning.Application.Features.ReviewLibrary.Commands.MarkVocabRevi
                     MasteryLevel = request.MasteryLevel,
                     LastReviewedAt = now,
                     CreatedAt = now,
-                };
-                await _reviewLibraryRepository.AddUserVocabReviewAsync(review, cancellationToken);
-            }
-            else
-            {
-                review.MasteryLevel = request.MasteryLevel;
-                review.LastReviewedAt = now;
-            }
+                },
+                updateExisting: r =>
+                {
+                    r.MasteryLevel = request.MasteryLevel;
+                    r.LastReviewedAt = now;
+                },
+                addAsync: _reviewLibraryRepository.AddUserVocabReviewAsync,
+                cancellationToken);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 

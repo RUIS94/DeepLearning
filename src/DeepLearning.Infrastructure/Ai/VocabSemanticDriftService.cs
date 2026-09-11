@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
+using DeepLearning.Domain.Common;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
 
@@ -139,8 +140,13 @@ namespace DeepLearning.Infrastructure.Ai
             }
         }
 
-        private static string Normalize(string value)
-            => string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
+        // TextNormalization.CanonicalKey caps at 255 (the canonical_key column length) — matching
+        // NormalizeCanonicalKey's cap fixes a real inconsistency (代码复用扫描_07_优化计划.md §3.1):
+        // this used to normalize without a cap, so a >255-char EnglishExpr would compute a
+        // different key here than the one actually stored. `?? string.Empty` preserves this
+        // method's old never-null contract (CanonicalKey returns null only for blank input, which
+        // never reaches here since EnglishExpr is expected non-blank).
+        private static string Normalize(string value) => TextNormalization.CanonicalKey(value) ?? string.Empty;
 
         private static DriftPayload ParsePayload(string rawText) => LlmJson.Parse<DriftPayload>(rawText);
 

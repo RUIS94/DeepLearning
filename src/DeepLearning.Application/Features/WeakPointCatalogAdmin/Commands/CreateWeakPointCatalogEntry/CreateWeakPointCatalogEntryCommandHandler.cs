@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
@@ -25,8 +26,8 @@ namespace DeepLearning.Application.Features.WeakPointCatalogAdmin.Commands.Creat
 
         public async Task<CreateWeakPointCatalogEntryResult> Handle(CreateWeakPointCatalogEntryCommand request, CancellationToken cancellationToken)
         {
-            _ = await _categoryRepository.GetByIdAsync(request.CategoryId, cancellationToken)
-                ?? throw new NotFoundException(nameof(WeakPointCategory), request.CategoryId);
+            await _categoryRepository.GetByIdAsync(request.CategoryId, cancellationToken)
+                .EnsureFoundAsync(nameof(WeakPointCategory), request.CategoryId);
 
             if (await _catalogRepository.ExistsAsync(request.Code, cancellationToken))
             {

@@ -1,6 +1,6 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
-using DeepLearning.Domain.Exceptions;
 using MediatR;
 
 namespace DeepLearning.Application.Features.ExamConfig.Commands.CreatePromptTemplate
@@ -28,8 +28,8 @@ namespace DeepLearning.Application.Features.ExamConfig.Commands.CreatePromptTemp
         {
             if (request.ExamTypeId is { } examTypeId)
             {
-                _ = await _examTypeRepository.GetByIdAsync(examTypeId, cancellationToken)
-                    ?? throw new NotFoundException(nameof(ExamType), examTypeId);
+                await _examTypeRepository.GetByIdAsync(examTypeId, cancellationToken)
+                    .EnsureFoundAsync(nameof(ExamType), examTypeId);
             }
 
             var template = new PromptTemplate

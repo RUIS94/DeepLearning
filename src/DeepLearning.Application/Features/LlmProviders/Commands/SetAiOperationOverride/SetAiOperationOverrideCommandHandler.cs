@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Exceptions;
@@ -30,13 +31,13 @@ namespace DeepLearning.Application.Features.LlmProviders.Commands.SetAiOperation
             // Fail here rather than leaving a dangling override that LlmClientResolver would
             // silently fall back past later — a typo'd provider key should be rejected at the
             // moment it's set, not discovered the next time this operation runs.
-            _ = await _settingsRepository.GetByProviderKeyAsync(request.ProviderKey, cancellationToken)
-                ?? throw new NotFoundException(nameof(Domain.Entities.LlmProviderSettings), request.ProviderKey);
+            await _settingsRepository.GetByProviderKeyAsync(request.ProviderKey, cancellationToken)
+                .EnsureFoundAsync(nameof(Domain.Entities.LlmProviderSettings), request.ProviderKey);
 
             if (request.Model is not null)
             {
-                _ = await _modelRepository.GetByProviderKeyAndModelAsync(request.ProviderKey, request.Model, cancellationToken)
-                    ?? throw new NotFoundException(nameof(Domain.Entities.LlmProviderModel), $"{request.ProviderKey}/{request.Model}");
+                await _modelRepository.GetByProviderKeyAndModelAsync(request.ProviderKey, request.Model, cancellationToken)
+                    .EnsureFoundAsync(nameof(Domain.Entities.LlmProviderModel), $"{request.ProviderKey}/{request.Model}");
             }
 
             var existing = await _overrideRepository.GetByOperationTypeAsync(request.OperationType, cancellationToken);

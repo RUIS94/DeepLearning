@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Exceptions;
@@ -25,14 +26,14 @@ namespace DeepLearning.Application.Features.QuestionBank.Commands.CreateQuestion
         {
             if (request.ParentId is { } parentId)
             {
-                _ = await _categoryRepository.GetByIdAsync(parentId, cancellationToken)
-                    ?? throw new NotFoundException(nameof(QuestionBankCategory), parentId);
+                await _categoryRepository.GetByIdAsync(parentId, cancellationToken)
+                    .EnsureFoundAsync(nameof(QuestionBankCategory), parentId);
             }
 
             if (request.ExamTypeId is { } examTypeId)
             {
-                _ = await _examTypeRepository.GetByIdAsync(examTypeId, cancellationToken)
-                    ?? throw new NotFoundException(nameof(ExamType), examTypeId);
+                await _examTypeRepository.GetByIdAsync(examTypeId, cancellationToken)
+                    .EnsureFoundAsync(nameof(ExamType), examTypeId);
             }
 
             var category = new QuestionBankCategory

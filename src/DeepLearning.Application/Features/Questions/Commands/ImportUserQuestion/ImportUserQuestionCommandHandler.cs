@@ -30,14 +30,14 @@ namespace DeepLearning.Application.Features.Questions.Commands.ImportUserQuestio
         {
             if (request.CreatedBy is { } createdBy)
             {
-                _ = await _userRepository.GetByIdAsync(createdBy, cancellationToken)
-                    ?? throw new NotFoundException(nameof(User), createdBy);
+                await _userRepository.GetByIdAsync(createdBy, cancellationToken)
+                    .EnsureFoundAsync(nameof(User), createdBy);
             }
 
             foreach (var errorTaxonomyId in request.SeededErrors.Select(e => e.ErrorTaxonomyId).Distinct())
             {
-                _ = await _errorTaxonomyRepository.GetByIdAsync(errorTaxonomyId, cancellationToken)
-                    ?? throw new NotFoundException(nameof(ErrorTaxonomy), errorTaxonomyId);
+                await _errorTaxonomyRepository.GetByIdAsync(errorTaxonomyId, cancellationToken)
+                    .EnsureFoundAsync(nameof(ErrorTaxonomy), errorTaxonomyId);
             }
 
             var question = new Question

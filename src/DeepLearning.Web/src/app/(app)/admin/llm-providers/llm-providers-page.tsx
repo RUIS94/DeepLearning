@@ -173,7 +173,10 @@ function ProviderCard({ settings }: { settings: LlmProviderSettings }) {
               value={settings.effort ?? EFFORT_AUTO}
               disabled={updateSettings.isPending}
               onValueChange={(value) =>
-                updateSettings.mutate({ effort: value === EFFORT_AUTO ? null : value })
+                // "" clears Effort back to null server-side (PATCH convention: null = leave
+                // unchanged, "" = clear) — sending null here would be silently ignored instead
+                // of resetting to the provider default.
+                updateSettings.mutate({ effort: value === EFFORT_AUTO ? "" : value })
               }
             >
               <SelectTrigger className="h-8 text-sm">

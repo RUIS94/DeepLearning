@@ -1,5 +1,5 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
-using DeepLearning.Domain.Exceptions;
 using MediatR;
 
 namespace DeepLearning.Application.Features.LlmProviders.Queries.ListLlmProviderModels
@@ -18,8 +18,8 @@ namespace DeepLearning.Application.Features.LlmProviders.Queries.ListLlmProvider
 
         public async Task<List<LlmProviderModelResultItem>> Handle(ListLlmProviderModelsQuery request, CancellationToken cancellationToken)
         {
-            _ = await _providerRepository.GetByProviderKeyAsync(request.ProviderKey, cancellationToken)
-                ?? throw new NotFoundException(nameof(Domain.Entities.LlmProviderSettings), request.ProviderKey);
+            await _providerRepository.GetByProviderKeyAsync(request.ProviderKey, cancellationToken)
+                .EnsureFoundAsync(nameof(Domain.Entities.LlmProviderSettings), request.ProviderKey);
 
             var models = await _modelRepository.ListByProviderKeyAsync(request.ProviderKey, cancellationToken);
 

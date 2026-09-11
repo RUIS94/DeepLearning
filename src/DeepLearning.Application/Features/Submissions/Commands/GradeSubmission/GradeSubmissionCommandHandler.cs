@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
+using DeepLearning.Domain.Common;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
 using DeepLearning.Domain.Events;
@@ -224,12 +225,6 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             return start < 0 ? null : (start, start + snippet.Length);
         }
 
-        /// <summary>Punctuation- and whitespace-insensitive form of a quoted snippet, used when a
-        /// snippet cannot be located in the translation (the model paraphrased rather than
-        /// copied) and only exact-ish matching is left.</summary>
-        private static string Normalise(string? text)
-            => new((text ?? string.Empty).Where(char.IsLetterOrDigit).ToArray());
-
         private readonly IExamTypeRepository _examTypeRepository;
         private readonly ISubmissionRepository _submissionRepository;
         private readonly IQuestionRepository _questionRepository;
@@ -282,8 +277,8 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
 
         public async Task<GradeSubmissionResult> Handle(GradeSubmissionCommand request, CancellationToken cancellationToken)
         {
-            _ = await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
-                ?? throw new NotFoundException(nameof(ExamType), request.ExamTypeId);
+            await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
+                .EnsureFoundAsync(nameof(ExamType), request.ExamTypeId);
 
             var submission = await _submissionRepository.GetByIdAsync(request.SubmissionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Submission), request.SubmissionId);
@@ -919,7 +914,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         public static decimal EstimateDimensionPassProbability(
             int band, string? passThreshold, string? confidence, bool cumulativeDensityFlag)
         {
-            var thresholdBand = ExtractLeadingInt(passThreshold);
+            var thresholdBand = GradingScaleParsing.ExtractLeadingInt(passThreshold);
             if (thresholdBand is not { } threshold)
             {
                 return 0.50m;
@@ -984,17 +979,6 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             var blended = (CorrelationWeight * minimum) + ((1m - CorrelationWeight) * product);
 
             return Math.Round(Math.Clamp(blended, 0m, 1m), 4, MidpointRounding.AwayFromZero);
-        }
-
-        private static int? ExtractLeadingInt(string? text)
-        {
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                return null;
-            }
-
-            var digits = text.SkipWhile(c => !char.IsDigit(c)).TakeWhile(char.IsDigit).ToArray();
-            return digits.Length > 0 ? int.Parse(new string(digits)) : null;
         }
 
         private static string? NormaliseConfidence(string? raw)
@@ -1141,7 +1125,7 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
                 finding.Suggestion ??= string.Empty;
 
                 var span = SpanOf(finding, translation);
-                var fallback = Normalise(finding.UserTextSnippet);
+                var fallback = TextNormalization.StripToAlphanumeric(finding.UserTextSnippet);
 
                 var existing = spans.FirstOrDefault(candidate =>
                     candidate.Finding.DimensionKey == finding.DimensionKey

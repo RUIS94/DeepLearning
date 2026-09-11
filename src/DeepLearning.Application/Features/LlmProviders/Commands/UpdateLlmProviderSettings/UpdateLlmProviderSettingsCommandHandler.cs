@@ -28,14 +28,22 @@ namespace DeepLearning.Application.Features.LlmProviders.Commands.UpdateLlmProvi
                 settings.ThinkingEnabled = request.ThinkingEnabled.Value;
             }
 
+            // Partial-update convention (matches UpdateWeakPointCatalogEntryCommandHandler): null
+            // = leave the field unchanged, "" = clear it to null (Effort/ExtraSettings are both
+            // nullable columns; Effort null means "let the provider default", ExtraSettings null
+            // means no JSON passthrough). Previously "" was stored literally instead of clearing
+            // to null, so the frontend's "reset effort to Default" (which sent effort: null,
+            // meaning "don't touch" under this convention) could never actually clear a
+            // previously-set Effort back to null — fixed together with the frontend sending ""
+            // instead of null for "reset" (代码复用扫描_07_优化计划.md §3.6/N4 follow-up).
             if (request.Effort is not null)
             {
-                settings.Effort = request.Effort;
+                settings.Effort = request.Effort.Length == 0 ? null : request.Effort;
             }
 
             if (request.ExtraSettingsJson is not null)
             {
-                settings.ExtraSettings = request.ExtraSettingsJson;
+                settings.ExtraSettings = request.ExtraSettingsJson.Length == 0 ? null : request.ExtraSettingsJson;
             }
 
             settings.UpdatedAt = DateTimeOffset.UtcNow;

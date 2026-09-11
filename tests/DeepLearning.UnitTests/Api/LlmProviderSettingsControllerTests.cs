@@ -99,6 +99,36 @@ namespace DeepLearning.UnitTests.Api
             Assert.True(updated.ThinkingEnabled); // untouched, entity default
         }
 
+        /// <summary>
+        /// Locks in the fix from 代码复用扫描_07_优化计划.md §3.6/N4: Effort/ExtraSettingsJson used
+        /// to only ever be set when non-null, so an already-set Effort could never be cleared back
+        /// to null (the frontend's "reset to Default" sent effort: null, which this convention
+        /// treats as "leave unchanged" — the reset silently did nothing). "" now clears; null still
+        /// leaves the field alone.
+        /// </summary>
+        [Fact]
+        public async Task Update_with_an_empty_string_clears_effort_back_to_null()
+        {
+            var (providerKey, _) = await SeedTwoProvidersAsync(firstIsActive: false);
+            var client = _factory.CreateClient();
+
+            var setResponse = await client.PatchAsJsonAsync(
+                $"{ApiRoutes.LlmProviderSettings.Base}/{providerKey}",
+                new { ThinkingEnabled = (bool?)null, Effort = "high", ExtraSettingsJson = (string?)null });
+            Assert.Equal("high", (await setResponse.Content.ReadFromJsonAsync<UpdateLlmProviderSettingsResult>())!.Effort);
+
+            var clearResponse = await client.PatchAsJsonAsync(
+                $"{ApiRoutes.LlmProviderSettings.Base}/{providerKey}",
+                new { ThinkingEnabled = (bool?)null, Effort = "", ExtraSettingsJson = (string?)null });
+            Assert.Equal(HttpStatusCode.OK, clearResponse.StatusCode);
+            Assert.Null((await clearResponse.Content.ReadFromJsonAsync<UpdateLlmProviderSettingsResult>())!.Effort);
+
+            var unchangedResponse = await client.PatchAsJsonAsync(
+                $"{ApiRoutes.LlmProviderSettings.Base}/{providerKey}",
+                new { ThinkingEnabled = true, Effort = (string?)null, ExtraSettingsJson = (string?)null });
+            Assert.Null((await unchangedResponse.Content.ReadFromJsonAsync<UpdateLlmProviderSettingsResult>())!.Effort);
+        }
+
         [Fact]
         public async Task Activate_deactivates_the_previously_active_provider()
         {

@@ -59,13 +59,13 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
 
         public async Task<GenerateQuestionResult> Handle(GenerateQuestionCommand request, CancellationToken cancellationToken)
         {
-            _ = await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
-                ?? throw new NotFoundException(nameof(ExamType), request.ExamTypeId);
+            await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
+                .EnsureFoundAsync(nameof(ExamType), request.ExamTypeId);
 
             if (request.CreatedBy is { } createdBy)
             {
-                _ = await _userRepository.GetByIdAsync(createdBy, cancellationToken)
-                    ?? throw new NotFoundException(nameof(User), createdBy);
+                await _userRepository.GetByIdAsync(createdBy, cancellationToken)
+                    .EnsureFoundAsync(nameof(User), createdBy);
             }
 
             // An explicit CategoryId is mapped to the generated question (question_category_map)

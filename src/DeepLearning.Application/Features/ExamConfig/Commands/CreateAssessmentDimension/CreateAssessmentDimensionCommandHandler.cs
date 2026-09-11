@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Exceptions;
@@ -28,8 +29,8 @@ namespace DeepLearning.Application.Features.ExamConfig.Commands.CreateAssessment
             CreateAssessmentDimensionCommand request,
             CancellationToken cancellationToken)
         {
-            _ = await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
-                ?? throw new NotFoundException(nameof(ExamType), request.ExamTypeId);
+            await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
+                .EnsureFoundAsync(nameof(ExamType), request.ExamTypeId);
 
             var exists = await _dimensionRepository.ExistsAsync(
                 request.ExamTypeId, request.DimensionKey, request.RubricVersion, cancellationToken);

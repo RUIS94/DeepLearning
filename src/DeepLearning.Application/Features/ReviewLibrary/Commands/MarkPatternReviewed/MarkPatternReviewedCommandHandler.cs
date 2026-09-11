@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Exceptions;
@@ -21,17 +22,17 @@ namespace DeepLearning.Application.Features.ReviewLibrary.Commands.MarkPatternRe
 
         public async Task<MarkPatternReviewedResult> Handle(MarkPatternReviewedCommand request, CancellationToken cancellationToken)
         {
-            _ = await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
-                ?? throw new NotFoundException(nameof(User), request.UserId);
-            _ = await _reviewLibraryRepository.GetPatternByIdAsync(request.PatternId, cancellationToken)
-                ?? throw new NotFoundException(nameof(SentencePattern), request.PatternId);
+            await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
+                .EnsureFoundAsync(nameof(User), request.UserId);
+            await _reviewLibraryRepository.GetPatternByIdAsync(request.PatternId, cancellationToken)
+                .EnsureFoundAsync(nameof(SentencePattern), request.PatternId);
 
             var now = DateTimeOffset.UtcNow;
-            var review = await _reviewLibraryRepository.GetUserPatternReviewAsync(request.UserId, request.PatternId, cancellationToken);
+            var existing = await _reviewLibraryRepository.GetUserPatternReviewAsync(request.UserId, request.PatternId, cancellationToken);
 
-            if (review is null)
-            {
-                review = new UserPatternReview
+            var review = await ReviewLibrarySupport.UpsertReviewAsync(
+                existing,
+                createNew: () => new UserPatternReview
                 {
                     Id = Guid.NewGuid(),
                     UserId = request.UserId,
@@ -40,14 +41,14 @@ namespace DeepLearning.Application.Features.ReviewLibrary.Commands.MarkPatternRe
                     MasteryLevel = request.MasteryLevel,
                     LastReviewedAt = now,
                     CreatedAt = now,
-                };
-                await _reviewLibraryRepository.AddUserPatternReviewAsync(review, cancellationToken);
-            }
-            else
-            {
-                review.MasteryLevel = request.MasteryLevel;
-                review.LastReviewedAt = now;
-            }
+                },
+                updateExisting: r =>
+                {
+                    r.MasteryLevel = request.MasteryLevel;
+                    r.LastReviewedAt = now;
+                },
+                addAsync: _reviewLibraryRepository.AddUserPatternReviewAsync,
+                cancellationToken);
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 

@@ -65,8 +65,8 @@ namespace DeepLearning.Application.Features.Progress.Commands.GenerateProgressTr
         public async Task<GenerateProgressTrendSnapshotResult> Handle(
             GenerateProgressTrendSnapshotCommand request, CancellationToken cancellationToken)
         {
-            _ = await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
-                ?? throw new NotFoundException(nameof(ExamType), request.ExamTypeId);
+            await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
+                .EnsureFoundAsync(nameof(ExamType), request.ExamTypeId);
 
             var results = await _progressRepository.GetGradingResultsForUserInPeriodAsync(
                 request.UserId, request.DifficultyTier, request.PeriodStart, request.PeriodEnd, cancellationToken);

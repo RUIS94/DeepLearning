@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
@@ -32,8 +33,8 @@ namespace DeepLearning.Application.Features.Submissions.Commands.CreateSubmissio
             var question = await _questionRepository.GetByIdAsync(request.QuestionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Question), request.QuestionId);
 
-            _ = await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
-                ?? throw new NotFoundException(nameof(User), request.UserId);
+            await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
+                .EnsureFoundAsync(nameof(User), request.UserId);
 
             if (question.TaskType != request.TaskType)
             {

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
+using DeepLearning.Domain.Common;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Enums;
 using DeepLearning.Domain.Exceptions;
@@ -59,8 +60,8 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
 
         public async Task<GenerateDeepLearningContentResult> Handle(GenerateDeepLearningContentCommand request, CancellationToken cancellationToken)
         {
-            _ = await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
-                ?? throw new NotFoundException(nameof(ExamType), request.ExamTypeId);
+            await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
+                .EnsureFoundAsync(nameof(ExamType), request.ExamTypeId);
 
             var question = await _questionRepository.GetByIdAsync(request.QuestionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Question), request.QuestionId);
@@ -172,7 +173,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                     Domain = p.Domain,
                     Scenario = p.Scenario,
                     FrequencyTag = p.FrequencyTag,
-                    CanonicalKey = NormalizeCanonicalKey(p.PatternName),
+                    CanonicalKey = TextNormalization.CanonicalKey(p.PatternName),
                     CreatedAt = DateTimeOffset.UtcNow,
                 }).ToList();
                 await _reviewLibraryRepository.AddPatternsAsync(patterns, cancellationToken);
@@ -189,7 +190,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                     Scenario = v.Scenario,
                     FrequencyTag = v.FrequencyTag,
                     LiteralTranslatable = v.LiteralTranslatable,
-                    CanonicalKey = NormalizeCanonicalKey(v.EnglishExpr),
+                    CanonicalKey = TextNormalization.CanonicalKey(v.EnglishExpr),
                     CreatedAt = DateTimeOffset.UtcNow,
                 }).ToList();
                 await _reviewLibraryRepository.AddVocabAsync(vocab, cancellationToken);
@@ -313,22 +314,6 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                     throw new InvalidOperationException("Every vocabExpressions item must have a non-empty englishExpr.");
                 }
             }
-        }
-
-        /// <summary>
-        /// lower-case, trim, collapse internal whitespace to single spaces, cap at the
-        /// canonical_key column length. Null/blank -&gt; null.
-        /// </summary>
-        private static string? NormalizeCanonicalKey(string? value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return null;
-            }
-
-            var collapsed = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-            var normalized = collapsed.ToLowerInvariant();
-            return normalized.Length > 255 ? normalized[..255] : normalized;
         }
 
         private class DeepLearningPayload

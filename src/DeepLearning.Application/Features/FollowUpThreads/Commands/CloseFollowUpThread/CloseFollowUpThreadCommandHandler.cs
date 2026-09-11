@@ -79,8 +79,8 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
 
         public async Task<FollowUpThreadResult> Handle(CloseFollowUpThreadCommand request, CancellationToken cancellationToken)
         {
-            _ = await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
-                ?? throw new NotFoundException(nameof(User), request.UserId);
+            await _userRepository.GetByIdAsync(request.UserId, cancellationToken)
+                .EnsureFoundAsync(nameof(User), request.UserId);
 
             var thread = await _followUpThreadRepository.GetByIdWithMessagesAsync(request.ThreadId, cancellationToken)
                 ?? throw new NotFoundException(nameof(FollowUpThread), request.ThreadId);

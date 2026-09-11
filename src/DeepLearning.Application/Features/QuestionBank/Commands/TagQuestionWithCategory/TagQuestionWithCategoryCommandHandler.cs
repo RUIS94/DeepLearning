@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Exceptions;
@@ -25,8 +26,8 @@ namespace DeepLearning.Application.Features.QuestionBank.Commands.TagQuestionWit
         {
             var question = await _questionRepository.GetByIdAsync(request.QuestionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Question), request.QuestionId);
-            _ = await _categoryRepository.GetByIdAsync(request.CategoryId, cancellationToken)
-                ?? throw new NotFoundException(nameof(Domain.Entities.QuestionBankCategory), request.CategoryId);
+            await _categoryRepository.GetByIdAsync(request.CategoryId, cancellationToken)
+                .EnsureFoundAsync(nameof(Domain.Entities.QuestionBankCategory), request.CategoryId);
 
             if (await _questionRepository.HasCategoryMapAsync(request.QuestionId, request.CategoryId, cancellationToken))
             {

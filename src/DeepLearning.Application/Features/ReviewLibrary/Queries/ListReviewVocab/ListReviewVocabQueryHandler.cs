@@ -17,16 +17,16 @@ namespace DeepLearning.Application.Features.ReviewLibrary.Queries.ListReviewVoca
         {
             var glossary = await _reviewLibraryRepository.ListGlossaryAsync(request.Domain, request.Scenario, request.FrequencyTag, cancellationToken);
             var reviews = await _reviewLibraryRepository.ListUserVocabReviewsAsync(request.UserId, glossary.Select(v => v.Id), cancellationToken);
-            var reviewsByVocab = reviews.ToDictionary(r => r.VocabId);
 
-            return glossary.Select(v =>
-            {
-                reviewsByVocab.TryGetValue(v.Id, out var review);
-                return new ReviewVocabResultItem(
+            return ReviewLibrarySupport.ProjectWithReview(
+                glossary,
+                reviews,
+                itemKey: v => v.Id,
+                reviewKey: r => r.VocabId,
+                project: (v, review) => new ReviewVocabResultItem(
                     v.Id, v.EnglishExpr, v.ChineseEquiv, v.AccumulatedSemantics, v.Category, v.Domain, v.Scenario, v.FrequencyTag,
                     v.SenseCount, v.OccurrenceCount,
-                    review?.TimesEncountered ?? 0, review?.MasteryLevel ?? MasteryLevel.New, review?.LastReviewedAt);
-            }).ToList();
+                    review?.TimesEncountered ?? 0, review?.MasteryLevel ?? MasteryLevel.New, review?.LastReviewedAt));
         }
     }
 }

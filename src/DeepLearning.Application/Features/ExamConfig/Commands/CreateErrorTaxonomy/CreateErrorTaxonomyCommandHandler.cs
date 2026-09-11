@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Exceptions;
@@ -23,8 +24,8 @@ namespace DeepLearning.Application.Features.ExamConfig.Commands.CreateErrorTaxon
 
         public async Task<CreateErrorTaxonomyResult> Handle(CreateErrorTaxonomyCommand request, CancellationToken cancellationToken)
         {
-            _ = await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
-                ?? throw new NotFoundException(nameof(ExamType), request.ExamTypeId);
+            await _examTypeRepository.GetByIdAsync(request.ExamTypeId, cancellationToken)
+                .EnsureFoundAsync(nameof(ExamType), request.ExamTypeId);
 
             var exists = await _taxonomyRepository.ExistsAsync(request.ExamTypeId, request.CategoryKey, cancellationToken);
             if (exists)

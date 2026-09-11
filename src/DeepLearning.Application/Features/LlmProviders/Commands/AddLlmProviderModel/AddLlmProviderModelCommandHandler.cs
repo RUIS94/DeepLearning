@@ -1,3 +1,4 @@
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
 using DeepLearning.Domain.Exceptions;
@@ -23,8 +24,8 @@ namespace DeepLearning.Application.Features.LlmProviders.Commands.AddLlmProvider
 
         public async Task<AddLlmProviderModelResult> Handle(AddLlmProviderModelCommand request, CancellationToken cancellationToken)
         {
-            _ = await _providerRepository.GetByProviderKeyAsync(request.ProviderKey, cancellationToken)
-                ?? throw new NotFoundException(nameof(Domain.Entities.LlmProviderSettings), request.ProviderKey);
+            await _providerRepository.GetByProviderKeyAsync(request.ProviderKey, cancellationToken)
+                .EnsureFoundAsync(nameof(Domain.Entities.LlmProviderSettings), request.ProviderKey);
 
             var existing = await _modelRepository.GetByProviderKeyAndModelAsync(request.ProviderKey, request.Model, cancellationToken);
             if (existing is not null)

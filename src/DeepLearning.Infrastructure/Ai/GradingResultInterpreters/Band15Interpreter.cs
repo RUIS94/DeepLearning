@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+using DeepLearning.Application.Common;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Enums;
 
@@ -21,33 +21,6 @@ namespace DeepLearning.Infrastructure.Ai.GradingResultInterpreters
             var thresholdBand = GradingScaleParsing.ExtractLeadingInt(passThreshold);
 
             return new GradingInterpretation(band, thresholdBand is null || band <= thresholdBand);
-        }
-    }
-
-    internal static class GradingScaleParsing
-    {
-        private static readonly Regex LeadingIntPattern = new(@"-?\d+(\.\d+)?", RegexOptions.Compiled);
-
-        public static int? ExtractLeadingInt(string? text)
-        {
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                return null;
-            }
-
-            var match = LeadingIntPattern.Match(text);
-            return match.Success ? (int)double.Parse(match.Value) : null;
-        }
-
-        public static decimal? ExtractLeadingDecimal(string? text)
-        {
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                return null;
-            }
-
-            var match = LeadingIntPattern.Match(text);
-            return match.Success ? decimal.Parse(match.Value) : null;
         }
     }
 }

@@ -52,9 +52,9 @@ namespace DeepLearning.Application.Features.ReviewLibrary.EventHandlers
             foreach (var pattern in patterns)
             {
                 var review = await _reviewLibraryRepository.GetUserPatternReviewAsync(gradedEvent.UserId, pattern.Id, cancellationToken);
-                if (review is null)
-                {
-                    await _reviewLibraryRepository.AddUserPatternReviewAsync(new UserPatternReview
+                await ReviewLibrarySupport.UpsertReviewAsync(
+                    review,
+                    createNew: () => new UserPatternReview
                     {
                         Id = Guid.NewGuid(),
                         UserId = gradedEvent.UserId,
@@ -63,21 +63,22 @@ namespace DeepLearning.Application.Features.ReviewLibrary.EventHandlers
                         MasteryLevel = MasteryLevel.New,
                         LastReviewedAt = now,
                         CreatedAt = now,
-                    }, cancellationToken);
-                }
-                else
-                {
-                    review.TimesEncountered += 1;
-                    review.LastReviewedAt = now;
-                }
+                    },
+                    updateExisting: r =>
+                    {
+                        r.TimesEncountered += 1;
+                        r.LastReviewedAt = now;
+                    },
+                    addAsync: _reviewLibraryRepository.AddUserPatternReviewAsync,
+                    cancellationToken);
             }
 
             foreach (var entry in glossaryEntries)
             {
                 var review = await _reviewLibraryRepository.GetUserVocabReviewAsync(gradedEvent.UserId, entry.Id, cancellationToken);
-                if (review is null)
-                {
-                    await _reviewLibraryRepository.AddUserVocabReviewAsync(new UserVocabReview
+                await ReviewLibrarySupport.UpsertReviewAsync(
+                    review,
+                    createNew: () => new UserVocabReview
                     {
                         Id = Guid.NewGuid(),
                         UserId = gradedEvent.UserId,
@@ -86,13 +87,14 @@ namespace DeepLearning.Application.Features.ReviewLibrary.EventHandlers
                         MasteryLevel = MasteryLevel.New,
                         LastReviewedAt = now,
                         CreatedAt = now,
-                    }, cancellationToken);
-                }
-                else
-                {
-                    review.TimesEncountered += 1;
-                    review.LastReviewedAt = now;
-                }
+                    },
+                    updateExisting: r =>
+                    {
+                        r.TimesEncountered += 1;
+                        r.LastReviewedAt = now;
+                    },
+                    addAsync: _reviewLibraryRepository.AddUserVocabReviewAsync,
+                    cancellationToken);
             }
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
