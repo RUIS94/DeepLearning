@@ -75,6 +75,8 @@ namespace DeepLearning.Infrastructure.Persistence
             "reference_translations",
             "question_category_map",
             "seed_reference_links",
+            // Feature flags are global, not per-exam-type, but they are hand-curated/reviewed reference
+            "feature_flags",
         ];
 
         public const string UsersTable = "users";
@@ -95,6 +97,7 @@ namespace DeepLearning.Infrastructure.Persistence
             ["seed_reference_links"] = [QuestionsTable],                      // .generated_question_id, .seed_question_id
             ["task_b_seeded_errors"] = [QuestionsTable, "error_taxonomies"],  // .question_id, .error_taxonomy_id
             ["question_category_map"] = [QuestionsTable, "question_bank_categories"],
+            ["feature_flags"] = [QuestionsTable],
         };
 
         /// <summary>
