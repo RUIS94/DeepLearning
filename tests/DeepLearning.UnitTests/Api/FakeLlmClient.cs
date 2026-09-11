@@ -90,6 +90,38 @@ namespace DeepLearning.UnitTests.Api
     }
 
     /// <summary>
+    /// Same shape as FakeTaskBGenerationLlmClient but its one seededError's errorCategory is not
+    /// registered as an ErrorTaxonomy for the exam type under test — proves
+    /// GenerateQuestionCommandHandler.ValidateAndBuildTaskBSeededErrors rejects an unknown
+    /// category key (a check ImportUserQuestionValidator does NOT make on the manual-import path
+    /// — see 代码复用扫描_07_优化计划.md N4/3.4, this asymmetry is deliberate and must survive any
+    /// future consolidation of the two Task B validators).
+    /// </summary>
+    public class FakeTaskBGenerationLlmClientWithUnknownCategory : ILlmClient
+    {
+        public const string UnknownErrorCategoryKey = "not_a_real_taxonomy_key";
+
+        public Task<LlmCompletionResult> CompleteAsync(LlmCompletionRequest request, CancellationToken cancellationToken = default)
+        {
+            var json = $$"""
+                {
+                  "title": "{{FakeLlmClient.FixedTitle}}",
+                  "sourceText": "{{FakeLlmClient.FixedSourceText}}",
+                  "brief": {"domain": "test", "textType": "article"},
+                  "wordCount": 42,
+                  "meaningCheckpoints": [],
+                  "flawedTranslationText": "{{FakeTaskBGenerationLlmClient.FlawedTranslationText}}",
+                  "seededErrors": [
+                    {"positionStart": 9, "positionEnd": 17, "errorCategory": "{{UnknownErrorCategoryKey}}", "correctReferenceText": "had", "note": null}
+                  ]
+                }
+                """;
+
+            return Task.FromResult(new LlmCompletionResult(json, 10, 20, "fake-model", 5));
+        }
+    }
+
+    /// <summary>
     /// Grading is four sequential LLM calls that expect two different payload shapes — three
     /// collection stages (evidence, proofread, sweep) and then the verdict. The tests seed a stub
     /// prompt template with no {{ stage }} branch, so every call renders the same text and a fake

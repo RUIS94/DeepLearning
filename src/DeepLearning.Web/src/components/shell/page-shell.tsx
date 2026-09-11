@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/shell/page-header";
  * 每个页面的统一容器:标题区固定不滚动,滚动只发生在内容区。
  * (app)/layout.tsx 已把外层高度锁成视口,这里靠 flex 把标题区 shrink-0、内容区 flex-1 + overflow-y-auto。
  *
- * 现有页面通过兼容层 AppShell / AdminShell 间接用到它;新页面可直接:
+ * 现有页面通过兼容层 AppShell 间接用到它;新页面可直接:
  *   <PageShell title="标题" description="…" back backHref="/practice" actions={<Button/>}>
  *     {content}
  *   </PageShell>

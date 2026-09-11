@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AiOperationType } from "@/lib/types/enums";
 
 /** admin 六个资源的“新建”表单 schema。所有资源都是 Create+GetById+List，没有 Update/Delete（方案 §3.7）。 */
 
@@ -67,11 +68,10 @@ export const promptTemplateFormSchema = z
   .object({
     examTypeId: z.string().nullable().optional(),
     subjectCategory: z.number().int().min(-1).max(4).nullable().optional(),
-    // 0-9：AiOperationType 的 10 个值（question_gen/grading/followup/standard_revision/
-    // deep_learning/progress_trend/followup_summary/weak_point_classification/
-    // weak_point_detection_criteria/weak_point_recheck）。新增枚举值时这里要同步放宽上界，
-    // 否则编辑该类模板时 zodResolver 会静默拦下提交（见 enums.ts AiOperationType）。
-    templateType: z.number().int().min(0).max(9),
+    // 上界取自 enums.ts 的 AiOperationType 本身，不再手写数字——之前硬编码 max(9) 曾经在枚举
+    // 增到 10/11（score_challenge_summary/vocab_semantic_drift）后没同步，导致编辑这两类模板
+    // 时 zodResolver 静默拦下提交。
+    templateType: z.number().int().min(0).max(Object.keys(AiOperationType).length - 1),
     layer: z.number().int().min(0).max(1),
     templateContent: z.string().trim().min(1, "v.templateContentRequired"),
     // 后端 CreatePromptTemplateCommand 要求显式传版本号，没有自动递增逻辑。

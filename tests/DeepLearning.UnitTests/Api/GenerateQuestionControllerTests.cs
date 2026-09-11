@@ -147,6 +147,36 @@ namespace DeepLearning.UnitTests.Api
         }
 
         [Fact]
+        public async Task Generate_rejects_a_task_b_response_whose_seeded_error_category_is_not_a_known_taxonomy()
+        {
+            var client = _factory
+                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
+                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeTaskBGenerationLlmClientWithUnknownCategory()))))
+                .CreateClient();
+
+            var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
+            {
+                Code = $"test_{Guid.NewGuid():N}",
+                Name = "API Test Exam Type",
+                SubjectCategory = SubjectCategory.translation,
+            });
+            var examType = await examTypeResponse.Content.ReadFromJsonAsync<CreateExamTypeResult>();
+
+            // Deliberately seed a DIFFERENT taxonomy key than the one the fake LLM returns, so the
+            // exam type has taxonomies but not the one referenced by the seeded error.
+            var taxonomyResponse = await client.PostAsJsonAsync(
+                ApiRoutes.ErrorTaxonomies.Base.Replace("{examTypeId:guid}", examType!.Id.ToString()),
+                new { CategoryKey = FakeTaskBGenerationLlmClient.ErrorCategoryKey, CategoryName = "Distortion", Description = (string?)null, ExampleCases = (string?)null });
+            taxonomyResponse.EnsureSuccessStatusCode();
+
+            var generateResponse = await client.PostAsJsonAsync(
+                $"{ApiRoutes.Questions.Base}/generate",
+                new { ExamTypeId = examType.Id, TaskType = TaskType.B, Difficulty = Difficulty.medium, CreatedBy = (Guid?)null });
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, generateResponse.StatusCode);
+        }
+
+        [Fact]
         public async Task Generate_omits_difficulty_and_still_succeeds_using_the_default_distribution()
         {
             var client = _factory

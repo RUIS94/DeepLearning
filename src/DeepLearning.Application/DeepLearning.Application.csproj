@@ -7,7 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Common\Mappings\" />
     <Folder Include="Features\ExamConfig\Commands\" />
     <Folder Include="Features\ExamConfig\Queries\" />
     <Folder Include="Features\FollowUps\Commands\AskFollowUp\" />

@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, PlusCircle } from "lucide-react";
-import { AdminShell } from "@/components/shared/admin-shell";
+import { AppShell } from "@/components/shared/app-shell";
 import { ErrorBanner } from "@/components/shared/ai-loading-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -588,8 +588,8 @@ export function LlmProvidersPanel() {
 export function LlmProvidersPage() {
   const t = useT();
   return (
-    <AdminShell title={t("llm.title")} description={t("llm.description")}>
+    <AppShell title={t("llm.title")} description={t("llm.description")}>
       <LlmProvidersPanel />
-    </AdminShell>
+    </AppShell>
   );
 }

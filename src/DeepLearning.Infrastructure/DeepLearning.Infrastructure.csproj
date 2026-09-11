@@ -6,10 +6,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Folder Include="Common\" />
-  </ItemGroup>
-
   <!-- Hand-authored DB scripts + their apply-order manifest, embedded so SqlScriptRunner
        can read them at runtime (they are NOT EF migrations and nothing else references them). -->
   <ItemGroup>

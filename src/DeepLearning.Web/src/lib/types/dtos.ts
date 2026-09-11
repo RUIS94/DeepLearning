@@ -257,7 +257,7 @@ export interface ErrorListItem {
   userTextSnippet: string | null;
   errorCategory: string;
   dimensionKey: string;
-  /** ErrorSeverity 序数（minor/moderate/major/critical）。"影响核心"标签由它派生。 */
+  /** ErrorSeverity 序数（minor/major）。"影响核心"标签由它派生。 */
   severity: number;
   /** 一句话定性 tag，如"概念方向偏移"。 */
   summary: string | null;
@@ -291,24 +291,6 @@ export interface SubmissionDetail {
   gradingResults: GradingResultItem[];
   errorList: ErrorListItem[];
   overallSummary: GradingSummary | null;
-}
-
-export interface CreateFollowUpQuestionRequest {
-  submissionId: string;
-  userId: string;
-  examTypeId: string;
-  contextRef: string | null;
-  questionText: string;
-}
-
-export interface FollowUpQuestionResult {
-  id: string;
-  submissionId: string;
-  verdict: number;
-  aiResponse: string;
-  submissionStatus: number;
-  standardOverrideId: string | null;
-  standardOverrideStatus: number | null;
 }
 
 /** 对应后端 FollowUpQuestionResultItem（GET /follow-ups?submissionId=）与 GetFollowUpQuestionByIdResult（GET /follow-ups/{id}）——两者字段完全一致，共用一个类型。 */
