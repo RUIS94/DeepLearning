@@ -74,16 +74,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
                 return ToResult(existing, cachedPatterns, cachedVocab, wasCached: true);
             }
 
-            var aiCallLog = new AiCallLog
-            {
-                Id = Guid.NewGuid(),
-                RequestType = AiOperationType.deep_learning,
-                RelatedId = question.Id,
-                Status = CallStatus.calling,
-                AttemptCount = 1,
-                MaxRetries = 3,
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
+            var aiCallLog = AiCallLogFactory.New(AiOperationType.deep_learning, question.Id);
             await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
             // Persisted up front so the log survives even if the LLM call below never returns.
             await _unitOfWork.SaveChangesAsync(cancellationToken);

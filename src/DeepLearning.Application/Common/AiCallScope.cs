@@ -26,15 +26,7 @@ namespace DeepLearning.Application.Common
             string failureMessagePrefix,
             CancellationToken cancellationToken)
         {
-            var aiCallLog = new AiCallLog
-            {
-                Id = Guid.NewGuid(),
-                RequestType = requestType,
-                Status = CallStatus.calling,
-                AttemptCount = 1,
-                MaxRetries = 3,
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
+            var aiCallLog = AiCallLogFactory.New(requestType);
 
             try
             {

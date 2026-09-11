@@ -86,16 +86,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CreateFollo
             // starting another thread from here works.
             submission.TransitionTo(SubmissionStatus.under_dispute);
 
-            var aiCallLog = new AiCallLog
-            {
-                Id = Guid.NewGuid(),
-                RequestType = AiOperationType.followup,
-                RelatedId = submission.Id,
-                Status = CallStatus.calling,
-                AttemptCount = 1,
-                MaxRetries = 3,
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
+            var aiCallLog = AiCallLogFactory.New(AiOperationType.followup, submission.Id);
             await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
             // Persisted up front (submission's under_dispute status included) so both survive
             // even if the LLM call below never returns.

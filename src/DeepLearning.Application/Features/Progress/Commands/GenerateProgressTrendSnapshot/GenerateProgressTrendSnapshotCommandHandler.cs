@@ -139,16 +139,7 @@ namespace DeepLearning.Application.Features.Progress.Commands.GenerateProgressTr
             List<ProgressSnapshot> history,
             CancellationToken cancellationToken)
         {
-            var aiCallLog = new AiCallLog
-            {
-                Id = Guid.NewGuid(),
-                RequestType = AiOperationType.progress_trend,
-                RelatedId = request.UserId,
-                Status = CallStatus.calling,
-                AttemptCount = 1,
-                MaxRetries = 3,
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
+            var aiCallLog = AiCallLogFactory.New(AiOperationType.progress_trend, request.UserId);
             await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 

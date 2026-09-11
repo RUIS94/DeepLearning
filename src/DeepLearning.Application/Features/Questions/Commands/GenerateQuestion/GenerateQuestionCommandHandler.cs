@@ -91,15 +91,7 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             var weakPointHint = await ResolveWeakPointHintAsync(request, cancellationToken);
             var topicHint = await ResolveTopicHintAsync(request, domainCategories, cancellationToken);
 
-            var aiCallLog = new AiCallLog
-            {
-                Id = Guid.NewGuid(),
-                RequestType = AiOperationType.question_gen,
-                Status = CallStatus.calling,
-                AttemptCount = 1,
-                MaxRetries = 3,
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
+            var aiCallLog = AiCallLogFactory.New(AiOperationType.question_gen);
             await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
             // Persisted up front so the log survives even if the LLM call below never returns.
             await _unitOfWork.SaveChangesAsync(cancellationToken);

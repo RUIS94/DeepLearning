@@ -141,16 +141,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
             }
             else
             {
-                aiCallLog = new AiCallLog
-                {
-                    Id = Guid.NewGuid(),
-                    RequestType = AiOperationType.followup_summary,
-                    RelatedId = thread.Id,
-                    Status = CallStatus.calling,
-                    AttemptCount = 1,
-                    MaxRetries = 3,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                };
+                aiCallLog = AiCallLogFactory.New(AiOperationType.followup_summary, thread.Id);
                 await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -318,16 +309,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CloseFollow
             }
             else
             {
-                aiCallLog = new AiCallLog
-                {
-                    Id = Guid.NewGuid(),
-                    RequestType = AiOperationType.score_challenge_summary,
-                    RelatedId = thread.Id,
-                    Status = CallStatus.calling,
-                    AttemptCount = 1,
-                    MaxRetries = 3,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                };
+                aiCallLog = AiCallLogFactory.New(AiOperationType.score_challenge_summary, thread.Id);
                 await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
 

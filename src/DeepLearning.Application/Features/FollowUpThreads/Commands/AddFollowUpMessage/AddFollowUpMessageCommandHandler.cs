@@ -84,16 +84,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.AddFollowUp
             var question = await _questionRepository.GetByIdAsync(submission.QuestionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Question), submission.QuestionId);
 
-            var aiCallLog = new AiCallLog
-            {
-                Id = Guid.NewGuid(),
-                RequestType = AiOperationType.followup,
-                RelatedId = thread.Id,
-                Status = CallStatus.calling,
-                AttemptCount = 1,
-                MaxRetries = 3,
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
+            var aiCallLog = AiCallLogFactory.New(AiOperationType.followup, thread.Id);
             await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 

@@ -84,16 +84,7 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Queries.PreviewFollo
                 ? AiOperationType.score_challenge_summary
                 : AiOperationType.followup_summary;
 
-            var aiCallLog = new AiCallLog
-            {
-                Id = Guid.NewGuid(),
-                RequestType = operationType,
-                RelatedId = thread.Id,
-                Status = CallStatus.calling,
-                AttemptCount = 1,
-                MaxRetries = 3,
-                CreatedAt = DateTimeOffset.UtcNow,
-            };
+            var aiCallLog = AiCallLogFactory.New(operationType, thread.Id);
             await _aiCallLogRepository.AddAsync(aiCallLog, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
