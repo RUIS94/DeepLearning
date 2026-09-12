@@ -733,8 +733,15 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
         /// two mistakes that actually happen — a key put in the wrong field, and prose wrapped
         /// around the JSON — because a bare error string leaves the model free to "fix" it by
         /// rewriting something else.
+        ///
+        /// <para>Each retry is a fresh, stateless completion call, so "fix just this one thing,
+        /// keep the rest" is not obeyable unless the model can actually see what "the rest" was —
+        /// <paramref name="lastRawText"/> quotes the previous attempt back so it edits in place
+        /// instead of re-generating the whole findings list from memory (see
+        /// AdaptiveCompletionRunner.BuildDefaultRejectionNotice's doc comment for the same fix
+        /// applied generically).</para>
         /// </summary>
-        public static string BuildRejectionNotice(string? rejectionReason, bool truncated)
+        public static string BuildRejectionNotice(string? rejectionReason, bool truncated, string? lastRawText = null)
         {
             if (string.IsNullOrWhiteSpace(rejectionReason))
             {
@@ -751,20 +758,29 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             // errorCategory values when the real problem is that it ran out of room. Telling
             // it to "fix just this one thing" is worse still — the only way to obey that while
             // shortening is to drop findings, which is the one thing this stage must not do.
-            return truncated
-                ? header
+            if (truncated)
+            {
+                return header
                     + "上一次输出【没有写完】就被截断了,不是格式错误,判断本身也没有问题。\n"
                     + "这一次请把同样的判断【完整】写出来,并从这两处省出篇幅:\n"
                     + "1. 不要在 JSON 之前做长篇推演,直接开始输出;\n"
                     + "2. explanation 与 suggestion 每条控制在两句以内。\n"
-                    + "【不要为了变短而减少 findings 条目或省略任何一句 sentences】——条目一条都不能少。\n"
-                : header
-                    + "请只修正这一处,其余判断保持不变,然后重新输出【完整】的 JSON。\n"
-                    + "两个最常见的原因,请对照检查:\n"
-                    + "1. errorCategory 与 dimensionKey 是两个不同的字段,取值来自两份不同的清单。"
-                    + "errorCategory 只能取错误类别 category_key(如 distortion、unidiomatic_expression、spelling_error),"
-                    + "【绝不能】填维度名(如 textual_norms、language_proficiency、meaning_transfer)。\n"
-                    + "2. 输出必须是纯 JSON:没有代码块围栏,没有前言,没有推理过程。\n";
+                    + "【不要为了变短而减少 findings 条目或省略任何一句 sentences】——条目一条都不能少。\n";
+            }
+
+            var previousOutputBlock = string.IsNullOrEmpty(lastRawText)
+                ? string.Empty
+                : "\n上一次的完整输出如下,供你逐字核对、直接在其基础上修改——不要凭记忆重新编写:\n"
+                    + "------\n" + lastRawText + "\n------\n";
+
+            return header
+                + previousOutputBlock
+                + "请只修正这一处,其余判断保持不变,然后重新输出【完整】的 JSON。\n"
+                + "两个最常见的原因,请对照检查:\n"
+                + "1. errorCategory 与 dimensionKey 是两个不同的字段,取值来自两份不同的清单。"
+                + "errorCategory 只能取错误类别 category_key(如 distortion、unidiomatic_expression、spelling_error),"
+                + "【绝不能】填维度名(如 textual_norms、language_proficiency、meaning_transfer)。\n"
+                + "2. 输出必须是纯 JSON:没有代码块围栏,没有前言,没有推理过程。\n";
         }
 
         /// <summary>

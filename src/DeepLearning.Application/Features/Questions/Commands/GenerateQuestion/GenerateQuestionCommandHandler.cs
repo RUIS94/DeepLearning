@@ -472,7 +472,10 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
         /// must be a known taxonomy for this exam type, and positions must fit inside the flawed
         /// text with no overlaps — the same rules ImportUserQuestionValidator enforces for
         /// manually-entered TaskB questions, just applied to the AI's own output instead of a
-        /// human's.
+        /// human's. Additionally (AI-only, see TaskBSeededErrorValidation's class doc comment):
+        /// each error's correctReferenceText must not already appear verbatim in
+        /// flawedTranslationText — otherwise the AI described a mistake it never actually wrote
+        /// into the text, leaving the user nothing to find.
         /// </summary>
         private static List<TaskBSeededError> ValidateAndBuildTaskBSeededErrors(GeneratedQuestionPayload payload, List<ErrorTaxonomy> errorTaxonomies)
         {
@@ -491,10 +494,11 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateQuestion
             var sorted = payload.SeededErrors.OrderBy(e => e.PositionStart).ToList();
 
             TaskBSeededErrorValidation.Validate(
-                sorted.Select(e => new TaskBSeededErrorValidation.Range(e.PositionStart, e.PositionEnd, e.ErrorCategory)).ToList(),
+                sorted.Select(e => new TaskBSeededErrorValidation.Range(e.PositionStart, e.PositionEnd, e.ErrorCategory, e.CorrectReferenceText)).ToList(),
                 flawedLength,
                 taxonomiesByKey.Keys.ToHashSet(),
-                "flawedTranslationText");
+                "flawedTranslationText",
+                flawedText: payload.FlawedTranslationText);
 
             // QuestionId is filled in by the caller once the Question's own Id is known.
             return sorted.Select(e => new TaskBSeededError

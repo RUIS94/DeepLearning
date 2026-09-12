@@ -46,13 +46,20 @@ namespace DeepLearning.Application.Common
             Func<string, T> parse,
             Action<T>? validate = null,
             decimal? temperature = null,
-            Func<string?, bool, string>? buildRejectionNotice = null,
+            Func<string?, bool, string?, string>? buildRejectionNotice = null,
             Action<Exception, bool>? onAttemptFailed = null,
             TimeSpan? hardAttemptTimeout = null,
             CancellationToken cancellationToken = default)
         {
             string? rejectionReason = null;
             var lastAttemptWasTruncated = false;
+            // The raw text of the previous attempt, so a re-prompt can show the model what it
+            // actually wrote instead of just describing the mistake in the abstract. Without this,
+            // "只修正这一处,其余判断保持不变" (fix only this, keep the rest) is an instruction the
+            // model has no way to obey — a stateless completion call has no memory of its own prior
+            // output, so "keep the rest the same" can only mean re-guessing it from scratch, which
+            // is exactly the "full regeneration instead of a minimal fix" behaviour this closes.
+            string? lastRawText = null;
             var budget = initialBudget;
             var notice = buildRejectionNotice ?? BuildDefaultRejectionNotice;
             // Overridable only so tests can prove the backstop actually fires without waiting the
@@ -70,7 +77,7 @@ namespace DeepLearning.Application.Common
                     completion = await llmClient.CompleteAsync(
                         new LlmCompletionRequest(
                             SystemPrompt: null,
-                            UserPrompt: prompt + notice(rejectionReason, lastAttemptWasTruncated),
+                            UserPrompt: prompt + notice(rejectionReason, lastAttemptWasTruncated, lastRawText),
                             MaxTokens: budget,
                             Temperature: temperature),
                         hardTimeoutCts.Token);
@@ -86,6 +93,7 @@ namespace DeepLearning.Application.Common
                 }
 
                 log.LatencyMs = (log.LatencyMs ?? 0) + completion.LatencyMs;
+                lastRawText = completion.Text;
 
                 try
                 {
@@ -123,8 +131,16 @@ namespace DeepLearning.Application.Common
         /// GradeSubmissionCommandHandler.BuildRejectionNotice for a tailored example — pass your
         /// own via <c>buildRejectionNotice</c> when you have specific, commonly-confused fields to
         /// call out).
+        ///
+        /// <para>Each retry is still a fresh, stateless completion call (no conversation history —
+        /// see <see cref="RunAsync{T}"/>'s doc comment), so "keep everything else the same" is not
+        /// something the model can honour unless it is actually shown what "everything else" was.
+        /// <paramref name="lastRawText"/> is that prior output, quoted back verbatim, so the model
+        /// edits the flagged spot in place instead of re-generating the whole answer from memory —
+        /// which, for a validation failure like an out-of-bounds character offset, would just
+        /// reproduce the same class of mistake against a brand-new text.</para>
         /// </summary>
-        private static string BuildDefaultRejectionNotice(string? rejectionReason, bool truncated)
+        private static string BuildDefaultRejectionNotice(string? rejectionReason, bool truncated, string? lastRawText)
         {
             if (string.IsNullOrWhiteSpace(rejectionReason))
             {
@@ -136,14 +152,23 @@ namespace DeepLearning.Application.Common
                 + "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 + $"拒绝原因:{rejectionReason}\n";
 
-            return truncated
-                ? header
+            if (truncated)
+            {
+                return header
                     + "上一次输出【没有写完】就被截断了,不是格式错误,判断本身也没有问题。\n"
                     + "这一次请把同样的内容【完整】写出来,可以省略不必要的长篇论述,"
-                    + "但【不要因此减少任何必需的条目】。\n"
-                : header
-                    + "请只修正这一处,其余判断保持不变,然后重新输出【完整】的 JSON:"
-                    + "不要使用 markdown 代码块围栏,不要输出任何多余文字。\n";
+                    + "但【不要因此减少任何必需的条目】。\n";
+            }
+
+            var previousOutputBlock = string.IsNullOrEmpty(lastRawText)
+                ? string.Empty
+                : "\n上一次的完整输出如下,供你逐字核对、直接在其基础上修改——不要凭记忆重新编写:\n"
+                    + "------\n" + lastRawText + "\n------\n";
+
+            return header
+                + previousOutputBlock
+                + "请只修正上面这处问题涉及的字段,其余内容原样保留,然后重新输出【修正后的完整】JSON:"
+                + "不要使用 markdown 代码块围栏,不要输出任何多余文字。\n";
         }
     }
 }

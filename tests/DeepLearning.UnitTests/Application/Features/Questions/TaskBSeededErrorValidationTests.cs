@@ -80,6 +80,45 @@ namespace DeepLearning.UnitTests.Application.Features.Questions
         }
 
         [Fact]
+        public void AllActuallyFlawed_is_false_when_correctReferenceText_already_appears_in_the_flawed_text()
+        {
+            // The 2026-09-12 real case this check exists for: the AI's positions pointed at
+            // unrelated text, but the "correction" it claimed to be fixing was sitting verbatim
+            // elsewhere in the very text it was supposedly missing from — i.e. the mistake was
+            // never actually written in, so there was nothing for a user to find.
+            var flawedText = "免费公共项目已经开始实施。";
+            var errors = new[] { new Range(0, 2, "unjustified_omission", "免费公共项目") };
+
+            Assert.False(AllActuallyFlawed(errors, flawedText));
+        }
+
+        [Fact]
+        public void AllActuallyFlawed_is_true_when_the_correction_does_not_appear_anywhere_in_the_text()
+        {
+            var flawedText = "该计划将使参观人数增长10%。";
+            var errors = new[] { new Range(0, 2, "distortion", "15%") };
+
+            Assert.True(AllActuallyFlawed(errors, flawedText));
+        }
+
+        [Fact]
+        public void AllActuallyFlawed_ignores_errors_with_no_correctReferenceText()
+        {
+            Assert.True(AllActuallyFlawed([new Range(0, 2, "grammar", "")], "anything"));
+        }
+
+        [Fact]
+        public void AllActuallyFlawed_ignores_a_one_or_two_character_correctReferenceText_even_if_it_recurs()
+        {
+            // A lone punctuation mark or common short word will legitimately recur elsewhere in
+            // the text for unrelated reasons — checking it would just burn a retry on a false
+            // positive, so anything under MinCheckedReferenceLength is exempt.
+            var flawedText = "第一句，第二句，第三句。";
+
+            Assert.True(AllActuallyFlawed([new Range(0, 2, "punctuation_error", "，")], flawedText));
+        }
+
+        [Fact]
         public void Validate_throws_on_out_of_bounds_before_checking_category_or_overlap()
         {
             // Out of bounds AND an unknown category in the same input — bounds must win (per the
@@ -90,6 +129,27 @@ namespace DeepLearning.UnitTests.Application.Features.Questions
             var ex = Assert.Throws<InvalidOperationException>(
                 () => Validate(errors, textLength: 10, known, textLabel: "flawed translation"));
             Assert.Contains("out of bounds", ex.Message);
+        }
+
+        [Fact]
+        public void Validate_throws_when_correctReferenceText_already_appears_in_flawedText()
+        {
+            var errors = new List<Range> { new(0, 2, "grammar", "免费公共项目") };
+
+            var ex = Assert.Throws<InvalidOperationException>(
+                () => Validate(errors, textLength: 20, knownCategoryKeys: null, textLabel: "flawed translation",
+                    flawedText: "已经开始的免费公共项目实施方案。"));
+            Assert.Contains("already appears verbatim", ex.Message);
+        }
+
+        [Fact]
+        public void Validate_skips_the_already_flawed_check_when_flawedText_is_not_supplied()
+        {
+            // ImportUserQuestionValidator's path doesn't call Validate at all, but this pins that
+            // any future caller omitting flawedText isn't forced into the AI-only check.
+            var errors = new List<Range> { new(0, 2, "grammar", "免费公共项目") };
+
+            Validate(errors, textLength: 20, knownCategoryKeys: null, textLabel: "flawed translation");
         }
 
         [Fact]
