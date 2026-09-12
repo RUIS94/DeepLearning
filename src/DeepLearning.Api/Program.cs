@@ -6,6 +6,8 @@ using DeepLearning.Infrastructure;
 using DeepLearning.Infrastructure.BackgroundJobs;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
@@ -28,7 +30,13 @@ builder.Host.UseSerilog((context, configuration) => configuration
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddControllers();
+// Every controller action requires an authenticated caller by default now — the previous
+// "opt-in" convention (a valid JWT's identity wins, but an anonymous request falls back to
+// whatever UserId it supplied in the body/query) let anyone read or write any user's data by
+// guessing their GUID. An endpoint that genuinely needs to be public gets an explicit
+// [AllowAnonymous] instead of this being the default everywhere.
+builder.Services.AddControllers(options =>
+    options.Filters.Add(new AuthorizeFilter(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())));
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -69,9 +77,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
         };
     });
-builder.Services.AddAuthorization();
+// "AdminOnly" checks ClaimTypes.Role, which EnsureUserProfileMiddleware attaches per-request from
+// the caller's own users.role column (see that middleware's comment) — not from the Supabase JWT,
+// which has no notion of this app's roles and would go stale until re-login anyway.
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("AdminOnly", policy => policy.RequireRole(nameof(DeepLearning.Domain.Enums.UserRole.admin)));
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddHostedService<AdminBootstrapHostedService>();
 
 // feature_flags gate (design doc §六 / §11.2 Step 10) — [FeatureGate("...")] on 题库/复习库
 // controllers consults this; short-cached so it isn't a SELECT per request.

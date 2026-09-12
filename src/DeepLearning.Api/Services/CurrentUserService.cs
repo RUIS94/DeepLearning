@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using DeepLearning.Application.Interfaces;
+using DeepLearning.Domain.Enums;
 
 namespace DeepLearning.Api.Services
 {
@@ -29,5 +31,14 @@ namespace DeepLearning.Api.Services
         }
 
         public string? Email => _httpContextAccessor.HttpContext?.User.FindFirst("email")?.Value;
+
+        public UserRole? Role
+        {
+            get
+            {
+                var role = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.Role)?.Value;
+                return Enum.TryParse<UserRole>(role, out var parsed) ? parsed : null;
+            }
+        }
     }
 }

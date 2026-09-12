@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.ExamConfig.Commands.CreateAssessmentDimension;
@@ -159,6 +160,8 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))
                 .CreateClient();
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
 
             var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
 
@@ -203,6 +206,8 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))
                 .CreateClient();
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
 
             var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
 
@@ -229,6 +234,8 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClientWithInvalidCategory()))))
                 .CreateClient();
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
 
             var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
 
@@ -257,6 +264,8 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClientWithOutOfRangeBand()))))
                 .CreateClient();
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
 
             var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
 
@@ -288,6 +297,8 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddSingleton<ILlmClientResolver>(LlmClientResolverSubstitute.Returning(capturingClient))))
                 .CreateClient();
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
 
             var (examTypeId, questionId, userId) = await SeedTaskBExamTypeQuestionAndUserAsync(client);
 
@@ -335,6 +346,8 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))
                 .CreateClient();
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
 
             var (_, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
 

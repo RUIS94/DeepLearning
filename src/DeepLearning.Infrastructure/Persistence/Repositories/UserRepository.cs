@@ -19,6 +19,9 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
         public Task<User?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
             => _context.Users.FirstOrDefaultAsync(x => x.Username == username, cancellationToken);
 
+        public Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
+            => _context.Users.FirstOrDefaultAsync(x => x.Email == email, cancellationToken);
+
         public Task<bool> ExistsAsync(string username, string email, CancellationToken cancellationToken = default)
             => _context.Users.AnyAsync(x => x.Username == username || x.Email == email, cancellationToken);
 

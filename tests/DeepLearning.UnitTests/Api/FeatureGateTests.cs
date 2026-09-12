@@ -62,9 +62,9 @@ namespace DeepLearning.UnitTests.Api
         public async Task Review_library_endpoint_is_reachable_when_the_flag_row_is_absent()
         {
             await SetFlagAsync(FeatureFlags.ReviewLibraryEnabled, null);
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
-            var response = await client.GetAsync($"{ApiRoutes.ReviewLibrary.Base}/patterns?userId={Guid.NewGuid()}");
+            var response = await client.GetAsync($"{ApiRoutes.ReviewLibrary.Base}/patterns");
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
@@ -75,9 +75,9 @@ namespace DeepLearning.UnitTests.Api
             await SetFlagAsync(FeatureFlags.ReviewLibraryEnabled, false);
             try
             {
-                var client = _factory.CreateClient();
+                var client = _factory.CreateAuthenticatedClient();
 
-                var response = await client.GetAsync($"{ApiRoutes.ReviewLibrary.Base}/vocab?userId={Guid.NewGuid()}");
+                var response = await client.GetAsync($"{ApiRoutes.ReviewLibrary.Base}/vocab");
 
                 Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
             }
@@ -93,7 +93,7 @@ namespace DeepLearning.UnitTests.Api
             await SetFlagAsync(FeatureFlags.QuestionBankEnabled, false);
             try
             {
-                var client = _factory.CreateClient();
+                var client = _factory.CreateAuthenticatedClient();
 
                 var response = await client.GetAsync(ApiRoutes.QuestionBankCategories.Base);
 

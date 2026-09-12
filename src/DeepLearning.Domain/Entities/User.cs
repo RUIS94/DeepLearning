@@ -1,9 +1,18 @@
 using DeepLearning.Domain.Common;
+using DeepLearning.Domain.Enums;
 
 namespace DeepLearning.Domain.Entities
 {
     public class User : AggregateRoot
     {
+        /// <summary>
+        /// Defaults to `user` for every row — admin is granted explicitly, never inferred.
+        /// EnsureUserProfileMiddleware mirrors this into a ClaimTypes.Role claim on every request
+        /// so [Authorize(Roles = "admin")]/the "AdminOnly" policy see it fresh (no re-login needed
+        /// after a role change), instead of trusting a Supabase JWT claim that would go stale.
+        /// </summary>
+        public UserRole Role { get; set; } = UserRole.user;
+
         public string Username { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
 

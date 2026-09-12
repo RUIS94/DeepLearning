@@ -38,7 +38,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Create_then_list_round_trips_over_http()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
             var examTypeId = await CreateExamTypeAsync(client);
             var baseUrl = ApiRoutes.AssessmentDimensions.Base.Replace("{examTypeId:guid}", examTypeId.ToString());
 
@@ -74,7 +74,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Creating_a_new_rubric_version_closes_out_the_previously_open_ended_version()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
             var examTypeId = await CreateExamTypeAsync(client);
             var baseUrl = ApiRoutes.AssessmentDimensions.Base.Replace("{examTypeId:guid}", examTypeId.ToString());
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
@@ -136,7 +136,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Creating_a_new_version_that_would_start_before_the_current_one_returns_400()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
             var examTypeId = await CreateExamTypeAsync(client);
             var baseUrl = ApiRoutes.AssessmentDimensions.Base.Replace("{examTypeId:guid}", examTypeId.ToString());
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
@@ -177,7 +177,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Create_returns_404_for_unknown_exam_type()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
             var baseUrl = ApiRoutes.AssessmentDimensions.Base.Replace("{examTypeId:guid}", Guid.NewGuid().ToString());
 
             var response = await client.PostAsJsonAsync(baseUrl, new

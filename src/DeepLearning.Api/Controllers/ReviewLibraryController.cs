@@ -28,31 +28,24 @@ namespace DeepLearning.Api.Controllers
 
         [HttpGet("patterns")]
         public async Task<ActionResult<List<ReviewPatternResultItem>>> ListPatterns(
-            Guid? userId, string? domain, string? scenario, string? frequencyTag, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new ListReviewPatternsQuery(ResolveUserId(userId), domain, scenario, frequencyTag), cancellationToken));
+            string? domain, string? scenario, string? frequencyTag, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new ListReviewPatternsQuery(_currentUser.RequiredUserId, domain, scenario, frequencyTag), cancellationToken));
 
         [HttpGet("vocab")]
         public async Task<ActionResult<List<ReviewVocabResultItem>>> ListVocab(
-            Guid? userId, string? domain, string? scenario, string? frequencyTag, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new ListReviewVocabQuery(ResolveUserId(userId), domain, scenario, frequencyTag), cancellationToken));
+            string? domain, string? scenario, string? frequencyTag, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new ListReviewVocabQuery(_currentUser.RequiredUserId, domain, scenario, frequencyTag), cancellationToken));
 
-        public record MarkReviewedRequest(Guid? UserId, MasteryLevel MasteryLevel);
+        public record MarkReviewedRequest(MasteryLevel MasteryLevel);
 
         [HttpPost("patterns/{patternId:guid}/review")]
         public async Task<ActionResult<MarkPatternReviewedResult>> MarkPatternReviewed(
             Guid patternId, MarkReviewedRequest request, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new MarkPatternReviewedCommand(ResolveUserId(request.UserId), patternId, request.MasteryLevel), cancellationToken));
+            => Ok(await _mediator.Send(new MarkPatternReviewedCommand(_currentUser.RequiredUserId, patternId, request.MasteryLevel), cancellationToken));
 
         [HttpPost("vocab/{vocabId:guid}/review")]
         public async Task<ActionResult<MarkVocabReviewedResult>> MarkVocabReviewed(
             Guid vocabId, MarkReviewedRequest request, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new MarkVocabReviewedCommand(ResolveUserId(request.UserId), vocabId, request.MasteryLevel), cancellationToken));
-
-        // A valid JWT's identity always wins over whatever UserId the caller passed explicitly —
-        // see AGENTS.md's Auth section for why this is opt-in rather than [Authorize]-enforced.
-        // Falls through to Guid.Empty (not null) when neither is present, same as this action's
-        // pre-auth behavior of requiring userId — a missing identity is a caller bug, not a valid
-        // "browse for nobody" request.
-        private Guid ResolveUserId(Guid? explicitUserId) => _currentUser.UserId ?? explicitUserId ?? Guid.Empty;
+            => Ok(await _mediator.Send(new MarkVocabReviewedCommand(_currentUser.RequiredUserId, vocabId, request.MasteryLevel), cancellationToken));
     }
 }

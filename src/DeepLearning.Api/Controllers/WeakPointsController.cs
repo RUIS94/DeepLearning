@@ -24,8 +24,8 @@ namespace DeepLearning.Api.Controllers
         public record ReclassifyRequest(Guid CatalogId);
 
         [HttpGet]
-        public async Task<ActionResult<List<WeakPointResultItem>>> List(Guid? userId, WeakPointStatus? status, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new ListWeakPointsQuery(_currentUser.UserId ?? userId ?? Guid.Empty, status), cancellationToken));
+        public async Task<ActionResult<List<WeakPointResultItem>>> List(WeakPointStatus? status, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(new ListWeakPointsQuery(_currentUser.RequiredUserId, status), cancellationToken));
 
         [HttpPost("{id:guid}/reclassify")]
         public async Task<ActionResult<ReclassifyWeakPointResult>> Reclassify(Guid id, ReclassifyRequest request, CancellationToken cancellationToken)

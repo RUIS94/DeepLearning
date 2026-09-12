@@ -28,7 +28,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task List_returns_ok()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var response = await client.GetAsync(ApiRoutes.LlmProviderSettings.Base);
 
@@ -38,7 +38,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Update_returns_404_for_an_unknown_provider()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var response = await client.PatchAsync(
                 $"{ApiRoutes.LlmProviderSettings.Base}/does-not-exist-{Guid.NewGuid():N}",
@@ -50,7 +50,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Activate_returns_404_for_an_unknown_provider()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var response = await client.PostAsync(
                 $"{ApiRoutes.LlmProviderSettings.Base}/does-not-exist-{Guid.NewGuid():N}/activate", content: null);
@@ -87,7 +87,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Update_changes_only_the_fields_that_were_provided()
         {
             var (providerKey, _) = await SeedTwoProvidersAsync(firstIsActive: false);
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var response = await client.PatchAsJsonAsync(
                 $"{ApiRoutes.LlmProviderSettings.Base}/{providerKey}",
@@ -110,7 +110,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Update_with_an_empty_string_clears_effort_back_to_null()
         {
             var (providerKey, _) = await SeedTwoProvidersAsync(firstIsActive: false);
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var setResponse = await client.PatchAsJsonAsync(
                 $"{ApiRoutes.LlmProviderSettings.Base}/{providerKey}",
@@ -133,7 +133,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Activate_deactivates_the_previously_active_provider()
         {
             var (first, second) = await SeedTwoProvidersAsync(firstIsActive: false);
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var activateResponse = await client.PostAsync($"{ApiRoutes.LlmProviderSettings.Base}/{first}/activate", content: null);
             Assert.Equal(HttpStatusCode.OK, activateResponse.StatusCode);
@@ -148,7 +148,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task SetOperationOverride_returns_404_for_an_unknown_provider()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var response = await client.PutAsJsonAsync(
                 $"{ApiRoutes.LlmProviderSettings.Base}/operation-overrides/{AiOperationType.grading}",
@@ -161,7 +161,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task SetOperationOverride_then_ListOperationOverrides_reflects_the_pin_and_Clear_removes_it()
         {
             var (providerKey, _) = await SeedTwoProvidersAsync(firstIsActive: false);
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             // weak_point_recheck is exercised least by the rest of the suite, so pinning it here
             // is the least likely operation type to collide with a leftover row from another test
@@ -195,7 +195,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task SetOperationOverride_returns_404_for_a_model_not_in_that_providers_catalog()
         {
             var (providerKey, _) = await SeedTwoProvidersAsync(firstIsActive: false);
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var response = await client.PutAsJsonAsync(
                 $"{ApiRoutes.LlmProviderSettings.Base}/operation-overrides/{AiOperationType.weak_point_classification}",
@@ -208,7 +208,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task SetOperationOverride_pins_a_specific_model_thinking_and_effort_independent_of_the_providers_own_defaults()
         {
             var (providerKey, _) = await SeedTwoProvidersAsync(firstIsActive: false);
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             using (var scope = _factory.Services.CreateScope())
             {

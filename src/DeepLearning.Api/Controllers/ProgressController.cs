@@ -21,9 +21,9 @@ namespace DeepLearning.Api.Controllers
 
         [HttpGet]
         public async Task<ActionResult<List<ProgressSnapshotResultItem>>> List(
-            Guid? userId, string? difficultyTier, CancellationToken cancellationToken)
+            string? difficultyTier, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(
-                new GetProgressSnapshotsQuery(_currentUser.UserId ?? userId ?? Guid.Empty, difficultyTier),
+                new GetProgressSnapshotsQuery(_currentUser.RequiredUserId, difficultyTier),
                 cancellationToken));
     }
 }

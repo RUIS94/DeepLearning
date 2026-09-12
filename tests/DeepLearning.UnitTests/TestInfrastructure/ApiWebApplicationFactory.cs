@@ -1,12 +1,19 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Net.Http.Headers;
+using System.Security.Claims;
+using System.Text;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
+using DeepLearning.Domain.Enums;
 using DeepLearning.Infrastructure.Ai;
 using DeepLearning.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
 using Testcontainers.PostgreSql;
 
 namespace DeepLearning.UnitTests.TestInfrastructure
@@ -25,6 +32,18 @@ namespace DeepLearning.UnitTests.TestInfrastructure
     {
         private const string ConnectionStringEnvVar = "ConnectionStrings__DefaultConnection";
 
+        // Every controller action requires authentication now (Program.cs's global AuthorizeFilter,
+        // see ref/管理员与用户权限隔离_策划书.md Phase 1). Real Program.cs validates a Supabase-issued
+        // JWT against its JWKS endpoint over the network — unreachable and undesirable from a test
+        // run — so every test in this fixture gets a locally-verifiable symmetric signing key
+        // instead, swapped in once here rather than per test class. This still exercises the real
+        // JwtBearer handler + CurrentUserService + EnsureUserProfileMiddleware pipeline exactly as
+        // Program.cs wires it; only where the signature gets checked differs.
+        public const string TestIssuer = "https://test-project.supabase.co/auth/v1";
+
+        private static readonly SymmetricSecurityKey TestSigningKey =
+            new(Encoding.UTF8.GetBytes("test-only-hmac-signing-key-at-least-32-bytes-long"));
+
         private readonly PostgreSqlContainer _container = new PostgreSqlBuilder()
             .WithImage("pgvector/pgvector:pg16")
             .WithDatabase("deeplearning_api_test")
@@ -35,6 +54,25 @@ namespace DeepLearning.UnitTests.TestInfrastructure
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
+
+            builder.ConfigureTestServices(services =>
+            {
+                services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+                {
+                    options.Authority = null;
+                    options.RequireHttpsMetadata = false;
+                    options.MapInboundClaims = false;
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidIssuer = TestIssuer,
+                        ValidateAudience = true,
+                        ValidAudience = "authenticated",
+                        ValidateLifetime = true,
+                        IssuerSigningKey = TestSigningKey,
+                    };
+                });
+            });
 
             // AiCallRetryExecutor's default 2s/4s/8s backoff (design doc §7) is correct for
             // production but would make every existing "AI response is invalid" test sit through
@@ -96,7 +134,7 @@ namespace DeepLearning.UnitTests.TestInfrastructure
         /// `User` row (not exercising auth itself) seed one directly via DbContext, same convention
         /// as ReviewLibraryControllerTests.NewUser()/ExtractKnowledgePointsOnGradedTests.
         /// </summary>
-        public async Task<Guid> SeedUserAsync()
+        public async Task<Guid> SeedUserAsync(UserRole role = UserRole.user)
         {
             using var scope = Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -105,11 +143,48 @@ namespace DeepLearning.UnitTests.TestInfrastructure
                 Id = Guid.NewGuid(),
                 Username = $"test_{Guid.NewGuid():N}",
                 Email = $"{Guid.NewGuid():N}@test.local",
+                Role = role,
                 CreatedAt = DateTimeOffset.UtcNow,
             };
             await context.Users.AddAsync(user);
             await context.SaveChangesAsync();
             return user.Id;
+        }
+
+        /// <summary>Mints a locally-signed JWT for <paramref name="userId"/> against <see cref="TestSigningKey"/>.</summary>
+        public static string CreateJwt(Guid userId, string? email = null)
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var token = new JwtSecurityToken(
+                issuer: TestIssuer,
+                audience: "authenticated",
+                claims: [new Claim("sub", userId.ToString()), new Claim("email", email ?? $"{userId:N}@test.local")],
+                expires: DateTime.UtcNow.AddHours(1),
+                signingCredentials: new SigningCredentials(TestSigningKey, SecurityAlgorithms.HmacSha256));
+            return handler.WriteToken(token);
+        }
+
+        /// <summary>
+        /// A plain HttpClient carrying a valid JWT — the default for any test hitting an endpoint,
+        /// now that every controller action requires authentication. EnsureUserProfileMiddleware
+        /// creates the `public.users` row for <paramref name="userId"/> on first use if it doesn't
+        /// already exist (as UserRole.user), so callers only need SeedUserAsync when they need the
+        /// row to exist *before* the first authenticated call (e.g. to pre-set a role or FK a
+        /// related row to it).
+        /// </summary>
+        public HttpClient CreateAuthenticatedClient(Guid? userId = null, string? email = null)
+        {
+            var client = CreateClient();
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", CreateJwt(userId ?? Guid.NewGuid(), email));
+            return client;
+        }
+
+        /// <summary>Seeds an admin user and returns an authenticated client for them.</summary>
+        public async Task<HttpClient> CreateAuthenticatedAdminClientAsync()
+        {
+            var userId = await SeedUserAsync(UserRole.admin);
+            return CreateAuthenticatedClient(userId);
         }
 
         async Task IAsyncLifetime.DisposeAsync()

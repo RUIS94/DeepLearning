@@ -46,13 +46,13 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task List_returns_every_snapshot_for_the_user_ordered_oldest_first()
         {
-            var client = _factory.CreateClient();
             var userId = await _factory.SeedUserAsync();
+            var client = _factory.CreateAuthenticatedClient(userId);
 
             await SeedSnapshotAsync(userId, new DateOnly(2026, 8, 24), new DateOnly(2026, 8, 30), "medium", 50.00m);
             await SeedSnapshotAsync(userId, new DateOnly(2026, 8, 17), new DateOnly(2026, 8, 23), "medium", 100.00m);
 
-            var response = await client.GetAsync($"{ApiRoutes.Progress.Base}?userId={userId}");
+            var response = await client.GetAsync(ApiRoutes.Progress.Base);
             response.EnsureSuccessStatusCode();
             var items = await response.Content.ReadFromJsonAsync<List<ProgressSnapshotResultItem>>();
 
@@ -66,13 +66,13 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task List_filters_by_difficulty_tier_when_supplied()
         {
-            var client = _factory.CreateClient();
             var userId = await _factory.SeedUserAsync();
+            var client = _factory.CreateAuthenticatedClient(userId);
 
             await SeedSnapshotAsync(userId, new DateOnly(2026, 8, 17), new DateOnly(2026, 8, 23), "easy", 100.00m);
             await SeedSnapshotAsync(userId, new DateOnly(2026, 8, 17), new DateOnly(2026, 8, 23), "hard", 20.00m);
 
-            var response = await client.GetAsync($"{ApiRoutes.Progress.Base}?userId={userId}&difficultyTier=hard");
+            var response = await client.GetAsync($"{ApiRoutes.Progress.Base}?difficultyTier=hard");
             response.EnsureSuccessStatusCode();
             var items = await response.Content.ReadFromJsonAsync<List<ProgressSnapshotResultItem>>();
 
@@ -83,10 +83,9 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task List_returns_an_empty_list_for_a_user_with_no_snapshots()
         {
-            var client = _factory.CreateClient();
-            var userId = await _factory.SeedUserAsync();
+            var client = _factory.CreateAuthenticatedClient();
 
-            var response = await client.GetAsync($"{ApiRoutes.Progress.Base}?userId={userId}");
+            var response = await client.GetAsync(ApiRoutes.Progress.Base);
             response.EnsureSuccessStatusCode();
             var items = await response.Content.ReadFromJsonAsync<List<ProgressSnapshotResultItem>>();
 

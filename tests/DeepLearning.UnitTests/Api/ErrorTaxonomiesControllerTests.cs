@@ -21,7 +21,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Create_then_list_round_trips_over_http()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
                 Code = $"test_{Guid.NewGuid():N}",

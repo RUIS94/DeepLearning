@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.ExamConfig.Commands.CreateAssessmentDimension;
@@ -38,7 +39,14 @@ namespace DeepLearning.UnitTests.Api
         private const string GradingMarker = "GRADING_CONTAMINATION_MARKER_9f3c";
         private const string DeepLearningMarkerTemplate = "DEEP_LEARNING_SOURCE_MARKER: {{ source_text }}";
 
-        private async Task<(Guid ExamTypeId, Guid QuestionId, Guid UserId)> SeedExamTypeQuestionAndUserAsync(HttpClient client)
+        /// <summary>
+        /// <paramref name="userId"/> must be the same identity <paramref name="client"/> is
+        /// authenticated as (see CreateAuthenticatedLlmClient) — the question's CreatedBy and any
+        /// later submission are always the caller's own JWT identity now (Phase 1 closed the
+        /// caller-supplied-UserId trust hole), so a mismatched userId here would make the
+        /// UserPatternReview/UserVocabReview assertions below look up the wrong row.
+        /// </summary>
+        private async Task<(Guid ExamTypeId, Guid QuestionId, Guid UserId)> SeedExamTypeQuestionAndUserAsync(HttpClient client, Guid userId)
         {
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -86,9 +94,23 @@ namespace DeepLearning.UnitTests.Api
             questionResponse.EnsureSuccessStatusCode();
             var question = await questionResponse.Content.ReadFromJsonAsync<ImportUserQuestionResult>();
 
-            var userId = await _factory.SeedUserAsync();
-
             return (examType.Id, question!.Id, userId);
+        }
+
+        /// <summary>
+        /// Swaps in a fake LLM client and authenticates the returned HttpClient as a freshly
+        /// generated user — this is now the identity every request through it (question creation,
+        /// submissions, ...) is attributed to (see the Phase 1 note on SeedExamTypeQuestionAndUserAsync).
+        /// </summary>
+        private (HttpClient Client, Guid UserId) CreateAuthenticatedLlmClient(Action<IServiceCollection> configureLlmClient)
+        {
+            var userId = Guid.NewGuid();
+            var client = _factory
+                .WithWebHostBuilder(builder => builder.ConfigureTestServices(configureLlmClient))
+                .CreateClient();
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(userId));
+            return (client, userId);
         }
 
         // Mirrors AssessmentDimensionsController.CreateAssessmentDimensionRequest — nested inside
@@ -129,12 +151,10 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Generate_is_isolated_from_grading_context_persists_content_and_is_idempotent_on_a_second_call()
         {
-            var gradingClient = _factory
-                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))
-                .CreateClient();
+            var (gradingClient, userId) = CreateAuthenticatedLlmClient(
+                services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient())));
 
-            var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(gradingClient);
+            var (examTypeId, questionId, _) = await SeedExamTypeQuestionAndUserAsync(gradingClient, userId);
             await SeedDeepLearningPromptTemplateAsync();
 
             // Grade a submission whose content carries a marker that must NEVER leak into a
@@ -143,7 +163,6 @@ namespace DeepLearning.UnitTests.Api
             var createResponse = await gradingClient.PostAsJsonAsync(ApiRoutes.Submissions.Base, new
             {
                 QuestionId = questionId,
-                UserId = userId,
                 TaskType = TaskType.A,
                 Content = $"\"{GradingMarker}\"",
             });
@@ -153,10 +172,8 @@ namespace DeepLearning.UnitTests.Api
             Assert.Equal(HttpStatusCode.Accepted, gradeResponse.StatusCode);
 
             var fakeClient = new FakeDeepLearningLlmClient();
-            var deepLearningClient = _factory
-                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddSingleton<ILlmClientResolver>(LlmClientResolverSubstitute.Returning(fakeClient))))
-                .CreateClient();
+            var (deepLearningClient, _) = CreateAuthenticatedLlmClient(
+                services => services.AddSingleton<ILlmClientResolver>(LlmClientResolverSubstitute.Returning(fakeClient)));
 
             var firstGenerate = await deepLearningClient.PostAsJsonAsync(
                 $"{ApiRoutes.Questions.Base}/{questionId}/deep-learning", new { ExamTypeId = examTypeId });
@@ -198,12 +215,10 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Get_returns_404_before_any_content_has_been_generated_for_the_question()
         {
-            var client = _factory
-                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))
-                .CreateClient();
+            var (client, userId) = CreateAuthenticatedLlmClient(
+                services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient())));
 
-            var (_, questionId, _) = await SeedExamTypeQuestionAndUserAsync(client);
+            var (_, questionId, _) = await SeedExamTypeQuestionAndUserAsync(client, userId);
 
             var response = await client.GetAsync($"{ApiRoutes.Questions.Base}/{questionId}/deep-learning");
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -212,12 +227,10 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Generate_rejects_a_response_with_an_empty_pattern_name_instead_of_persisting_it()
         {
-            var client = _factory
-                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeDeepLearningLlmClientWithInvalidPattern()))))
-                .CreateClient();
+            var (client, userId) = CreateAuthenticatedLlmClient(
+                services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeDeepLearningLlmClientWithInvalidPattern())));
 
-            var (examTypeId, questionId, _) = await SeedExamTypeQuestionAndUserAsync(client);
+            var (examTypeId, questionId, _) = await SeedExamTypeQuestionAndUserAsync(client, userId);
             await SeedDeepLearningPromptTemplateAsync();
 
             var response = await client.PostAsJsonAsync(
@@ -231,18 +244,14 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Grading_a_new_submission_after_deep_learning_content_exists_marks_its_patterns_and_vocab_as_reviewed()
         {
-            var gradingClient = _factory
-                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))
-                .CreateClient();
+            var (gradingClient, userId) = CreateAuthenticatedLlmClient(
+                services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient())));
 
-            var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(gradingClient);
+            var (examTypeId, questionId, _) = await SeedExamTypeQuestionAndUserAsync(gradingClient, userId);
             await SeedDeepLearningPromptTemplateAsync();
 
-            var deepLearningClient = _factory
-                .WithWebHostBuilder(builder => builder.ConfigureTestServices(
-                    services => services.AddSingleton<ILlmClientResolver>(LlmClientResolverSubstitute.Returning(new FakeDeepLearningLlmClient()))))
-                .CreateClient();
+            var (deepLearningClient, _) = CreateAuthenticatedLlmClient(
+                services => services.AddSingleton<ILlmClientResolver>(LlmClientResolverSubstitute.Returning(new FakeDeepLearningLlmClient())));
             var generateResponse = await deepLearningClient.PostAsJsonAsync(
                 $"{ApiRoutes.Questions.Base}/{questionId}/deep-learning", new { ExamTypeId = examTypeId });
             Assert.Equal(HttpStatusCode.OK, generateResponse.StatusCode);
@@ -250,7 +259,6 @@ namespace DeepLearning.UnitTests.Api
             var createResponse = await gradingClient.PostAsJsonAsync(ApiRoutes.Submissions.Base, new
             {
                 QuestionId = questionId,
-                UserId = userId,
                 TaskType = TaskType.A,
                 Content = "\"my translation of the text\"",
             });

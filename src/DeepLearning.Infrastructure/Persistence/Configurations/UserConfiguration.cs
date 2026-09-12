@@ -17,6 +17,7 @@ namespace DeepLearning.Infrastructure.Persistence.Configurations
             builder.Property(x => x.PasswordHash).HasMaxLength(255);
             builder.Property(x => x.DisplayName).HasMaxLength(100);
             builder.Property(x => x.LanguagePreference).HasMaxLength(8).IsRequired().HasDefaultValue("en");
+            builder.Property(x => x.Role).HasConversion<string>().HasMaxLength(20).IsRequired().HasDefaultValue(Domain.Enums.UserRole.user);
             builder.Property(x => x.CreatedAt).HasDefaultValueSql("now()");
 
             builder.HasIndex(x => x.Username).IsUnique();

@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.ExamConfig.Commands.CreateAssessmentDimension;
@@ -39,10 +40,13 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Grading_a_submission_creates_a_weak_point_a_progress_snapshot_and_marks_linked_patterns_and_vocab_as_reviewed()
         {
+            var userId = Guid.NewGuid();
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))
                 .CreateClient();
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(userId));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -89,8 +93,6 @@ namespace DeepLearning.UnitTests.Api
             });
             questionResponse.EnsureSuccessStatusCode();
             var question = await questionResponse.Content.ReadFromJsonAsync<ImportUserQuestionResult>();
-
-            var userId = await _factory.SeedUserAsync();
 
             // Pre-attach one SentencePattern and one VocabExpression to this Question — Step 7's
             // AI extraction isn't built yet, so this stands in for "a question that already has

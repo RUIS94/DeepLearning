@@ -47,7 +47,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task ListModels_returns_404_for_an_unknown_provider()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var response = await client.GetAsync($"{ApiRoutes.LlmProviderSettings.Base}/does-not-exist-{Guid.NewGuid():N}/models");
 
@@ -57,7 +57,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task AddModel_returns_404_for_an_unknown_provider()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var response = await client.PostAsJsonAsync(
                 $"{ApiRoutes.LlmProviderSettings.Base}/does-not-exist-{Guid.NewGuid():N}/models",
@@ -70,7 +70,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task AddModel_then_list_returns_the_added_model_as_not_current()
         {
             var providerKey = await SeedProviderAsync();
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var addResponse = await client.PostAsJsonAsync(
                 $"{ApiRoutes.LlmProviderSettings.Base}/{providerKey}/models",
@@ -98,7 +98,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task AddModel_returns_409_for_a_model_already_cataloged_for_that_provider()
         {
             var providerKey = await SeedProviderAsync();
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var request = new { Model = "duplicate-model", Label = (string?)null };
             var first = await client.PostAsJsonAsync($"{ApiRoutes.LlmProviderSettings.Base}/{providerKey}/models", request);
@@ -112,7 +112,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Select_returns_404_for_a_model_not_in_the_catalog()
         {
             var providerKey = await SeedProviderAsync();
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var response = await client.PostAsync(
                 $"{ApiRoutes.LlmProviderSettings.Base}/{providerKey}/models/not-cataloged/select", content: null);
@@ -124,7 +124,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Select_makes_the_model_current_and_is_reflected_in_the_provider_list()
         {
             var providerKey = await SeedProviderAsync();
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
             await AddModelAsync(client, providerKey, "model-a");
             await AddModelAsync(client, providerKey, "model-b");
 
@@ -150,7 +150,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var providerA = await SeedProviderAsync();
             var providerB = await SeedProviderAsync();
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
             await AddModelAsync(client, providerA, "shared-model-name");
             await AddModelAsync(client, providerB, "shared-model-name");
 

@@ -27,7 +27,6 @@ namespace DeepLearning.Api.Controllers
 
         public record CreateFollowUpThreadRequest(
             Guid SubmissionId,
-            Guid UserId,
             Guid ExamTypeId,
             string? ContextRef,
             string QuestionText,
@@ -37,43 +36,37 @@ namespace DeepLearning.Api.Controllers
         [HttpPost]
         public async Task<ActionResult<FollowUpThreadResult>> Create(CreateFollowUpThreadRequest request, CancellationToken cancellationToken)
         {
-            var userId = _currentUser.UserId ?? request.UserId;
             var result = await _mediator.Send(
                 new CreateFollowUpThreadCommand(
-                    request.SubmissionId, userId, request.ExamTypeId, request.ContextRef, request.QuestionText, request.Kind, request.DimensionId),
+                    request.SubmissionId, _currentUser.RequiredUserId, request.ExamTypeId, request.ContextRef, request.QuestionText, request.Kind, request.DimensionId),
                 cancellationToken);
 
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
 
-        public record AddFollowUpMessageRequest(Guid UserId, string QuestionText);
+        public record AddFollowUpMessageRequest(string QuestionText);
 
         [HttpPost("{id:guid}/messages")]
         public async Task<ActionResult<FollowUpThreadResult>> AddMessage(Guid id, AddFollowUpMessageRequest request, CancellationToken cancellationToken)
         {
-            var userId = _currentUser.UserId ?? request.UserId;
-            var result = await _mediator.Send(new AddFollowUpMessageCommand(id, userId, request.QuestionText), cancellationToken);
+            var result = await _mediator.Send(new AddFollowUpMessageCommand(id, _currentUser.RequiredUserId, request.QuestionText), cancellationToken);
             return Ok(result);
         }
-
-        public record PreviewFollowUpCloseRequest(Guid UserId);
 
         /// <summary>Draft the closing summary (AI call) without committing — thread stays open.</summary>
         [HttpPost("{id:guid}/close/preview")]
-        public async Task<ActionResult<FollowUpClosePreview>> PreviewClose(Guid id, PreviewFollowUpCloseRequest request, CancellationToken cancellationToken)
+        public async Task<ActionResult<FollowUpClosePreview>> PreviewClose(Guid id, CancellationToken cancellationToken)
         {
-            var userId = _currentUser.UserId ?? request.UserId;
-            var result = await _mediator.Send(new PreviewFollowUpCloseQuery(id, userId), cancellationToken);
+            var result = await _mediator.Send(new PreviewFollowUpCloseQuery(id, _currentUser.RequiredUserId), cancellationToken);
             return Ok(result);
         }
 
-        public record CloseFollowUpThreadRequest(Guid UserId, FollowUpCloseInput? Input = null, bool SkipSummary = false);
+        public record CloseFollowUpThreadRequest(FollowUpCloseInput? Input = null, bool SkipSummary = false);
 
         [HttpPost("{id:guid}/close")]
         public async Task<ActionResult<FollowUpThreadResult>> Close(Guid id, CloseFollowUpThreadRequest request, CancellationToken cancellationToken)
         {
-            var userId = _currentUser.UserId ?? request.UserId;
-            var result = await _mediator.Send(new CloseFollowUpThreadCommand(id, userId, request.Input, request.SkipSummary), cancellationToken);
+            var result = await _mediator.Send(new CloseFollowUpThreadCommand(id, _currentUser.RequiredUserId, request.Input, request.SkipSummary), cancellationToken);
             return Ok(result);
         }
 

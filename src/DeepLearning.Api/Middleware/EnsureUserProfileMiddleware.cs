@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
+using DeepLearning.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace DeepLearning.Api.Middleware
@@ -76,6 +78,12 @@ namespace DeepLearning.Api.Middleware
                         // A concurrent request already bumped it — the stamp only needs to land once.
                     }
                 }
+
+                // Mirrored fresh from the DB on every request (not read off the Supabase JWT
+                // itself) so a role change via the admin UI takes effect on the caller's very next
+                // request instead of requiring them to log out/in for a new token.
+                var role = existing?.Role ?? UserRole.user;
+                ((ClaimsIdentity)context.User.Identity).AddClaim(new Claim(ClaimTypes.Role, role.ToString()));
             }
 
             await _next(context);

@@ -23,7 +23,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Task_a_question_response_has_no_task_b_details()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var createResponse = await client.PostAsJsonAsync(ApiRoutes.Questions.Base, new
             {
@@ -52,7 +52,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Task_b_question_response_includes_task_b_details_with_seeded_errors()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -98,7 +98,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Create_returns_400_when_task_a_carries_seeded_errors()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var response = await client.PostAsJsonAsync(ApiRoutes.Questions.Base, new
             {
@@ -128,7 +128,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Import_with_is_seed_reference_true_sets_origin_and_source_type_to_the_real_exam_pair()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var createResponse = await client.PostAsJsonAsync(ApiRoutes.Questions.Base, new
             {
@@ -158,7 +158,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Import_without_specifying_is_seed_reference_defaults_to_false_and_the_ordinary_origin_pair()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var createResponse = await client.PostAsJsonAsync(ApiRoutes.Questions.Base, new
             {
@@ -186,7 +186,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Import_derives_word_count_from_the_source_text_ignoring_the_title()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var createResponse = await client.PostAsJsonAsync(ApiRoutes.Questions.Base, new
             {
@@ -213,7 +213,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task List_returns_ok()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var response = await client.GetAsync(ApiRoutes.Questions.Base);
 

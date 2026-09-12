@@ -44,7 +44,7 @@ namespace DeepLearning.UnitTests.Api
         {
             await RemoveRowAsync(FeatureFlags.QuestionBankEnabled);
             await RemoveRowAsync(FeatureFlags.ReviewLibraryEnabled);
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var flags = await client.GetFromJsonAsync<List<FeatureFlagResultItem>>(ApiRoutes.FeatureFlags.Base);
 
@@ -58,7 +58,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Setting_a_flag_to_false_makes_its_gated_endpoint_404_then_true_restores_it()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
             try
             {
                 var off = await client.PutAsJsonAsync(
@@ -87,7 +87,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Setting_an_unknown_key_is_rejected()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var response = await client.PutAsJsonAsync(
                 $"{ApiRoutes.FeatureFlags.Base}/not_a_real_flag", new { Enabled = true });

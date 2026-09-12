@@ -36,9 +36,9 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task List_patterns_filters_by_domain_and_overlays_this_users_review_state()
         {
-            var client = _factory.CreateClient();
             var domain = $"legal_{Guid.NewGuid():N}";
             var user = NewUser();
+            var client = _factory.CreateAuthenticatedClient(user.Id);
 
             var matchingPattern = new SentencePattern { Id = Guid.NewGuid(), PatternName = "非限定性定语从句", Domain = domain, CreatedAt = DateTimeOffset.UtcNow };
             var otherDomainPattern = new SentencePattern { Id = Guid.NewGuid(), PatternName = "倒装句", Domain = $"medical_{Guid.NewGuid():N}", CreatedAt = DateTimeOffset.UtcNow };
@@ -63,7 +63,7 @@ namespace DeepLearning.UnitTests.Api
                 await context.SaveChangesAsync();
             }
 
-            var response = await client.GetAsync($"{ApiRoutes.ReviewLibrary.Base}/patterns?userId={user.Id}&domain={domain}");
+            var response = await client.GetAsync($"{ApiRoutes.ReviewLibrary.Base}/patterns?domain={domain}");
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var results = await response.Content.ReadFromJsonAsync<List<ReviewPatternResultItem>>();
 
@@ -76,7 +76,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task List_patterns_defaults_a_never_reviewed_pattern_to_new_and_zero_encounters()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
             // FrequencyTag is VARCHAR(20) — keep well under that instead of a full GUID suffix.
             var frequencyTag = $"tag_{Guid.NewGuid():N}"[..20];
             var pattern = new SentencePattern { Id = Guid.NewGuid(), PatternName = "被动语态", FrequencyTag = frequencyTag, CreatedAt = DateTimeOffset.UtcNow };
@@ -100,7 +100,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Mark_pattern_reviewed_creates_a_review_row_then_updates_mastery_without_touching_times_encountered()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
             var user = NewUser();
             SentencePattern pattern;
 
@@ -133,38 +133,17 @@ namespace DeepLearning.UnitTests.Api
             Assert.Equal(firstResult.Id, secondResult.Id);
         }
 
-        /// <summary>
-        /// Self-audit fix (2026-08-30): user_pattern_review/user_vocab_review have a real FK to
-        /// users, but neither handler checked UserId existed before inserting — an unregistered
-        /// UserId used to surface as a raw 500 (DbUpdateException) instead of a clean 404, unlike
-        /// every other caller-supplied-id check in this codebase (e.g. GenerateQuestionCommand's
-        /// CreatedBy). Fixed by validating via IUserRepository first, same convention.
-        /// </summary>
-        [Fact]
-        public async Task Mark_pattern_reviewed_returns_404_for_an_unregistered_user_instead_of_a_raw_500()
-        {
-            var client = _factory.CreateClient();
-            SentencePattern pattern;
-
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                pattern = new SentencePattern { Id = Guid.NewGuid(), PatternName = "分词状语", CreatedAt = DateTimeOffset.UtcNow };
-                await context.SentencePatterns.AddAsync(pattern);
-                await context.SaveChangesAsync();
-            }
-
-            var response = await client.PostAsJsonAsync(
-                $"{ApiRoutes.ReviewLibrary.Base}/patterns/{pattern.Id}/review",
-                new { UserId = Guid.NewGuid(), MasteryLevel = MasteryLevel.Familiar });
-
-            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        }
+        // Mark_pattern_reviewed_returns_404_for_an_unregistered_user_instead_of_a_raw_500 (removed,
+        // ref/管理员与用户权限隔离_策划书.md Phase 1): its premise — an authenticated caller whose
+        // UserId has no `users` row — is no longer reachable through the API. Every controller
+        // action now requires authentication, and EnsureUserProfileMiddleware provisions the
+        // caller's `users` row before any handler runs, so MarkPatternReviewedCommandHandler's own
+        // IUserRepository check (still in place as defense-in-depth) can no longer 404 via HTTP.
 
         [Fact]
         public async Task Mark_pattern_reviewed_returns_404_for_an_unknown_pattern()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var response = await client.PostAsJsonAsync(
                 $"{ApiRoutes.ReviewLibrary.Base}/patterns/{Guid.NewGuid()}/review",
@@ -176,7 +155,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task List_vocab_filters_by_scenario_and_mark_vocab_reviewed_round_trips()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
             var scenario = $"immigration_letter_{Guid.NewGuid():N}";
             var user = NewUser();
             // The review library reads the canonical vocab_glossary entry (one per expression),

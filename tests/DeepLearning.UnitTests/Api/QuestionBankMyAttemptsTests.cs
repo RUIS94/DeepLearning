@@ -12,8 +12,10 @@ namespace DeepLearning.UnitTests.Api
 {
     /// <summary>
     /// P2: the question bank page shows "已练 N 次" per question and can open past attempts.
-    /// GET /questions?userId= carries per-user attempt count + latest submission id;
-    /// GET /submissions?userId=&amp;questionId= lists that user's submissions newest-first.
+    /// GET /questions carries the *caller's own* attempt count + latest submission id;
+    /// GET /submissions?questionId= lists the caller's own submissions newest-first. Neither
+    /// endpoint accepts a userId query param anymore (ref/管理员与用户权限隔离_策划书.md Phase 1)
+    /// — "my" always means the JWT's own identity, never an arbitrary id a caller can pass in.
     /// </summary>
     [Collection(ApiCollection.Name)]
     public class QuestionBankMyAttemptsTests
@@ -36,7 +38,6 @@ namespace DeepLearning.UnitTests.Api
                 SourceText = "Some source text to translate.",
                 FlawedTranslationText = (string?)null,
                 WordCount = 10,
-                CreatedBy = (Guid?)null,
                 Visibility = Visibility.Private,
                 MeaningCheckpoints = Array.Empty<object>(),
                 SeededErrors = Array.Empty<object>(),
@@ -45,62 +46,59 @@ namespace DeepLearning.UnitTests.Api
             return (await response.Content.ReadFromJsonAsync<ImportUserQuestionResult>())!.Id;
         }
 
-        private static Task<HttpResponseMessage> CreateSubmissionAsync(
-            HttpClient client, Guid questionId, Guid userId) =>
+        private static Task<HttpResponseMessage> CreateSubmissionAsync(HttpClient client, Guid questionId) =>
             client.PostAsJsonAsync(ApiRoutes.Submissions.Base, new
             {
                 QuestionId = questionId,
-                UserId = userId,
                 TaskType = TaskType.A,
                 Content = "\"my translation\"",
             });
 
         [Fact]
-        public async Task Question_list_with_user_id_reports_attempt_count_and_latest_submission()
+        public async Task Question_list_reports_the_callers_own_attempt_count_and_latest_submission()
         {
-            var client = _factory.CreateClient();
-            var userId = await _factory.SeedUserAsync();
+            var client = _factory.CreateAuthenticatedClient();
             var questionId = await ImportTaskAQuestionAsync(client);
 
-            var first = await CreateSubmissionAsync(client, questionId, userId);
+            var first = await CreateSubmissionAsync(client, questionId);
             Assert.Equal(HttpStatusCode.Created, first.StatusCode);
             var firstId = (await first.Content.ReadFromJsonAsync<CreateSubmissionResult>())!.Id;
 
-            var second = await CreateSubmissionAsync(client, questionId, userId);
+            var second = await CreateSubmissionAsync(client, questionId);
             Assert.Equal(HttpStatusCode.Created, second.StatusCode);
             var secondId = (await second.Content.ReadFromJsonAsync<CreateSubmissionResult>())!.Id;
 
-            var list = await client.GetFromJsonAsync<List<ListQuestionsResultItem>>(
-                $"{ApiRoutes.Questions.Base}?userId={userId}");
+            var list = await client.GetFromJsonAsync<List<ListQuestionsResultItem>>(ApiRoutes.Questions.Base);
             var row = Assert.Single(list!, q => q.Id == questionId);
             Assert.Equal(2, row.MyAttemptCount);
             Assert.Contains(row.MyLatestSubmissionId, new[] { (Guid?)firstId, secondId });
 
-            // Without a user id the per-user fields are absent (0 / null).
-            var anon = await client.GetFromJsonAsync<List<ListQuestionsResultItem>>(ApiRoutes.Questions.Base);
-            var anonRow = Assert.Single(anon!, q => q.Id == questionId);
-            Assert.Equal(0, anonRow.MyAttemptCount);
-            Assert.Null(anonRow.MyLatestSubmissionId);
+            // A different authenticated caller has never attempted this question — isolation, not
+            // just "no query param passed".
+            var otherClient = _factory.CreateAuthenticatedClient();
+            var otherList = await otherClient.GetFromJsonAsync<List<ListQuestionsResultItem>>(ApiRoutes.Questions.Base);
+            var otherRow = Assert.Single(otherList!, q => q.Id == questionId);
+            Assert.Equal(0, otherRow.MyAttemptCount);
+            Assert.Null(otherRow.MyLatestSubmissionId);
         }
 
         [Fact]
-        public async Task Submission_list_returns_the_users_submissions_for_a_question_newest_first()
+        public async Task Submission_list_returns_only_the_callers_own_submissions_for_a_question_newest_first()
         {
-            var client = _factory.CreateClient();
-            var userId = await _factory.SeedUserAsync();
-            var otherUserId = await _factory.SeedUserAsync();
+            var client = _factory.CreateAuthenticatedClient();
+            var otherClient = _factory.CreateAuthenticatedClient();
             var questionId = await ImportTaskAQuestionAsync(client);
             var otherQuestionId = await ImportTaskAQuestionAsync(client);
 
-            var a = await CreateSubmissionAsync(client, questionId, userId);
-            var b = await CreateSubmissionAsync(client, questionId, userId);
-            await CreateSubmissionAsync(client, otherQuestionId, userId); // different question — excluded
-            await CreateSubmissionAsync(client, questionId, otherUserId); // different user — excluded
+            var a = await CreateSubmissionAsync(client, questionId);
+            var b = await CreateSubmissionAsync(client, questionId);
+            await CreateSubmissionAsync(client, otherQuestionId); // different question — excluded
+            await CreateSubmissionAsync(otherClient, questionId); // different user — excluded
             var aId = (await a.Content.ReadFromJsonAsync<CreateSubmissionResult>())!.Id;
             var bId = (await b.Content.ReadFromJsonAsync<CreateSubmissionResult>())!.Id;
 
             var list = await client.GetFromJsonAsync<List<ListSubmissionsResultItem>>(
-                $"{ApiRoutes.Submissions.Base}?userId={userId}&questionId={questionId}");
+                $"{ApiRoutes.Submissions.Base}?questionId={questionId}");
 
             Assert.Equal(2, list!.Count);
             Assert.All(list, s => Assert.Equal(questionId, s.QuestionId));

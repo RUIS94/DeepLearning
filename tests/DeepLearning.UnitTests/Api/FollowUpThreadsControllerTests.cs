@@ -165,12 +165,18 @@ namespace DeepLearning.UnitTests.Api
             return seeded;
         }
 
-        private HttpClient CreateClient(string dimensionKey, string? summaryResponseJson = null, string? scoreChallengeSummaryResponseJson = null) => _factory
-            .WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
-                services.AddSingleton<ILlmClientResolver>(
-                    LlmClientResolverSubstitute.Returning(
-                        new FakeFollowUpFlowLlmClient(dimensionKey, PerRoundResponseJson, summaryResponseJson, scoreChallengeSummaryResponseJson)))))
-            .CreateClient();
+        private HttpClient CreateClient(string dimensionKey, string? summaryResponseJson = null, string? scoreChallengeSummaryResponseJson = null)
+        {
+            var client = _factory
+                .WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+                    services.AddSingleton<ILlmClientResolver>(
+                        LlmClientResolverSubstitute.Returning(
+                            new FakeFollowUpFlowLlmClient(dimensionKey, PerRoundResponseJson, summaryResponseJson, scoreChallengeSummaryResponseJson)))))
+                .CreateClient();
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+            return client;
+        }
 
         private async Task<Guid> DimensionIdAsync(Guid examTypeId)
         {

@@ -33,20 +33,24 @@ namespace DeepLearning.Api.Controllers
             string? Brief,
             string SourceText,
             string? FlawedTranslationText,
-            Guid? CreatedBy,
             Visibility Visibility,
             List<MeaningCheckpointInput> MeaningCheckpoints,
             List<SeededErrorInput> SeededErrors,
             bool IsSeedReference = false);
 
+        // Visibility/CreatedBy are no longer caller-supplied trust fields (see D2'/A2' in
+        // ref/管理员与用户权限隔离_策划书.md): CreatedBy is always the authenticated caller, and
+        // IsSeedReference=true (the only way a question becomes Shared) is admin-only until
+        // Phase 2 wires that gate — TODO(Phase 2 A2'): reject IsSeedReference=true here unless
+        // _currentUser.IsAdmin, and derive Visibility from IsSeedReference server-side instead of
+        // trusting request.Visibility at all.
         [HttpPost]
         public async Task<ActionResult<ImportUserQuestionResult>> Import(ImportUserQuestionRequest request, CancellationToken cancellationToken)
         {
-            var createdBy = _currentUser.UserId ?? request.CreatedBy;
             var result = await _mediator.Send(
                 new ImportUserQuestionCommand(
                     request.TaskType, request.Difficulty, request.Title, request.Brief, request.SourceText,
-                    request.FlawedTranslationText, createdBy, request.Visibility,
+                    request.FlawedTranslationText, _currentUser.RequiredUserId, request.Visibility,
                     request.MeaningCheckpoints, request.SeededErrors, request.IsSeedReference),
                 cancellationToken);
 
@@ -59,17 +63,15 @@ namespace DeepLearning.Api.Controllers
             Difficulty? Difficulty,
             Guid? CategoryId,
             List<Guid>? SeedQuestionIds,
-            Guid? CreatedBy,
             bool TargetWeakPoints = false);
 
         [HttpPost("generate")]
         public async Task<ActionResult<GenerateQuestionResult>> Generate(GenerateQuestionRequest request, CancellationToken cancellationToken)
         {
-            var createdBy = _currentUser.UserId ?? request.CreatedBy;
             var result = await _mediator.Send(
                 new GenerateQuestionCommand(
                     request.ExamTypeId, request.TaskType, request.Difficulty, request.CategoryId, request.SeedQuestionIds,
-                    createdBy, request.TargetWeakPoints),
+                    _currentUser.RequiredUserId, request.TargetWeakPoints),
                 cancellationToken);
 
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
@@ -81,15 +83,11 @@ namespace DeepLearning.Api.Controllers
 
         [HttpGet]
         public async Task<ActionResult<List<ListQuestionsResultItem>>> List(
-            TaskType? taskType, Difficulty? difficulty, bool? inBank, Guid? categoryId, Guid? userId,
+            TaskType? taskType, Difficulty? difficulty, bool? inBank, Guid? categoryId,
             bool? isSeedReference, CancellationToken cancellationToken)
-        {
-            // JWT identity wins over an explicit ?userId= (same opt-in convention as the write endpoints).
-            var effectiveUserId = _currentUser.UserId ?? userId;
-            return Ok(await _mediator.Send(
-                new ListQuestionsQuery(taskType, difficulty, inBank, categoryId, effectiveUserId, isSeedReference),
+            => Ok(await _mediator.Send(
+                new ListQuestionsQuery(taskType, difficulty, inBank, categoryId, _currentUser.RequiredUserId, isSeedReference),
                 cancellationToken));
-        }
 
         // Design doc §11.2 Step 8: "记录了每次出题参考了哪些真题" traceability read.
         [HttpGet("{id:guid}/seed-references")]

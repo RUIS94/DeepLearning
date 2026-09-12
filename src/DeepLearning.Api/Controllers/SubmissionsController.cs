@@ -24,16 +24,13 @@ namespace DeepLearning.Api.Controllers
             _currentUser = currentUser;
         }
 
-        public record CreateSubmissionRequest(Guid QuestionId, Guid UserId, TaskType TaskType, string Content);
+        public record CreateSubmissionRequest(Guid QuestionId, TaskType TaskType, string Content);
 
         [HttpPost]
         public async Task<ActionResult<CreateSubmissionResult>> Create(CreateSubmissionRequest request, CancellationToken cancellationToken)
         {
-            // A valid JWT's identity always wins over whatever UserId the caller put in the body —
-            // see AGENTS.md's Auth section for why this is opt-in rather than [Authorize]-enforced.
-            var userId = _currentUser.UserId ?? request.UserId;
             var result = await _mediator.Send(
-                new CreateSubmissionCommand(request.QuestionId, userId, request.TaskType, request.Content),
+                new CreateSubmissionCommand(request.QuestionId, _currentUser.RequiredUserId, request.TaskType, request.Content),
                 cancellationToken);
 
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
@@ -109,11 +106,8 @@ namespace DeepLearning.Api.Controllers
 
         [HttpGet]
         public async Task<ActionResult<List<ListSubmissionsResultItem>>> List(
-            Guid? userId, Guid? questionId, CancellationToken cancellationToken)
-        {
-            var effectiveUserId = _currentUser.UserId ?? userId ?? Guid.Empty;
-            return Ok(await _mediator.Send(
-                new ListSubmissionsQuery(effectiveUserId, questionId), cancellationToken));
-        }
+            Guid? questionId, CancellationToken cancellationToken)
+            => Ok(await _mediator.Send(
+                new ListSubmissionsQuery(_currentUser.RequiredUserId, questionId), cancellationToken));
     }
 }

@@ -1,3 +1,5 @@
+using DeepLearning.Domain.Enums;
+
 namespace DeepLearning.Application.Interfaces
 {
     /// <summary>
@@ -12,5 +14,22 @@ namespace DeepLearning.Application.Interfaces
         Guid? UserId { get; }
 
         string? Email { get; }
+
+        /// <summary>
+        /// Read off the ClaimTypes.Role claim EnsureUserProfileMiddleware attaches from the
+        /// caller's own `public.users` row (not from the Supabase JWT itself, which would go
+        /// stale until re-login). Null when unauthenticated.
+        /// </summary>
+        UserRole? Role { get; }
+
+        bool IsAdmin => Role == UserRole.admin;
+
+        /// <summary>
+        /// UserId, guaranteed non-null once the global [Authorize] requirement (Program.cs) is in
+        /// force — every controller action reachable at all has already been authenticated by the
+        /// time it runs. Throws instead of silently defaulting to Guid.Empty if that invariant is
+        /// ever violated (e.g. an endpoint carrying its own [AllowAnonymous]).
+        /// </summary>
+        Guid RequiredUserId => UserId ?? throw new UnauthorizedAccessException("No authenticated user on this request.");
     }
 }

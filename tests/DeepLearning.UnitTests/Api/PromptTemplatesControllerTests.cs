@@ -20,7 +20,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Create_shared_methodology_template_then_list_round_trips_over_http()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var createResponse = await client.PostAsJsonAsync(ApiRoutes.PromptTemplates.Base, new
             {
@@ -43,7 +43,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Create_returns_400_when_layer_and_scope_are_inconsistent()
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateAuthenticatedClient();
 
             var response = await client.PostAsJsonAsync(ApiRoutes.PromptTemplates.Base, new
             {
