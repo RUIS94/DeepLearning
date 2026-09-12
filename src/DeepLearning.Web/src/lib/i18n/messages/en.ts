@@ -91,11 +91,45 @@ const en = {
   "login.submitting": "Signing in…",
   "login.browsePrefix": "You can also just",
   "login.browseLink": "browse the question bank",
+  "login.forgotPassword": "Forgot password?",
+  "login.registerPrefix": "New here?",
+  "login.registerLink": "Create an account",
+  "login.linkInvalid": "That link has expired or was already used. Please try again.",
+
+  // ---- 注册页 ----
+  "register.title": "Create your account",
+  "register.subtitleSupabase": "Sign up with your email — we'll send a confirmation link.",
+  "register.confirmPassword": "Confirm password",
+  "register.submit": "Create account",
+  "register.submitting": "Creating account…",
+  "register.checkEmail":
+    "Almost there! We've sent a confirmation link to your email. Click it to finish creating your account.",
+  "register.backToLogin": "Back to sign in",
+  "register.loginPrefix": "Already have an account?",
+  "register.loginLink": "Sign in",
+
+  // ---- 忘记密码页 ----
+  "forgotPassword.title": "Reset your password",
+  "forgotPassword.subtitle": "Enter your email and we'll send you a password reset link.",
+  "forgotPassword.submit": "Send reset link",
+  "forgotPassword.submitting": "Sending…",
+  "forgotPassword.checkEmail":
+    "If an account exists for that email, we've sent a link to reset your password.",
+
+  // ---- 重置密码页（忘记密码邮件里的链接落地页） ----
+  "resetPassword.title": "Set a new password",
+  "resetPassword.subtitle": "Choose a new password for your account.",
+  "resetPassword.newPassword": "New password",
+  "resetPassword.submit": "Update password",
+  "resetPassword.submitting": "Updating…",
+  "resetPassword.linkInvalid": "That reset link has expired or was already used.",
+  "resetPassword.requestNewLink": "Request a new reset link",
 
   // ---- 设置页 ----
   "settings.title": "Settings",
   "settings.tabProviders": "AI Providers",
   "settings.tabGeneral": "General",
+  "settings.tabAccount": "Account",
   "settings.language.label": "Interface language",
   "settings.language.description":
     "Which language the interface is shown in. This does not change stored content such as questions or AI output.",
@@ -112,6 +146,13 @@ const en = {
   "settings.features.flag.review_library_enabled": "Review library",
   "settings.features.flag.review_library_enabled.desc":
     "The cross-question sentence-pattern and vocabulary review pages. Off = those endpoints return 404.",
+  "settings.account.title": "Change password",
+  "settings.account.description": "Update the password you sign in with.",
+  "settings.account.currentPassword": "Current password",
+  "settings.account.newPassword": "New password",
+  "settings.account.changePassword": "Change password",
+  "settings.account.changePasswordSuccess": "Password updated",
+  "settings.account.unavailable": "Password management isn't available in this demo mode.",
 
   // ---- 题库 / 练习列表页 ----
   "practice.title": "Question Bank",
@@ -487,6 +528,12 @@ const en = {
     "A translation practice platform for NAATI-certified interpreters: authentic exam questions, TaskA translation and TaskB error annotation, AI-powered dimension-based grading, follow-up review, and learning curves.",
   "meta.home.ogDescription":
     "Authentic practice, AI-powered dimension-based grading, and weak point tracking for improving Chinese-English interpretation skills.",
+  "meta.register.title": "Create your account",
+  "meta.register.description": "Create a Deep Learning account to start practicing.",
+  "meta.forgotPassword.title": "Reset your password",
+  "meta.forgotPassword.description": "Request a link to reset your Deep Learning password.",
+  "meta.resetPassword.title": "Set a new password",
+  "meta.resetPassword.description": "Choose a new password for your Deep Learning account.",
   "meta.deepLearning.title": "Deep Learning",
   "meta.deepLearning.description":
     "Reference-translation comparison, sentence breakdowns, and vocabulary cards, cached per question.",
@@ -540,6 +587,12 @@ const en = {
   "v.endGtStartPosition": "End position must be greater than start position",
   "v.rangeWithinLength": "The range must fall within the flawed translation length ({len})",
   "v.seededErrorsNoOverlap": "Seeded error ranges cannot overlap",
+  "v.emailRequired": "Email is required",
+  "v.emailInvalid": "Enter a valid email address",
+  "v.passwordMinLength": "Password must be at least 6 characters",
+  "v.passwordsMustMatch": "Passwords don't match",
+  "v.currentPasswordRequired": "Current password is required",
+  "v.currentPasswordIncorrect": "Current password is incorrect",
 
   // ---- 通用后台增改列表 (crud-table) ----
   "crud.emptyData": "No data",

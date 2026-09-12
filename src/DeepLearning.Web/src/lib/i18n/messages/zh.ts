@@ -88,11 +88,43 @@ const zh: Record<MessageKey, string> = {
   "login.submitting": "登录中…",
   "login.browsePrefix": "也可以直接",
   "login.browseLink": "浏览题库",
+  "login.forgotPassword": "忘记密码？",
+  "login.registerPrefix": "还没有账号？",
+  "login.registerLink": "注册",
+  "login.linkInvalid": "该链接已过期或已被使用，请重新操作。",
+
+  // ---- 注册页 ----
+  "register.title": "创建账号",
+  "register.subtitleSupabase": "用邮箱注册——我们会发送一封确认邮件。",
+  "register.confirmPassword": "确认密码",
+  "register.submit": "创建账号",
+  "register.submitting": "创建中…",
+  "register.checkEmail": "还差一步——我们已经把确认链接发到你的邮箱，点击链接即可完成注册。",
+  "register.backToLogin": "返回登录",
+  "register.loginPrefix": "已有账号？",
+  "register.loginLink": "登录",
+
+  // ---- 忘记密码页 ----
+  "forgotPassword.title": "重置密码",
+  "forgotPassword.subtitle": "输入邮箱，我们会发送一个重置密码的链接。",
+  "forgotPassword.submit": "发送重置链接",
+  "forgotPassword.submitting": "发送中…",
+  "forgotPassword.checkEmail": "如果该邮箱已注册，我们已经发送了一封重置密码的邮件。",
+
+  // ---- 重置密码页（忘记密码邮件里的链接落地页） ----
+  "resetPassword.title": "设置新密码",
+  "resetPassword.subtitle": "为你的账号设置一个新密码。",
+  "resetPassword.newPassword": "新密码",
+  "resetPassword.submit": "更新密码",
+  "resetPassword.submitting": "更新中…",
+  "resetPassword.linkInvalid": "该重置链接已过期或已被使用。",
+  "resetPassword.requestNewLink": "重新申请重置链接",
 
   // ---- 设置页 ----
   "settings.title": "设置",
   "settings.tabProviders": "AI 服务商",
   "settings.tabGeneral": "通用",
+  "settings.tabAccount": "账号",
   "settings.language.label": "界面语言",
   "settings.language.description": "界面以哪种语言显示。不会改变题目、AI 输出等已存储的内容。",
   "settings.language.saved": "语言已更新",
@@ -107,6 +139,13 @@ const zh: Record<MessageKey, string> = {
   "settings.features.flag.review_library_enabled": "复习库",
   "settings.features.flag.review_library_enabled.desc":
     "跨题目的句型 / 词汇复习页。关闭后这些接口返回 404。",
+  "settings.account.title": "修改密码",
+  "settings.account.description": "更新登录时使用的密码。",
+  "settings.account.currentPassword": "当前密码",
+  "settings.account.newPassword": "新密码",
+  "settings.account.changePassword": "修改密码",
+  "settings.account.changePasswordSuccess": "密码已更新",
+  "settings.account.unavailable": "该演示模式下暂不支持修改密码。",
 
   // ---- 题库 / 练习列表页 ----
   "practice.title": "题库",
@@ -460,6 +499,12 @@ const zh: Record<MessageKey, string> = {
   "meta.home.description":
     "面向 NAATI 认证口笔译者的翻译练习平台：真题、TaskA 翻译与 TaskB 找错标注、AI 分维度批改、追问复核与学习曲线。",
   "meta.home.ogDescription": "真题练习、AI 分维度批改与薄弱点跟踪，帮助提升中英口笔译能力。",
+  "meta.register.title": "创建账号",
+  "meta.register.description": "创建一个 Deep Learning 账号，开始练习。",
+  "meta.forgotPassword.title": "重置密码",
+  "meta.forgotPassword.description": "申请一个重置 Deep Learning 密码的链接。",
+  "meta.resetPassword.title": "设置新密码",
+  "meta.resetPassword.description": "为你的 Deep Learning 账号设置新密码。",
   "meta.deepLearning.title": "深入学习",
   "meta.deepLearning.description": "参考译文对照、句型拆解与词汇表达卡片，按题目缓存复用。",
   "meta.deepLearning.ogDescription": "参考译文对照、句型拆解与词汇表达卡片。",
@@ -506,6 +551,12 @@ const zh: Record<MessageKey, string> = {
   "v.endGtStartPosition": "结束位置必须大于起始位置",
   "v.rangeWithinLength": "区间必须落在含错译文长度（{len}）以内",
   "v.seededErrorsNoOverlap": "种子错误的标注区间不能相互重叠",
+  "v.emailRequired": "请输入邮箱",
+  "v.emailInvalid": "请输入有效的邮箱地址",
+  "v.passwordMinLength": "密码至少需要 6 位",
+  "v.passwordsMustMatch": "两次输入的密码不一致",
+  "v.currentPasswordRequired": "请输入当前密码",
+  "v.currentPasswordIncorrect": "当前密码不正确",
 
   // ---- 通用后台增改列表 (crud-table) ----
   "crud.emptyData": "暂无数据",

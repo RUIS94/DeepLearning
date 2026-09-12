@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageShell } from "@/components/shell/page-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LlmProvidersPanel } from "@/app/(app)/admin/llm-providers/llm-providers-page";
+import { ChangePasswordPanel } from "@/app/(app)/settings/change-password-panel";
 import {
   Select,
   SelectContent,
@@ -123,10 +124,14 @@ export default function SettingsPage() {
       <Tabs defaultValue="general">
         <TabsList>
           <TabsTrigger value="general">{t("settings.tabGeneral")}</TabsTrigger>
+          <TabsTrigger value="account">{t("settings.tabAccount")}</TabsTrigger>
           <TabsTrigger value="llm">{t("settings.tabProviders")}</TabsTrigger>
         </TabsList>
         <TabsContent value="general" className="mt-6">
           <GeneralSettings />
+        </TabsContent>
+        <TabsContent value="account" className="mt-6">
+          <ChangePasswordPanel />
         </TabsContent>
         <TabsContent value="llm" className="mt-6">
           <LlmProvidersPanel />

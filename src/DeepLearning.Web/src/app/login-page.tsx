@@ -7,7 +7,8 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AuthLoading, AuthShell } from "@/components/auth/auth-shell";
 import { getSupabaseBrowserClient } from "@/lib/auth/supabase-client";
 import { useT } from "@/lib/i18n";
 
@@ -23,6 +24,15 @@ export function LoginPage() {
   // 用浏览器端 client 判断——比只靠 proxy 层的服务端 getUser() 更可靠（后者可能因
   // 服务端拿不到 cookie / 校验请求失败而误判为未登录）。
   const [checkingSession, setCheckingSession] = useState(Boolean(supabase));
+  // /auth/confirm 校验邮件链接失败(过期/已用过)时会带这个参数跳回登录页——用 URLSearchParams
+  // 而不是 useSearchParams()，这样这页不需要额外套 Suspense 边界。
+  const [linkInvalid, setLinkInvalid] = useState(false);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("authError") === "link_invalid") {
+      setLinkInvalid(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!supabase) return;
@@ -63,90 +73,73 @@ export function LoginPage() {
   }
 
   if (checkingSession) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <AuthLoading />;
   }
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
-      <div className="hidden flex-col justify-between bg-primary p-12 text-primary-foreground lg:flex">
-        <div className="flex items-center gap-2 font-serif text-lg font-semibold">
-          <img src="/logo-dark.svg" alt="" className="size-6" />
-          {t("login.brand")}
+    <AuthShell footer={supabase ? t("login.footerRealBackend") : t("login.footerMock")}>
+      <h1 className="text-2xl font-semibold">{t("login.title")}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {supabase ? t("login.subtitleSupabase") : t("login.subtitleMock")}
+      </p>
+      {linkInvalid ? (
+        <Alert variant="destructive" className="mt-4">
+          <AlertDescription>{t("login.linkInvalid")}</AlertDescription>
+        </Alert>
+      ) : null}
+      <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+        <div className="space-y-2">
+          <Label htmlFor="email">{t("login.email")}</Label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
         </div>
-        <div className="space-y-6">
-          <h2 className="font-serif text-4xl leading-snug text-primary-foreground">
-            {t("login.heroTitle")}
-          </h2>
-          <p className="max-w-md text-sm leading-relaxed opacity-80">{t("login.heroBody")}</p>
-          <dl className="grid grid-cols-3 gap-6 border-t border-primary-foreground/20 pt-6 text-sm">
-            <div>
-              <dt className="opacity-70">{t("login.statDimensions")}</dt>
-              <dd className="text-numeric mt-1 text-2xl font-semibold">3</dd>
-            </div>
-            <div>
-              <dt className="opacity-70">{t("login.statTaskTypes")}</dt>
-              <dd className="text-numeric mt-1 text-2xl font-semibold">2</dd>
-            </div>
-            <div>
-              <dt className="opacity-70">{t("login.statBandScale")}</dt>
-              <dd className="text-numeric mt-1 text-2xl font-semibold">1–5</dd>
-            </div>
-          </dl>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">{t("login.password")}</Label>
+            <Link
+              href="/forgot-password"
+              className="text-xs text-primary underline underline-offset-2"
+            >
+              {t("login.forgotPassword")}
+            </Link>
+          </div>
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
         </div>
-        <p className="text-xs opacity-60">
-          {supabase ? t("login.footerRealBackend") : t("login.footerMock")}
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        <Button type="submit" className="w-full" disabled={pending}>
+          {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+          {pending ? t("login.submitting") : t("login.submit")}
+        </Button>
+      </form>
+      <p className="mt-4 text-center text-xs text-muted-foreground">
+        {t("login.registerPrefix")}
+        <Link href="/register" className="ml-1 text-primary underline underline-offset-2">
+          {t("login.registerLink")}
+        </Link>
+      </p>
+      {!supabase ? (
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          {t("login.browsePrefix")}
+          <Link href="/practice" className="ml-1 text-primary underline underline-offset-2">
+            {t("login.browseLink")}
+          </Link>
         </p>
-      </div>
-
-      <div className="flex items-center justify-center p-6">
-        <Card className="w-full max-w-sm border-border shadow-none">
-          <CardContent className="p-8">
-            <h1 className="text-2xl font-semibold">{t("login.title")}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {supabase ? t("login.subtitleSupabase") : t("login.subtitleMock")}
-            </p>
-            <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              <div className="space-y-2">
-                <Label htmlFor="email">{t("login.email")}</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">{t("login.password")}</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              {error ? <p className="text-xs text-destructive">{error}</p> : null}
-              <Button type="submit" className="w-full" disabled={pending}>
-                {pending ? <Loader2 className="size-4 animate-spin" /> : null}
-                {pending ? t("login.submitting") : t("login.submit")}
-              </Button>
-            </form>
-            {!supabase ? (
-              <p className="mt-4 text-center text-xs text-muted-foreground">
-                {t("login.browsePrefix")}
-                <Link href="/practice" className="ml-1 text-primary underline underline-offset-2">
-                  {t("login.browseLink")}
-                </Link>
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+      ) : null}
+    </AuthShell>
   );
 }
