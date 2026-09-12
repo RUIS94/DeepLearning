@@ -66,6 +66,11 @@ namespace DeepLearning.Application.Features.Questions.Commands.GenerateDeepLearn
             var question = await _questionRepository.GetByIdAsync(request.QuestionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Question), request.QuestionId);
 
+            if (question.Visibility != Visibility.Shared && question.CreatedBy != request.RequesterId)
+            {
+                throw new NotFoundException(nameof(Question), request.QuestionId);
+            }
+
             var existing = await _referenceTranslationRepository.GetByQuestionIdAsync(question.Id, cancellationToken);
             if (existing is not null)
             {

@@ -7,7 +7,7 @@ namespace DeepLearning.Application.Features.Submissions.Queries.WaitForGradingSt
     /// Long-poll for the end of a grading run: returns as soon as the submission leaves an
     /// in-progress status, or after <paramref name="WaitSeconds"/>, whichever comes first.
     /// </summary>
-    public record WaitForGradingStatusQuery(Guid SubmissionId, int WaitSeconds)
+    public record WaitForGradingStatusQuery(Guid SubmissionId, int WaitSeconds, Guid RequesterId)
         : IRequest<WaitForGradingStatusResult>;
 
     /// <param name="Terminal">

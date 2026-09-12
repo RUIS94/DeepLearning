@@ -41,6 +41,7 @@ import {
 import { showToast } from "@/components/ui/toast";
 import { apiErrorMessage } from "@/lib/api/fetcher";
 import { qk } from "@/lib/query-keys";
+import { isAdmin, useCurrentUser } from "@/hooks/use-current-user";
 
 /** 薄弱点种类现在是全局共享的（不再按考试类型划分，见 策划书 §1.2），这个面板只是仍挂在考试配置页下展示。 */
 export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreateHandle> }) {
@@ -55,6 +56,8 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
     },
   ];
   const queryClient = useQueryClient();
+  const { data: currentUser } = useCurrentUser();
+  const admin = isAdmin(currentUser);
   const catalog = useQuery({
     queryKey: qk.adminWeakPointCatalog(),
     queryFn: () => listWeakPointCatalog(),
@@ -137,6 +140,31 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: qk.adminWeakPointCatalog() });
 
+  // Update is an AdminOnly write on the backend now (Phase 2, ref/管理员与用户权限隔离_策划书.md)
+  // — omitting toFormValues/onUpdate entirely (not just disabling them) is what makes CrudTable
+  // drop the "Actions" column for non-admin, instead of showing an Edit button that would 403.
+  const adminRowActions = admin
+    ? {
+        toFormValues: (c: WeakPointCatalogEntry) => ({
+          categoryId: c.categoryId ?? "",
+          code: c.code,
+          name: c.name,
+          description: c.description,
+          defaultDimensionKey: c.defaultDimensionKey ?? "",
+          defaultErrorCategory: c.defaultErrorCategory ?? "",
+          status: String(c.status),
+        }),
+        onUpdate: (id: string, values: WeakPointCatalogFormInput) =>
+          updateWeakPointCatalogEntry(id, {
+            name: values.name,
+            description: values.description,
+            defaultDimensionKey: values.defaultDimensionKey || "",
+            defaultErrorCategory: values.defaultErrorCategory || "",
+            status: Number(values.status),
+          }),
+      }
+    : {};
+
   const commonTableProps = {
     hideCreate: true as const,
     columns,
@@ -156,23 +184,7 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
         defaultDimensionKey: values.defaultDimensionKey || null,
         defaultErrorCategory: values.defaultErrorCategory || null,
       }),
-    toFormValues: (c: WeakPointCatalogEntry) => ({
-      categoryId: c.categoryId ?? "",
-      code: c.code,
-      name: c.name,
-      description: c.description,
-      defaultDimensionKey: c.defaultDimensionKey ?? "",
-      defaultErrorCategory: c.defaultErrorCategory ?? "",
-      status: String(c.status),
-    }),
-    onUpdate: (id: string, values: WeakPointCatalogFormInput) =>
-      updateWeakPointCatalogEntry(id, {
-        name: values.name,
-        description: values.description,
-        defaultDimensionKey: values.defaultDimensionKey || "",
-        defaultErrorCategory: values.defaultErrorCategory || "",
-        status: Number(values.status),
-      }),
+    ...adminRowActions,
     onChanged: invalidate,
   };
 
@@ -204,7 +216,7 @@ export function WeakPointCatalogPanel({ createRef }: { createRef?: Ref<CrudCreat
             title={
               <div className="flex flex-1 items-center justify-between gap-4">
                 <h3 className="text-sm font-semibold">{group.name}</h3>
-                {i === 0 ? <MergeControl entries={entries} onMerged={invalidate} /> : null}
+                {i === 0 && admin ? <MergeControl entries={entries} onMerged={invalidate} /> : null}
               </div>
             }
             items={group.rows}

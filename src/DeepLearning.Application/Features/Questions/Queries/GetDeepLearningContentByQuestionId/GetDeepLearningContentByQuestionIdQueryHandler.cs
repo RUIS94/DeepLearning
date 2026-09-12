@@ -1,5 +1,6 @@
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Entities;
+using DeepLearning.Domain.Enums;
 using DeepLearning.Domain.Exceptions;
 using MediatR;
 
@@ -7,19 +8,30 @@ namespace DeepLearning.Application.Features.Questions.Queries.GetDeepLearningCon
 {
     public class GetDeepLearningContentByQuestionIdQueryHandler : IRequestHandler<GetDeepLearningContentByQuestionIdQuery, GetDeepLearningContentByQuestionIdResult>
     {
+        private readonly IQuestionRepository _questionRepository;
         private readonly IReferenceTranslationRepository _referenceTranslationRepository;
         private readonly IReviewLibraryRepository _reviewLibraryRepository;
 
         public GetDeepLearningContentByQuestionIdQueryHandler(
+            IQuestionRepository questionRepository,
             IReferenceTranslationRepository referenceTranslationRepository,
             IReviewLibraryRepository reviewLibraryRepository)
         {
+            _questionRepository = questionRepository;
             _referenceTranslationRepository = referenceTranslationRepository;
             _reviewLibraryRepository = reviewLibraryRepository;
         }
 
         public async Task<GetDeepLearningContentByQuestionIdResult> Handle(GetDeepLearningContentByQuestionIdQuery request, CancellationToken cancellationToken)
         {
+            var question = await _questionRepository.GetByIdAsync(request.QuestionId, cancellationToken)
+                ?? throw new NotFoundException(nameof(Question), request.QuestionId);
+
+            if (question.Visibility != Visibility.Shared && question.CreatedBy != request.RequesterId)
+            {
+                throw new NotFoundException(nameof(Question), request.QuestionId);
+            }
+
             var referenceTranslation = await _referenceTranslationRepository.GetByQuestionIdAsync(request.QuestionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(ReferenceTranslation), request.QuestionId);
 

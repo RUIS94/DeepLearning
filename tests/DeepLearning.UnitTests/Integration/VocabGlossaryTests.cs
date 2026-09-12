@@ -83,6 +83,15 @@ namespace DeepLearning.UnitTests.Integration
                 SubjectCategory = SubjectCategory.translation,
                 CreatedAt = DateTimeOffset.UtcNow,
             };
+            var owner = new User
+            {
+                Id = Guid.NewGuid(),
+                Username = $"test_{Guid.NewGuid():N}",
+                Email = $"{Guid.NewGuid():N}@test.local",
+                Role = UserRole.user,
+                CreatedAt = DateTimeOffset.UtcNow,
+            };
+            var ownerId = owner.Id;
             Question NewQuestion(string src) => new()
             {
                 Id = Guid.NewGuid(),
@@ -93,10 +102,12 @@ namespace DeepLearning.UnitTests.Integration
                 Origin = QuestionOrigin.user_uploaded,
                 SourceType = SourceType.user_generated,
                 Visibility = Visibility.Private,
+                CreatedBy = ownerId,
                 CreatedAt = DateTimeOffset.UtcNow,
             };
             var q1 = NewQuestion("First passage, in light of recent events.");
             var q2 = NewQuestion("Second passage, in light of the review.");
+            await context.Users.AddAsync(owner);
             await context.ExamTypes.AddAsync(exam);
             await context.Questions.AddRangeAsync(q1, q2);
             await context.SaveChangesAsync();
@@ -113,12 +124,12 @@ namespace DeepLearning.UnitTests.Integration
             await using (var c = _fixture.CreateContext())
             {
                 await BuildGenerateHandler(c, llm, queue).Handle(
-                    new GenerateDeepLearningContentCommand(q1.Id, exam.Id), CancellationToken.None);
+                    new GenerateDeepLearningContentCommand(q1.Id, exam.Id, q1.CreatedBy!.Value), CancellationToken.None);
             }
             await using (var c = _fixture.CreateContext())
             {
                 await BuildGenerateHandler(c, llm, queue).Handle(
-                    new GenerateDeepLearningContentCommand(q2.Id, exam.Id), CancellationToken.None);
+                    new GenerateDeepLearningContentCommand(q2.Id, exam.Id, q2.CreatedBy!.Value), CancellationToken.None);
             }
 
             await using var read = _fixture.CreateContext();
@@ -144,11 +155,11 @@ namespace DeepLearning.UnitTests.Integration
             var (exam, q1, q2) = await SeedAsync();
             var llm = LlmClientResolverSubstitute.Returning(new FakeDeepLearningLlmClient());
             var queue = new RecordingQueue();
-            foreach (var qid in new[] { q1.Id, q2.Id })
+            foreach (var q in new[] { q1, q2 })
             {
                 await using var c = _fixture.CreateContext();
                 await BuildGenerateHandler(c, llm, queue).Handle(
-                    new GenerateDeepLearningContentCommand(qid, exam.Id), CancellationToken.None);
+                    new GenerateDeepLearningContentCommand(q.Id, exam.Id, q.CreatedBy!.Value), CancellationToken.None);
             }
 
             var key = FakeDeepLearningLlmClient.VocabExpr.ToLowerInvariant();

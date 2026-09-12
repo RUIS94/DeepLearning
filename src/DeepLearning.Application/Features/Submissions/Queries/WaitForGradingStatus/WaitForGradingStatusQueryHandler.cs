@@ -43,6 +43,14 @@ namespace DeepLearning.Application.Features.Submissions.Queries.WaitForGradingSt
         public async Task<WaitForGradingStatusResult> Handle(
             WaitForGradingStatusQuery request, CancellationToken cancellationToken)
         {
+            var submission = await _submissionRepository.GetByIdAsync(request.SubmissionId, cancellationToken)
+                ?? throw new NotFoundException(nameof(Submission), request.SubmissionId);
+
+            if (submission.UserId != request.RequesterId)
+            {
+                throw new NotFoundException(nameof(Submission), request.SubmissionId);
+            }
+
             var deadline = DateTimeOffset.UtcNow
                 + TimeSpan.FromSeconds(Math.Clamp(request.WaitSeconds, 0, MaxWaitSeconds));
 

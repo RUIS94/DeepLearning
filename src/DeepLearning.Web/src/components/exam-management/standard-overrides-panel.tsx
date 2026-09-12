@@ -24,10 +24,13 @@ import { useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import { qk } from "@/lib/query-keys";
 import { overrideStatusTone } from "@/lib/enum-tone";
+import { isAdmin, useCurrentUser } from "@/hooks/use-current-user";
 
 export function StandardOverridesPanel({ examTypeId }: { examTypeId?: string }) {
   const t = useT();
   const { OverrideStatusLabel } = useEnumLabels();
+  const { data: currentUser } = useCurrentUser();
+  const admin = isAdmin(currentUser);
   const scopeLabel: Record<number, string> = {
     [OverrideScope.grading_rubric]: t("examMgmt.override.scopeRubric"),
     [OverrideScope.translation_reference]: t("examMgmt.override.scopeReference"),
@@ -93,28 +96,34 @@ export function StandardOverridesPanel({ examTypeId }: { examTypeId?: string }) 
                     {formatDate(o.createdAt)}
                   </p>
                 </div>
-                <div className="flex shrink-0 gap-2">
-                  {o.status === OverrideStatus.observing ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={activate.isPending}
-                      onClick={() => activate.mutate(o.id)}
-                    >
-                      {t("examMgmt.override.promote")}
-                    </Button>
-                  ) : null}
-                  {o.status !== OverrideStatus.deprecated ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() => setDeprecating(o)}
-                    >
-                      {t("examMgmt.override.deprecate")}
-                    </Button>
-                  ) : null}
-                </div>
+                {/* Activate/Deprecate are AdminOnly writes on the backend (D1/Phase 2,
+                    ref/管理员与用户权限隔离_策划书.md) — a regular user can dispute a grading
+                    (which is what actually creates one of these rows) but only an admin promotes
+                    or deprecates it. */}
+                {admin ? (
+                  <div className="flex shrink-0 gap-2">
+                    {o.status === OverrideStatus.observing ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={activate.isPending}
+                        onClick={() => activate.mutate(o.id)}
+                      >
+                        {t("examMgmt.override.promote")}
+                      </Button>
+                    ) : null}
+                    {o.status !== OverrideStatus.deprecated ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => setDeprecating(o)}
+                      >
+                        {t("examMgmt.override.deprecate")}
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           ))}

@@ -8,5 +8,5 @@ namespace DeepLearning.Application.Features.Questions.Queries.GetSeedReferenceLi
     /// created. Empty for a question that wasn't AI-generated, or generated with no matching
     /// seed samples on file.
     /// </summary>
-    public record GetSeedReferenceLinksByQuestionIdQuery(Guid GeneratedQuestionId) : IRequest<List<SeedReferenceLinkResultItem>>;
+    public record GetSeedReferenceLinksByQuestionIdQuery(Guid GeneratedQuestionId, Guid RequesterId) : IRequest<List<SeedReferenceLinkResultItem>>;
 }

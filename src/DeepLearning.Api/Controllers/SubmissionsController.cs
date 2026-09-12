@@ -72,7 +72,7 @@ namespace DeepLearning.Api.Controllers
         [HttpGet("{id:guid}/grading-status")]
         public async Task<ActionResult<WaitForGradingStatusResult>> GradingStatus(
             Guid id, int waitSeconds, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new WaitForGradingStatusQuery(id, waitSeconds), cancellationToken));
+            => Ok(await _mediator.Send(new WaitForGradingStatusQuery(id, waitSeconds, _currentUser.RequiredUserId), cancellationToken));
 
         /// <summary>
         /// Queues weak-point extraction again for an already-graded submission. Exists because a

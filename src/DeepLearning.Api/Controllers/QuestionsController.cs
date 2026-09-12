@@ -97,17 +97,17 @@ namespace DeepLearning.Api.Controllers
         // Design doc §11.2 Step 8: "记录了每次出题参考了哪些真题" traceability read.
         [HttpGet("{id:guid}/seed-references")]
         public async Task<ActionResult<List<SeedReferenceLinkResultItem>>> GetSeedReferences(Guid id, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new GetSeedReferenceLinksByQuestionIdQuery(id), cancellationToken));
+            => Ok(await _mediator.Send(new GetSeedReferenceLinksByQuestionIdQuery(id, _currentUser.RequiredUserId), cancellationToken));
 
         public record GenerateDeepLearningContentRequest(Guid ExamTypeId);
 
         [HttpPost("{id:guid}/deep-learning")]
         public async Task<ActionResult<GenerateDeepLearningContentResult>> GenerateDeepLearningContent(
             Guid id, GenerateDeepLearningContentRequest request, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new GenerateDeepLearningContentCommand(id, request.ExamTypeId), cancellationToken));
+            => Ok(await _mediator.Send(new GenerateDeepLearningContentCommand(id, request.ExamTypeId, _currentUser.RequiredUserId), cancellationToken));
 
         [HttpGet("{id:guid}/deep-learning")]
         public async Task<ActionResult<GetDeepLearningContentByQuestionIdResult>> GetDeepLearningContent(Guid id, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new GetDeepLearningContentByQuestionIdQuery(id), cancellationToken));
+            => Ok(await _mediator.Send(new GetDeepLearningContentByQuestionIdQuery(id, _currentUser.RequiredUserId), cancellationToken));
     }
 }

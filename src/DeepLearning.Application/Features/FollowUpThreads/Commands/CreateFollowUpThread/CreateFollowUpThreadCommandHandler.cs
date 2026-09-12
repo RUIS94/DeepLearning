@@ -72,6 +72,11 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Commands.CreateFollo
             var submission = await _submissionRepository.GetByIdAsync(request.SubmissionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Submission), request.SubmissionId);
 
+            if (submission.UserId != request.UserId)
+            {
+                throw new NotFoundException(nameof(Submission), request.SubmissionId);
+            }
+
             var question = await _questionRepository.GetByIdAsync(submission.QuestionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Question), submission.QuestionId);
 

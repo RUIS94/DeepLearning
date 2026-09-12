@@ -37,6 +37,7 @@ import { useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import { qk } from "@/lib/query-keys";
 import { enumOptions } from "@/lib/enum-options";
+import { isAdmin, useCurrentUser } from "@/hooks/use-current-user";
 
 const baseDefaultValues: QuestionBankCategoryFormInput = {
   categoryType: 0,
@@ -120,6 +121,8 @@ export function CategoriesPanel({
   const t = useT();
   const { CategoryTypeLabel } = useEnumLabels();
   const queryClient = useQueryClient();
+  const { data: currentUser } = useCurrentUser();
+  const admin = isAdmin(currentUser);
   const categories = useQuery({
     queryKey: qk.categories(examTypeId ?? null),
     queryFn: () => listCategories(examTypeId),
@@ -190,6 +193,33 @@ export function CategoriesPanel({
     { key: "description", header: t("common.description"), render: (c) => c.description ?? "—" },
   ];
 
+  // Update/Delete are AdminOnly writes on the backend now (Phase 2, ref/管理员与用户权限隔离_
+  // 策划书.md) — omitting these props entirely (not just disabling them) is what makes CrudTable
+  // drop the "Actions" column for non-admin, instead of showing buttons that would just 403.
+  const adminRowActions = admin
+    ? {
+        toFormValues: (c: QuestionBankCategory) => ({
+          categoryType: c.categoryType,
+          name: c.name,
+          parentId: c.parentId ?? "",
+          description: c.description ?? "",
+          examTypeId: c.examTypeId ?? "",
+        }),
+        onUpdate: (id: string, values: QuestionBankCategoryFormInput) =>
+          updateQuestionBankCategory(id, {
+            name: values.name,
+            parentId: values.parentId || null,
+            description: values.description || null,
+            examTypeId: values.examTypeId || null,
+          }),
+        onDelete: (id: string) => deleteQuestionBankCategory(id),
+        deleteConfirm: (c: QuestionBankCategory) => ({
+          title: t("examMgmt.cat.deleteTitle", { name: c.name }),
+          description: t("examMgmt.cat.deleteDesc"),
+        }),
+      }
+    : {};
+
   const commonTableProps = {
     hideCreate: true as const,
     columns,
@@ -207,25 +237,7 @@ export function CategoriesPanel({
         description: values.description || null,
         examTypeId: values.examTypeId || null,
       }),
-    toFormValues: (c: QuestionBankCategory) => ({
-      categoryType: c.categoryType,
-      name: c.name,
-      parentId: c.parentId ?? "",
-      description: c.description ?? "",
-      examTypeId: c.examTypeId ?? "",
-    }),
-    onUpdate: (id: string, values: QuestionBankCategoryFormInput) =>
-      updateQuestionBankCategory(id, {
-        name: values.name,
-        parentId: values.parentId || null,
-        description: values.description || null,
-        examTypeId: values.examTypeId || null,
-      }),
-    onDelete: (id: string) => deleteQuestionBankCategory(id),
-    deleteConfirm: (c: QuestionBankCategory) => ({
-      title: t("examMgmt.cat.deleteTitle", { name: c.name }),
-      description: t("examMgmt.cat.deleteDesc"),
-    }),
+    ...adminRowActions,
     onChanged: invalidate,
   };
 

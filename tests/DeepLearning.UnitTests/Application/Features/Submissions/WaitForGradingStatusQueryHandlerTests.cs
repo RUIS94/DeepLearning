@@ -23,12 +23,17 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
         {
             private readonly Queue<SubmissionStatus?> _script;
             private readonly SubmissionStatus? _thereafter;
+            private readonly int _scriptCount;
 
             public ScriptedSubmissionRepository(SubmissionStatus? thereafter, params SubmissionStatus?[] script)
             {
                 _script = new Queue<SubmissionStatus?>(script);
                 _thereafter = thereafter;
+                _scriptCount = script.Length;
+                OwnerId = Guid.NewGuid();
             }
+
+            public Guid OwnerId { get; }
 
             public int Reads { get; private set; }
 
@@ -38,8 +43,11 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
                 return Task.FromResult(_script.Count > 0 ? _script.Dequeue() : _thereafter);
             }
 
+            // "thereafter: null, no scripted statuses" is this fake's stand-in for "no such
+            // submission" — mirrors the real repository returning null for an unknown id, which
+            // the handler now checks up front (ownership) rather than only via GetStatusAsync.
             public Task<Submission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
-                => throw new NotSupportedException();
+                => Task.FromResult(_thereafter is null && _scriptCount == 0 ? null : new Submission { Id = id, UserId = OwnerId });
 
             public Task<SubmissionSourceAndTranslation?> GetSourceAndTranslationAsync(Guid submissionId, CancellationToken cancellationToken = default)
                 => throw new NotSupportedException();
@@ -80,7 +88,7 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             var stopwatch = Stopwatch.StartNew();
 
             var result = await HandlerFor(repository).Handle(
-                new WaitForGradingStatusQuery(Guid.NewGuid(), WaitSeconds: 30), CancellationToken.None);
+                new WaitForGradingStatusQuery(Guid.NewGuid(), WaitSeconds: 30, repository.OwnerId), CancellationToken.None);
 
             Assert.True(result.Terminal);
             Assert.Equal(status, result.Status);
@@ -100,7 +108,7 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             var stopwatch = Stopwatch.StartNew();
 
             var result = await HandlerFor(repository).Handle(
-                new WaitForGradingStatusQuery(Guid.NewGuid(), WaitSeconds: 60), CancellationToken.None);
+                new WaitForGradingStatusQuery(Guid.NewGuid(), WaitSeconds: 60, repository.OwnerId), CancellationToken.None);
 
             Assert.True(result.Terminal);
             Assert.Equal(SubmissionStatus.graded, result.Status);
@@ -115,7 +123,7 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             var repository = new ScriptedSubmissionRepository(SubmissionStatus.grading);
 
             var result = await HandlerFor(repository).Handle(
-                new WaitForGradingStatusQuery(Guid.NewGuid(), WaitSeconds: 0), CancellationToken.None);
+                new WaitForGradingStatusQuery(Guid.NewGuid(), WaitSeconds: 0, repository.OwnerId), CancellationToken.None);
 
             // The client re-issues and keeps its spinner up. It must never read this as a reason
             // to start the grading again — retries live entirely in the backend.
@@ -132,7 +140,7 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             var repository = new ScriptedSubmissionRepository(SubmissionStatus.submitted);
 
             var result = await HandlerFor(repository).Handle(
-                new WaitForGradingStatusQuery(Guid.NewGuid(), WaitSeconds: 0), CancellationToken.None);
+                new WaitForGradingStatusQuery(Guid.NewGuid(), WaitSeconds: 0, repository.OwnerId), CancellationToken.None);
 
             Assert.False(result.Terminal);
             Assert.Equal(SubmissionStatus.submitted, result.Status);
@@ -144,7 +152,7 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             var repository = new ScriptedSubmissionRepository(thereafter: null);
 
             await Assert.ThrowsAsync<NotFoundException>(() => HandlerFor(repository).Handle(
-                new WaitForGradingStatusQuery(Guid.NewGuid(), WaitSeconds: 30), CancellationToken.None));
+                new WaitForGradingStatusQuery(Guid.NewGuid(), WaitSeconds: 30, repository.OwnerId), CancellationToken.None));
         }
 
         [Fact]
@@ -155,7 +163,7 @@ namespace DeepLearning.UnitTests.Application.Features.Submissions
             var cancelAfterOneSecond = new CancellationTokenSource(TimeSpan.FromSeconds(1));
 
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => HandlerFor(repository).Handle(
-                new WaitForGradingStatusQuery(Guid.NewGuid(), WaitSeconds: 3600), cancelAfterOneSecond.Token));
+                new WaitForGradingStatusQuery(Guid.NewGuid(), WaitSeconds: 3600, repository.OwnerId), cancelAfterOneSecond.Token));
 
             Assert.True(WaitForGradingStatusQueryHandler.MaxWaitSeconds <= 60);
         }

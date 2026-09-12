@@ -18,10 +18,13 @@ import { useT } from "@/lib/i18n";
 import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import { qk } from "@/lib/query-keys";
 import { overrideStatusTone } from "@/lib/enum-tone";
+import { isAdmin, useCurrentUser } from "@/hooks/use-current-user";
 
 export function OverrideDetailPage() {
   const t = useT();
   const { OverrideStatusLabel } = useEnumLabels();
+  const { data: currentUser } = useCurrentUser();
+  const admin = isAdmin(currentUser);
   const scopeLabel: Record<number, string> = {
     [OverrideScope.grading_rubric]: t("overrideDetail.scopeRubric"),
     [OverrideScope.translation_reference]: t("overrideDetail.scopeReference"),
@@ -108,7 +111,7 @@ export function OverrideDetailPage() {
                 </span>
               ) : null}
             </div>
-            {override.data.status === OverrideStatus.observing ? (
+            {override.data.status === OverrideStatus.observing && admin ? (
               <div className="space-y-2 border-t border-border pt-4">
                 <Button
                   size="sm"

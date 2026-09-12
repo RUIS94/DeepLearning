@@ -76,6 +76,12 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Queries.PreviewFollo
 
             var submission = await _submissionRepository.GetByIdAsync(thread.SubmissionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Submission), thread.SubmissionId);
+
+            if (submission.UserId != request.UserId)
+            {
+                throw new NotFoundException(nameof(FollowUpThread), request.ThreadId);
+            }
+
             var question = await _questionRepository.GetByIdAsync(submission.QuestionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Question), submission.QuestionId);
 
