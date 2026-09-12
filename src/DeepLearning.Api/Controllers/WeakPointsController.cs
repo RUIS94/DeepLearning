@@ -29,6 +29,6 @@ namespace DeepLearning.Api.Controllers
 
         [HttpPost("{id:guid}/reclassify")]
         public async Task<ActionResult<ReclassifyWeakPointResult>> Reclassify(Guid id, ReclassifyRequest request, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new ReclassifyWeakPointCommand(id, request.CatalogId), cancellationToken));
+            => Ok(await _mediator.Send(new ReclassifyWeakPointCommand(id, request.CatalogId, _currentUser.RequiredUserId), cancellationToken));
     }
 }

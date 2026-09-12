@@ -28,6 +28,11 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.ReclassifyWeakPo
             var weakPoint = await _weakPointRepository.GetByIdAsync(request.WeakPointId, cancellationToken)
                 ?? throw new NotFoundException(nameof(WeakPoint), request.WeakPointId);
 
+            if (weakPoint.UserId != request.RequesterId)
+            {
+                throw new NotFoundException(nameof(WeakPoint), request.WeakPointId);
+            }
+
             var catalog = await _catalogRepository.GetByIdAsync(request.CatalogId, cancellationToken)
                 ?? throw new NotFoundException(nameof(WeakPointCatalog), request.CatalogId);
 

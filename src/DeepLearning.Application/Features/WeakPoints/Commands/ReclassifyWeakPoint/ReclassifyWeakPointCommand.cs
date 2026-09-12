@@ -7,7 +7,7 @@ namespace DeepLearning.Application.Features.WeakPoints.Commands.ReclassifyWeakPo
     /// free-text bucket, or from the wrong kind the rule/AI picked). If the learner already has a
     /// row on the target kind the two are merged. Sets detection_source = 'manual'.
     /// </summary>
-    public record ReclassifyWeakPointCommand(Guid WeakPointId, Guid CatalogId)
+    public record ReclassifyWeakPointCommand(Guid WeakPointId, Guid CatalogId, Guid RequesterId)
         : IRequest<ReclassifyWeakPointResult>;
 
     public record ReclassifyWeakPointResult(Guid WeakPointId, Guid CatalogId, bool MergedIntoExisting);
