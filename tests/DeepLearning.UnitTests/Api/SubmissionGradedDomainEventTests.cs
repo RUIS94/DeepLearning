@@ -40,7 +40,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Grading_a_submission_creates_a_weak_point_a_progress_snapshot_and_marks_linked_patterns_and_vocab_as_reviewed()
         {
-            var userId = Guid.NewGuid();
+            var userId = await _factory.SeedUserAsync(UserRole.admin);
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))

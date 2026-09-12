@@ -2,8 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getSupabaseBrowserClient } from "@/lib/auth/supabase-client";
-import { getUserById } from "@/lib/api/users";
+import { getCurrentUser } from "@/lib/api/users";
 import { qk } from "@/lib/query-keys";
+import { UserRole } from "@/lib/types/enums";
 
 /**
  * 原型阶段占位用户 id——不是 public.users 表里真实存在的一行。Supabase Auth 还没配置
@@ -21,6 +22,12 @@ export interface CurrentUser {
   displayName: string | null;
   /** 界面语言偏好："en"（默认）或 "zh"。未登录 / profile 拉取失败时为 null，由 I18nProvider fallback。 */
   languagePreference: string | null;
+  /** 0 = user, 1 = admin（见 lib/types/enums 的 UserRole）。profile 拉取失败时保守地当作 user。 */
+  role: number;
+}
+
+export function isAdmin(user: CurrentUser | null | undefined): boolean {
+  return user?.role === UserRole.admin;
 }
 
 const FALLBACK_USER: CurrentUser = {
@@ -28,15 +35,18 @@ const FALLBACK_USER: CurrentUser = {
   email: "learner@example.com",
   displayName: "Learner",
   languagePreference: null,
+  // Supabase 未配置时这条路径本来就绕过了全部真实鉴权（纯本地原型/开发场景），把它当 admin
+  // 才能让 exam-management 的配置类页面、admin 专属页面在没有真实登录的情况下也能照常跑通。
+  role: UserRole.admin,
 };
 
 /**
  * 统一的"当前用户"读取入口（方案 §8.3 提到的 use-current-user hook）。
  * - Supabase 未配置：返回上面的占位用户，保留原型阶段"无需登录即可用"的行为。
  * - Supabase 已配置但未登录：返回 null（页面/中间件据此决定是否跳转登录页）。
- * - Supabase 已配置且已登录：调用 GET /users/{id} 拿真实 profile；
+ * - Supabase 已配置且已登录：调用 GET /users/me 拿真实 profile（含 role）；
  *   万一那一步失败（例如 EnsureUserProfileMiddleware 还没来得及建档），退化成用 session 里
- *   现成的 id/email，不阻塞整个 query。
+ *   现成的 id/email、role 保守地当作 user，不阻塞整个 query。
  */
 export function useCurrentUser() {
   return useQuery({
@@ -51,12 +61,13 @@ export function useCurrentUser() {
       if (!user) return null;
 
       try {
-        const profile = await getUserById(user.id);
+        const profile = await getCurrentUser();
         return {
           id: profile.id,
           email: profile.email,
           displayName: profile.displayName,
           languagePreference: profile.languagePreference,
+          role: profile.role,
         };
       } catch {
         return {
@@ -64,6 +75,7 @@ export function useCurrentUser() {
           email: user.email ?? "",
           displayName: null,
           languagePreference: null,
+          role: UserRole.user,
         };
       }
     },

@@ -6,6 +6,7 @@ using DeepLearning.Application.Features.WeakPointCatalogAdmin.Queries.ListWeakPo
 using DeepLearning.Application.Features.WeakPointCatalogAdmin.Queries.ListWeakPointCategories;
 using DeepLearning.Domain.Enums;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeepLearning.Api.Controllers
@@ -38,6 +39,7 @@ namespace DeepLearning.Api.Controllers
         public async Task<ActionResult<List<WeakPointCategoryResultItem>>> ListCategories(CancellationToken cancellationToken)
             => Ok(await _mediator.Send(new ListWeakPointCategoriesQuery(), cancellationToken));
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost]
         public async Task<ActionResult<CreateWeakPointCatalogEntryResult>> Create(
             CreateWeakPointCatalogRequest request, CancellationToken cancellationToken)
@@ -51,6 +53,7 @@ namespace DeepLearning.Api.Controllers
             return CreatedAtAction(nameof(List), result);
         }
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPut("{id:guid}")]
         public async Task<ActionResult<UpdateWeakPointCatalogEntryResult>> Update(
             Guid id, UpdateWeakPointCatalogRequest request, CancellationToken cancellationToken)
@@ -59,6 +62,7 @@ namespace DeepLearning.Api.Controllers
                     id, request.Name, request.Description, request.DefaultDimensionKey, request.DefaultErrorCategory, request.Status),
                 cancellationToken));
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost("merge")]
         public async Task<ActionResult<MergeWeakPointCatalogResult>> Merge(
             MergeWeakPointCatalogRequest request, CancellationToken cancellationToken)

@@ -11,7 +11,6 @@ namespace DeepLearning.Application.Features.Questions.Commands.ImportUserQuestio
             RuleFor(x => x.SourceText).NotEmpty();
             RuleFor(x => x.TaskType).IsInEnum();
             RuleFor(x => x.Difficulty).IsInEnum();
-            RuleFor(x => x.Visibility).IsInEnum();
 
             RuleFor(x => x.Brief)
                 .Must(BeValidJsonOrNull)

@@ -112,6 +112,7 @@ namespace DeepLearning.UnitTests.TestInfrastructure
                 // later test that inserts a disabled row. Zero TTL = always read fresh.
                 services.AddScoped<IFeatureFlagService>(sp => new DeepLearning.Api.Services.FeatureFlagService(
                     sp.GetRequiredService<IFeatureFlagRepository>(),
+                    sp.GetRequiredService<IUserFeatureOverrideRepository>(),
                     sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(),
                     TimeSpan.Zero));
             });

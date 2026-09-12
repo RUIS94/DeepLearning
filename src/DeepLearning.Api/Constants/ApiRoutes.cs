@@ -89,5 +89,10 @@ namespace DeepLearning.Api.Constants
         {
             public const string Base = $"{Prefix}/feature-flags";
         }
+
+        public static class AdminUsers
+        {
+            public const string Base = $"{Prefix}/admin/users";
+        }
     }
 }

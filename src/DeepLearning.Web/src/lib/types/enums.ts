@@ -5,6 +5,8 @@ export const Difficulty = { easy: 0, medium: 1, hard: 2 } as const;
 export const QuestionOrigin = { ai_generated: 0, user_uploaded: 1, real_exam_seed: 2 } as const;
 export const SourceType = { real_exam: 0, ai_generated: 1, user_generated: 2 } as const;
 export const Visibility = { Private: 0, Shared: 1 } as const;
+// 后端 UserRole 枚举，成员名与 Postgres label 逐字一致（见方案 3.1 节）。
+export const UserRole = { user: 0, admin: 1 } as const;
 export const SubmissionStatus = {
   draft: 0,
   submitted: 1,
@@ -232,4 +234,9 @@ export const ScaleTypeLabel: Record<number, string> = {
 export const CategoryTypeLabel: Record<number, string> = {
   [CategoryType.domain]: "Domain",
   [CategoryType.scenario]: "Scenario",
+};
+
+export const UserRoleLabel: Record<number, string> = {
+  [UserRole.user]: "User",
+  [UserRole.admin]: "Admin",
 };

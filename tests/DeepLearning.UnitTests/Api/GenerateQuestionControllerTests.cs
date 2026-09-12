@@ -40,8 +40,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -77,8 +80,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var response = await client.PostAsJsonAsync(
                 $"{ApiRoutes.Questions.Base}/generate",
@@ -94,8 +100,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeTaskBGenerationLlmClient()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -132,8 +141,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeTaskBGenerationLlmClientWithOutOfBoundsPosition()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -162,8 +174,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeTaskBGenerationLlmClientWithUnknownCategory()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -194,8 +209,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -221,8 +239,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -265,8 +286,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -313,8 +337,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -397,8 +424,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -457,8 +487,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -489,8 +522,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -549,8 +585,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -610,8 +649,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -668,8 +710,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClientFailingTwiceThenSucceeding()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -726,7 +771,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Generate_with_target_weak_points_false_never_injects_a_weak_point_hint_even_when_one_exists()
         {
             var capturingClient = new CapturingQuestionGenLlmClient();
-            var userId = Guid.NewGuid();
+            var userId = await _factory.SeedUserAsync(UserRole.admin);
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(capturingClient))))
@@ -780,7 +825,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Generate_with_target_weak_points_true_and_a_forced_ratio_of_one_injects_the_users_top_weak_point_hint()
         {
             var capturingClient = new CapturingQuestionGenLlmClient();
-            var userId = Guid.NewGuid();
+            var userId = await _factory.SeedUserAsync(UserRole.admin);
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(capturingClient))))
@@ -878,8 +923,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(capturingClient))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             await SeedDomainListPromptTemplateAsync(_factory);
 
@@ -923,8 +971,11 @@ namespace DeepLearning.UnitTests.Api
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
+            // Admin identity: every test here creates an exam type (and sometimes a category)
+            // first, both AdminOnly writes (ref/管理员与用户权限隔离_策划书.md Phase 2) — admin is a
+            // superset of a regular user so the actual /generate call under test is unaffected.
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {

@@ -20,12 +20,15 @@ import {
 import { UserMenu } from "@/components/shell/user-menu";
 import { NAV_ITEMS } from "@/components/shell/nav-config";
 import { useT } from "@/lib/i18n";
+import { isAdmin, useCurrentUser } from "@/hooks/use-current-user";
 
 export function AppSidebar() {
   const t = useT();
   const pathname = usePathname();
   const { state, toggleSidebar } = useSidebar();
   const collapsed = state === "collapsed";
+  const { data: currentUser } = useCurrentUser();
+  const visibleNavItems = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin(currentUser));
 
   return (
     <Sidebar collapsible="icon">
@@ -62,7 +65,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.map((item) => {
+              {visibleNavItems.map((item) => {
                 const active =
                   pathname === item.href ||
                   pathname.startsWith(`${item.match}/`) ||

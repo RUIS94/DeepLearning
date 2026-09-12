@@ -5,6 +5,7 @@ using DeepLearning.Application.Features.StandardOverrides.Queries.GetStandardOve
 using DeepLearning.Application.Features.StandardOverrides.Queries.ListStandardOverrides;
 using DeepLearning.Domain.Enums;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeepLearning.Api.Controllers
@@ -29,10 +30,12 @@ namespace DeepLearning.Api.Controllers
             OverrideStatus? status, Guid? examTypeId, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(new ListStandardOverridesQuery(status, examTypeId), cancellationToken));
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost("{id:guid}/activate")]
         public async Task<ActionResult<ActivateStandardOverrideResult>> Activate(Guid id, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(new ActivateStandardOverrideCommand(id), cancellationToken));
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost("{id:guid}/deprecate")]
         public async Task<ActionResult<DeprecateStandardOverrideResult>> Deprecate(Guid id, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(new DeprecateStandardOverrideCommand(id), cancellationToken));

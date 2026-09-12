@@ -27,5 +27,13 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
 
         public async Task AddAsync(User user, CancellationToken cancellationToken = default)
             => await _context.Users.AddAsync(user, cancellationToken);
+
+        public async Task<(List<User> Items, int TotalCount)> ListAsync(int skip, int take, CancellationToken cancellationToken = default)
+        {
+            var query = _context.Users.AsNoTracking().OrderBy(x => x.CreatedAt);
+            var totalCount = await query.CountAsync(cancellationToken);
+            var items = await query.Skip(skip).Take(take).ToListAsync(cancellationToken);
+            return (items, totalCount);
+        }
     }
 }

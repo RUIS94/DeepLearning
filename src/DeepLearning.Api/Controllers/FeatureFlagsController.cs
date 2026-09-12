@@ -2,17 +2,20 @@ using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.FeatureFlags.Commands.SetFeatureFlag;
 using DeepLearning.Application.Features.FeatureFlags.Queries.ListFeatureFlags;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeepLearning.Api.Controllers
 {
     /// <summary>
-    /// Read/toggle the <c>feature_flags</c> the code consults (题库 / 复习库, design doc §六).
-    /// Backs the settings screen's "功能开关" section. No role gate — same "trust the caller"
-    /// convention as the rest of the admin surface.
+    /// Read/toggle the global <c>feature_flags</c> the code consults (题库 / 复习库, design doc
+    /// §六). Admin-only end to end — per-user overrides (which features a specific user can
+    /// access) live on <see cref="AdminUsersController"/> instead, alongside the rest of user
+    /// management.
     /// </summary>
     [ApiController]
     [Route(ApiRoutes.FeatureFlags.Base)]
+    [Authorize(Policy = "AdminOnly")]
     public class FeatureFlagsController : ControllerBase
     {
         private readonly IMediator _mediator;

@@ -23,6 +23,11 @@ namespace DeepLearning.Application.Features.Submissions.Queries.GetSubmissionByI
             var submission = await _submissionRepository.GetByIdAsync(request.Id, cancellationToken)
                 ?? throw new NotFoundException(nameof(Submission), request.Id);
 
+            if (submission.UserId != request.RequesterId)
+            {
+                throw new NotFoundException(nameof(Submission), request.Id);
+            }
+
             var gradingResults = await _submissionRepository.GetGradingResultsAsync(request.Id, cancellationToken);
             var errorList = await _submissionRepository.GetErrorListAsync(request.Id, cancellationToken);
             var overallSummary = await _gradingSummaryRepository.GetBySubmissionIdAsync(request.Id, cancellationToken);

@@ -72,10 +72,10 @@ namespace DeepLearning.Api.Controllers
 
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<FollowUpThreadResult>> GetById(Guid id, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new GetFollowUpThreadByIdQuery(id), cancellationToken));
+            => Ok(await _mediator.Send(new GetFollowUpThreadByIdQuery(id, _currentUser.RequiredUserId), cancellationToken));
 
         [HttpGet]
         public async Task<ActionResult<List<FollowUpThreadSummary>>> List(Guid submissionId, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new ListFollowUpThreadsBySubmissionQuery(submissionId), cancellationToken));
+            => Ok(await _mediator.Send(new ListFollowUpThreadsBySubmissionQuery(submissionId, _currentUser.RequiredUserId), cancellationToken));
     }
 }

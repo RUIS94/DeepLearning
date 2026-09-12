@@ -9,6 +9,7 @@ using DeepLearning.Application.Features.QuestionBank.Queries.GetQuestionBankCate
 using DeepLearning.Application.Features.QuestionBank.Queries.ListQuestionBankCategories;
 using DeepLearning.Domain.Enums;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeepLearning.Api.Controllers
@@ -28,6 +29,7 @@ namespace DeepLearning.Api.Controllers
         public record CreateQuestionBankCategoryRequest(
             CategoryType CategoryType, string Name, Guid? ParentId, string? Description, Guid? ExamTypeId);
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost]
         public async Task<ActionResult<CreateQuestionBankCategoryResult>> Create(CreateQuestionBankCategoryRequest request, CancellationToken cancellationToken)
         {
@@ -45,6 +47,7 @@ namespace DeepLearning.Api.Controllers
 
         public record UpdateQuestionBankCategoryRequest(string Name, Guid? ParentId, string? Description, Guid? ExamTypeId);
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPut("{id:guid}")]
         public async Task<ActionResult<UpdateQuestionBankCategoryResult>> Update(
             Guid id, UpdateQuestionBankCategoryRequest request, CancellationToken cancellationToken)
@@ -52,6 +55,7 @@ namespace DeepLearning.Api.Controllers
                 new UpdateQuestionBankCategoryCommand(id, request.Name, request.ParentId, request.Description, request.ExamTypeId),
                 cancellationToken));
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpDelete("{id:guid}")]
         public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
         {

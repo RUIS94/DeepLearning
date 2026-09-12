@@ -33,7 +33,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Category_update_changes_name_and_description()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
             var created = await client.PostAsJsonAsync(ApiRoutes.QuestionBankCategories.Base, new
             {
                 CategoryType = CategoryType.domain,
@@ -64,7 +64,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Category_delete_is_blocked_while_it_has_children_or_tagged_questions_then_succeeds_when_clean()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
 
             var parentResp = await client.PostAsJsonAsync(ApiRoutes.QuestionBankCategories.Base, new
             { CategoryType = CategoryType.domain, Name = $"parent {Guid.NewGuid():N}", ParentId = (Guid?)null, Description = (string?)null });
@@ -112,7 +112,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Prompt_template_update_and_delete_and_inactive_filter()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
             var created = await client.PostAsJsonAsync(ApiRoutes.PromptTemplates.Base, new
             {
                 ExamTypeId = (Guid?)null,
@@ -170,7 +170,7 @@ namespace DeepLearning.UnitTests.Api
                 await context.SaveChangesAsync();
             }
 
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
             var first = await client.PostAsync($"{ApiRoutes.StandardOverrides.Base}/{id}/deprecate", null);
             Assert.Equal(HttpStatusCode.OK, first.StatusCode);
             var result = await first.Content.ReadFromJsonAsync<DeprecateStandardOverrideResult>();

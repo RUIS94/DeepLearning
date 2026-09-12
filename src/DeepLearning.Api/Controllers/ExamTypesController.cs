@@ -4,6 +4,7 @@ using DeepLearning.Application.Features.ExamConfig.Queries.GetExamTypeById;
 using DeepLearning.Application.Features.ExamConfig.Queries.ListExamTypes;
 using DeepLearning.Domain.Enums;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeepLearning.Api.Controllers
@@ -28,6 +29,7 @@ namespace DeepLearning.Api.Controllers
             string? GradeLevel,
             string? Description);
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost]
         public async Task<ActionResult<CreateExamTypeResult>> Create(CreateExamTypeRequest request, CancellationToken cancellationToken)
         {

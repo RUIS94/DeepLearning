@@ -31,7 +31,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Create_then_get_by_id_round_trips_over_http()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
             var request = new { CategoryType = CategoryType.domain, Name = $"legal_{Guid.NewGuid():N}", ParentId = (Guid?)null, Description = (string?)null };
 
             var createResponse = await client.PostAsJsonAsync(ApiRoutes.QuestionBankCategories.Base, request);
@@ -48,7 +48,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Get_by_id_returns_404_for_unknown_id()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
 
             var response = await client.GetAsync($"{ApiRoutes.QuestionBankCategories.Base}/{Guid.NewGuid()}");
 
@@ -58,7 +58,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Create_returns_404_when_parent_id_does_not_exist()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
             var request = new { CategoryType = CategoryType.scenario, Name = $"policy_{Guid.NewGuid():N}", ParentId = (Guid?)Guid.NewGuid(), Description = (string?)null };
 
             var response = await client.PostAsJsonAsync(ApiRoutes.QuestionBankCategories.Base, request);
@@ -69,7 +69,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Create_returns_404_when_exam_type_id_does_not_exist()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
             var request = new
             {
                 CategoryType = CategoryType.domain,
@@ -87,7 +87,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Listing_by_exam_type_returns_that_exam_types_categories_plus_global_ones_only()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -133,7 +133,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Create_a_child_category_under_a_real_parent_succeeds_and_list_filters_by_category_type()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
             var parentResponse = await client.PostAsJsonAsync(
                 ApiRoutes.QuestionBankCategories.Base,
                 new { CategoryType = CategoryType.domain, Name = $"medical_{Guid.NewGuid():N}", ParentId = (Guid?)null, Description = (string?)null });
@@ -165,7 +165,7 @@ namespace DeepLearning.UnitTests.Api
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -208,7 +208,7 @@ namespace DeepLearning.UnitTests.Api
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeLlmClient()))))
                 .CreateClient();
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {

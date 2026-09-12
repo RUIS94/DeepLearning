@@ -124,6 +124,10 @@ const zh = {
     [en.CategoryType.domain]: "领域",
     [en.CategoryType.scenario]: "场景",
   } as LabelMap,
+  UserRoleLabel: {
+    [en.UserRole.user]: "普通用户",
+    [en.UserRole.admin]: "管理员",
+  } as LabelMap,
 } as const;
 
 export type EnumLabelName = keyof typeof zh;
@@ -148,6 +152,7 @@ const EN_MAPS: Record<EnumLabelName, LabelMap> = {
   FollowUpThreadStatusLabel: en.FollowUpThreadStatusLabel,
   ScaleTypeLabel: en.ScaleTypeLabel,
   CategoryTypeLabel: en.CategoryTypeLabel,
+  UserRoleLabel: en.UserRoleLabel,
 };
 
 export type EnumLabels = Record<EnumLabelName, LabelMap>;

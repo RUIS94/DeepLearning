@@ -9,6 +9,7 @@ using DeepLearning.Application.Features.Questions.Queries.ListQuestions;
 using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Enums;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeepLearning.Api.Controllers
@@ -33,24 +34,28 @@ namespace DeepLearning.Api.Controllers
             string? Brief,
             string SourceText,
             string? FlawedTranslationText,
-            Visibility Visibility,
             List<MeaningCheckpointInput> MeaningCheckpoints,
             List<SeededErrorInput> SeededErrors,
             bool IsSeedReference = false);
 
-        // Visibility/CreatedBy are no longer caller-supplied trust fields (see D2'/A2' in
-        // ref/管理员与用户权限隔离_策划书.md): CreatedBy is always the authenticated caller, and
-        // IsSeedReference=true (the only way a question becomes Shared) is admin-only until
-        // Phase 2 wires that gate — TODO(Phase 2 A2'): reject IsSeedReference=true here unless
-        // _currentUser.IsAdmin, and derive Visibility from IsSeedReference server-side instead of
-        // trusting request.Visibility at all.
+        /// <summary>
+        /// CreatedBy is always the authenticated caller. IsSeedReference=true — the only way a
+        /// question becomes Shared (ImportUserQuestionCommandHandler derives Visibility from it) —
+        /// is admin-only; a non-admin passing true is rejected outright rather than silently
+        /// downgraded to false, so it never looks like the seed import "worked" as a private import.
+        /// </summary>
         [HttpPost]
         public async Task<ActionResult<ImportUserQuestionResult>> Import(ImportUserQuestionRequest request, CancellationToken cancellationToken)
         {
+            if (request.IsSeedReference && !_currentUser.IsAdmin)
+            {
+                return Forbid();
+            }
+
             var result = await _mediator.Send(
                 new ImportUserQuestionCommand(
                     request.TaskType, request.Difficulty, request.Title, request.Brief, request.SourceText,
-                    request.FlawedTranslationText, _currentUser.RequiredUserId, request.Visibility,
+                    request.FlawedTranslationText, _currentUser.RequiredUserId,
                     request.MeaningCheckpoints, request.SeededErrors, request.IsSeedReference),
                 cancellationToken);
 
@@ -79,7 +84,7 @@ namespace DeepLearning.Api.Controllers
 
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<GetQuestionByIdResult>> GetById(Guid id, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new GetQuestionByIdQuery(id), cancellationToken));
+            => Ok(await _mediator.Send(new GetQuestionByIdQuery(id, _currentUser.RequiredUserId), cancellationToken));
 
         [HttpGet]
         public async Task<ActionResult<List<ListQuestionsResultItem>>> List(

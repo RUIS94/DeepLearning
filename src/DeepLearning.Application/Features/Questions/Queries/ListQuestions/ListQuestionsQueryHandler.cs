@@ -1,4 +1,5 @@
 using DeepLearning.Application.Interfaces;
+using DeepLearning.Domain.Enums;
 using MediatR;
 
 namespace DeepLearning.Application.Features.Questions.Queries.ListQuestions
@@ -18,9 +19,15 @@ namespace DeepLearning.Application.Features.Questions.Queries.ListQuestions
 
         public async Task<List<ListQuestionsResultItem>> Handle(ListQuestionsQuery request, CancellationToken cancellationToken)
         {
-            var questions = await _questionRepository.ListAsync(
+            var questions = (await _questionRepository.ListAsync(
                 request.TaskType, request.Difficulty, request.InBank, request.CategoryId,
-                request.IsSeedReference, cancellationToken);
+                request.IsSeedReference, cancellationToken))
+                // Every caller is authenticated now (ref/管理员与用户权限隔离_策划书.md U4) — the
+                // bank's shared pool plus whatever the caller privately owns, never someone else's
+                // private questions. request.UserId is always populated by the controller
+                // (ICurrentUserService.RequiredUserId), so this isn't an opt-in filter.
+                .Where(q => q.Visibility == Visibility.Shared || q.CreatedBy == request.UserId)
+                .ToList();
 
             // Per-user attempt info is opt-in (only when a user id is supplied). One query for all
             // of this user's submissions, grouped in memory — MVP scale, no per-question fan-out.

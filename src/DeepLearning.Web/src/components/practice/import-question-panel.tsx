@@ -20,7 +20,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -33,7 +32,7 @@ import { showToast } from "@/components/ui/toast";
 import { importUserQuestion } from "@/lib/api/questions";
 import { listCategories, tagQuestionWithCategory } from "@/lib/api/exam-config";
 import { useErrorTaxonomies, useExamType } from "@/hooks/use-exam-config";
-import { TaskType, Visibility } from "@/lib/types/enums";
+import { TaskType } from "@/lib/types/enums";
 import {
   importUserQuestionSchema,
   type ImportUserQuestionFormInput,
@@ -86,8 +85,6 @@ const defaultValues: ImportUserQuestionFormInput = {
   title: "",
   brief: { domain: "", textType: "", purpose: "", audience: "" },
   sourceText: "",
-  isSeedReference: false,
-  visibility: Visibility.Private,
   meaningCheckpoints: [],
   taskB: { flawedTranslationText: "", seededErrors: [] },
 };
@@ -149,8 +146,6 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
         brief: buildBrief(values.brief),
         sourceText: values.sourceText,
         wordCount: values.wordCount ?? null,
-        isSeedReference: values.isSeedReference ?? false,
-        visibility: values.visibility ?? Visibility.Private,
         meaningCheckpoints: (values.meaningCheckpoints ?? []).map((c) => ({
           checkpointText: c.checkpointText,
           checkpointType: c.checkpointType ?? null,
@@ -340,20 +335,6 @@ export function ImportPanelProvider({ children }: { children: ReactNode }) {
                     ) : (
                       <p className="text-xs text-muted-foreground">{t("import.noCategories")}</p>
                     )}
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                    <div>
-                      <p className="text-sm font-medium">{t("import.markSeed")}</p>
-                      <p className="text-xs text-muted-foreground">{t("import.markSeedHint")}</p>
-                    </div>
-                    <Controller
-                      control={form.control}
-                      name="isSeedReference"
-                      render={({ field }) => (
-                        <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
-                      )}
-                    />
                   </div>
                 </CardContent>
               </Card>

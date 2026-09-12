@@ -21,7 +21,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Create_then_get_by_id_round_trips_over_http()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
             var request = new
             {
                 Code = $"test_{Guid.NewGuid():N}",
@@ -49,7 +49,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Get_by_id_returns_404_for_unknown_id()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
 
             var response = await client.GetAsync($"{ApiRoutes.ExamTypes.Base}/{Guid.NewGuid()}");
 
@@ -59,7 +59,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Create_returns_400_when_code_is_missing()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
             var request = new { Code = "", Name = "Missing Code", SubjectCategory = SubjectCategory.translation };
 
             var response = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, request);
@@ -68,9 +68,20 @@ namespace DeepLearning.UnitTests.Api
         }
 
         [Fact]
-        public async Task Create_returns_409_when_code_already_exists()
+        public async Task Create_returns_403_for_a_non_admin_caller()
         {
             var client = _factory.CreateAuthenticatedClient();
+            var request = new { Code = $"test_{Guid.NewGuid():N}", Name = "Non-admin attempt", SubjectCategory = SubjectCategory.translation };
+
+            var response = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, request);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task Create_returns_409_when_code_already_exists()
+        {
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
             var request = new { Code = $"test_{Guid.NewGuid():N}", Name = "Duplicate", SubjectCategory = SubjectCategory.translation };
 
             var first = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, request);

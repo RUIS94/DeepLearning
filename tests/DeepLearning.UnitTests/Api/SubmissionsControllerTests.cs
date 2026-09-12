@@ -161,7 +161,7 @@ namespace DeepLearning.UnitTests.Api
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))
                 .CreateClient();
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
 
@@ -207,7 +207,7 @@ namespace DeepLearning.UnitTests.Api
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))
                 .CreateClient();
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
 
@@ -235,7 +235,7 @@ namespace DeepLearning.UnitTests.Api
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClientWithInvalidCategory()))))
                 .CreateClient();
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
 
@@ -265,7 +265,7 @@ namespace DeepLearning.UnitTests.Api
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClientWithOutOfRangeBand()))))
                 .CreateClient();
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var (examTypeId, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
 
@@ -298,7 +298,7 @@ namespace DeepLearning.UnitTests.Api
                     services => services.AddSingleton<ILlmClientResolver>(LlmClientResolverSubstitute.Returning(capturingClient))))
                 .CreateClient();
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var (examTypeId, questionId, userId) = await SeedTaskBExamTypeQuestionAndUserAsync(client);
 
@@ -347,7 +347,7 @@ namespace DeepLearning.UnitTests.Api
                     services => services.AddScoped<ILlmClientResolver>(_ => LlmClientResolverSubstitute.Returning(new FakeGradingLlmClient()))))
                 .CreateClient();
             client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(await _factory.SeedUserAsync(UserRole.admin)));
 
             var (_, questionId, userId) = await SeedExamTypeQuestionAndUserAsync(client);
 

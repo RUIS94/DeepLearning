@@ -165,8 +165,13 @@ namespace DeepLearning.UnitTests.Api
             return seeded;
         }
 
-        private HttpClient CreateClient(string dimensionKey, string? summaryResponseJson = null, string? scoreChallengeSummaryResponseJson = null)
+        // Admin identity (ref/管理员与用户权限隔离_策划书.md Phase 2): these tests need to create an
+        // exam type + assessment dimension first, both now AdminOnly writes. Admin is a superset of
+        // a regular user, so every subsequent per-user action here (create submission, dispute it,
+        // etc.) is unaffected — ownership still keys off this same caller's own identity.
+        private async Task<HttpClient> CreateClient(string dimensionKey, string? summaryResponseJson = null, string? scoreChallengeSummaryResponseJson = null)
         {
+            var userId = await _factory.SeedUserAsync(UserRole.admin);
             var client = _factory
                 .WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
                     services.AddSingleton<ILlmClientResolver>(
@@ -174,7 +179,7 @@ namespace DeepLearning.UnitTests.Api
                             new FakeFollowUpFlowLlmClient(dimensionKey, PerRoundResponseJson, summaryResponseJson, scoreChallengeSummaryResponseJson)))))
                 .CreateClient();
             client.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(Guid.NewGuid()));
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ApiWebApplicationFactory.CreateJwt(userId));
             return client;
         }
 
@@ -210,7 +215,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Create_starts_a_thread_holds_the_submission_under_dispute_and_records_the_first_round()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey);
+            var client = await CreateClient(dimensionKey);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -238,7 +243,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Create_returns_409_when_an_open_thread_already_exists_for_the_submission()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey);
+            var client = await CreateClient(dimensionKey);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -253,7 +258,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Create_is_allowed_again_after_the_previous_thread_is_closed()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey, SummaryUserIncorrectJson);
+            var client = await CreateClient(dimensionKey, SummaryUserIncorrectJson);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -283,7 +288,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Create_returns_409_when_the_submission_is_not_yet_graded()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey);
+            var client = await CreateClient(dimensionKey);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedSubmittedSubmissionAsync(client);
@@ -297,7 +302,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task AddMessage_appends_a_round_and_keeps_the_thread_open()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey);
+            var client = await CreateClient(dimensionKey);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -322,7 +327,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task AddMessage_returns_409_after_the_round_cap()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey);
+            var client = await CreateClient(dimensionKey);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -350,7 +355,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Close_with_user_incorrect_ends_the_submission_at_graded_and_creates_no_override()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey, SummaryUserIncorrectJson);
+            var client = await CreateClient(dimensionKey, SummaryUserIncorrectJson);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -374,7 +379,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Close_with_user_correct_creates_an_observing_override_and_ends_the_submission_at_graded()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey, SummaryUserCorrectJson(dimensionKey));
+            var client = await CreateClient(dimensionKey, SummaryUserCorrectJson(dimensionKey));
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -404,7 +409,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Close_returns_409_when_the_thread_is_already_closed()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey, SummaryUserIncorrectJson);
+            var client = await CreateClient(dimensionKey, SummaryUserIncorrectJson);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -425,7 +430,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task List_returns_an_empty_array_before_any_thread_exists()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey);
+            var client = await CreateClient(dimensionKey);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, _, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -441,7 +446,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Close_with_no_dispute_records_a_null_final_verdict_and_no_override()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey, SummaryNoDisputeJson);
+            var client = await CreateClient(dimensionKey, SummaryNoDisputeJson);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -464,7 +469,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Preview_close_returns_a_draft_and_leaves_the_thread_open()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey, SummaryUserIncorrectJson);
+            var client = await CreateClient(dimensionKey, SummaryUserIncorrectJson);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -490,7 +495,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Preview_close_is_rejected_for_a_knowledge_thread()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey);
+            var client = await CreateClient(dimensionKey);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -509,7 +514,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
             // summaryResponseJson deliberately null — if the AI summary call fires this test fails.
-            var client = CreateClient(dimensionKey);
+            var client = await CreateClient(dimensionKey);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -546,7 +551,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
             // summaryResponseJson deliberately null — if the AI summary call fires this test fails.
-            var client = CreateClient(dimensionKey);
+            var client = await CreateClient(dimensionKey);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -572,7 +577,7 @@ namespace DeepLearning.UnitTests.Api
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
             // scoreChallengeSummaryResponseJson deliberately null — the AI call must not fire.
-            var client = CreateClient(dimensionKey);
+            var client = await CreateClient(dimensionKey);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -609,7 +614,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Close_score_challenge_with_reviewed_adjust_input_rewrites_the_band_without_the_ai()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey);
+            var client = await CreateClient(dimensionKey);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -660,7 +665,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Close_score_challenge_with_adjust_rewrites_the_band_and_moves_the_submission_to_regraded()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey, scoreChallengeSummaryResponseJson: ScoreChallengeAdjustJson);
+            var client = await CreateClient(dimensionKey, scoreChallengeSummaryResponseJson: ScoreChallengeAdjustJson);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -703,7 +708,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Close_score_challenge_with_uphold_leaves_the_band_and_returns_to_graded()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey, scoreChallengeSummaryResponseJson: ScoreChallengeUpholdJson);
+            var client = await CreateClient(dimensionKey, scoreChallengeSummaryResponseJson: ScoreChallengeUpholdJson);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);
@@ -734,7 +739,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Create_score_challenge_without_dimension_id_is_rejected()
         {
             var dimensionKey = $"meaning_transfer_{Guid.NewGuid():N}";
-            var client = CreateClient(dimensionKey);
+            var client = await CreateClient(dimensionKey);
             var examTypeId = await SeedExamTypeWithDimensionAsync(client, dimensionKey);
             await SeedTemplatesAsync(_factory);
             var (_, userId, submissionId) = await SeedGradedSubmissionAsync(client, examTypeId);

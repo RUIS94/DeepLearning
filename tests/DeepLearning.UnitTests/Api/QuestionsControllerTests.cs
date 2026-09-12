@@ -52,7 +52,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Task_b_question_response_includes_task_b_details_with_seeded_errors()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
 
             var examTypeResponse = await client.PostAsJsonAsync(ApiRoutes.ExamTypes.Base, new
             {
@@ -128,7 +128,8 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Import_with_is_seed_reference_true_sets_origin_and_source_type_to_the_real_exam_pair()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            // IsSeedReference=true is AdminOnly (D2'/A2', ref/管理员与用户权限隔离_策划书.md).
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
 
             var createResponse = await client.PostAsJsonAsync(ApiRoutes.Questions.Base, new
             {
@@ -153,6 +154,27 @@ namespace DeepLearning.UnitTests.Api
             Assert.True(fetched!.IsSeedReference);
             Assert.Equal(QuestionOrigin.real_exam_seed, fetched.Origin);
             Assert.Equal(SourceType.real_exam, fetched.SourceType);
+        }
+
+        [Fact]
+        public async Task Import_with_is_seed_reference_true_returns_403_for_a_non_admin_caller()
+        {
+            var client = _factory.CreateAuthenticatedClient();
+
+            var response = await client.PostAsJsonAsync(ApiRoutes.Questions.Base, new
+            {
+                TaskType = TaskType.A,
+                Difficulty = Difficulty.medium,
+                Title = "A non-admin attempt at a real-exam sample",
+                Brief = (string?)null,
+                SourceText = "Some source text.",
+                FlawedTranslationText = (string?)null,
+                MeaningCheckpoints = Array.Empty<object>(),
+                SeededErrors = Array.Empty<object>(),
+                IsSeedReference = true,
+            });
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
         [Fact]

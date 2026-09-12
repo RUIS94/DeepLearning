@@ -82,4 +82,8 @@ export const qk = {
   adminAiOperationOverrides: () => ["admin", "ai-operation-overrides"] as const,
 
   deepLearning: (questionId: string) => ["deep-learning", questionId] as const,
+
+  adminUsers: (page: number, pageSize: number) => ["admin", "users", page, pageSize] as const,
+  /** Prefix-only — matches every adminUsers(...) entry regardless of page/pageSize. */
+  adminUsersAll: () => ["admin", "users"] as const,
 };

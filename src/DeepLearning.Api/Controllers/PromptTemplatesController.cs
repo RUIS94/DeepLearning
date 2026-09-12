@@ -5,12 +5,20 @@ using DeepLearning.Application.Features.ExamConfig.Commands.UpdatePromptTemplate
 using DeepLearning.Application.Features.ExamConfig.Queries.GetPromptTemplatesByExamType;
 using DeepLearning.Domain.Enums;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeepLearning.Api.Controllers
 {
+    /// <summary>
+    /// Admin-only end to end, reads included — unlike exam types/dimensions/taxonomies, the
+    /// content here is the AI system prompts themselves, not something a learner ever needs to
+    /// see (grading/generation reads templates server-side via the repository, not through this
+    /// HTTP surface). See ref/管理员与用户权限隔离_策划书.md §3.2.
+    /// </summary>
     [ApiController]
     [Route(ApiRoutes.PromptTemplates.Base)]
+    [Authorize(Policy = "AdminOnly")]
     public class PromptTemplatesController : ControllerBase
     {
         private readonly IMediator _mediator;

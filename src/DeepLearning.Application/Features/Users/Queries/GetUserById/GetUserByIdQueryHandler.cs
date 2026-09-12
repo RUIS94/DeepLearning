@@ -20,7 +20,7 @@ namespace DeepLearning.Application.Features.Users.Queries.GetUserById
 
             return new GetUserByIdResult(
                 user.Id, user.Username, user.Email, user.DisplayName,
-                user.LanguagePreference, user.CreatedAt, user.LastLoginAt);
+                user.LanguagePreference, user.Role, user.CreatedAt, user.LastLoginAt);
         }
     }
 }

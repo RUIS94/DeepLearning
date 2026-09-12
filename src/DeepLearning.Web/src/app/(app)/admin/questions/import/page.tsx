@@ -1,6 +1,9 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { SeedImportPage } from "./seed-import-page";
 
-/** 导入题目改为侧栏「导入题目」触发的 SidePanel(ImportPanelProvider),不再是独立页面。 */
+export const metadata: Metadata = { title: "Import Real-Exam Seed" };
+
+/** Admin-only (ref/管理员与用户权限隔离_策划书.md A2') — role guard lives in app/(app)/admin/layout.tsx. */
 export default function Page() {
-  redirect("/practice");
+  return <SeedImportPage />;
 }

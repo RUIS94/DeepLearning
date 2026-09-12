@@ -80,6 +80,7 @@ namespace DeepLearning.Infrastructure
             services.AddScoped<IQuestionBankCategoryRepository, QuestionBankCategoryRepository>();
             services.AddScoped<ISeedReferenceLinkRepository, SeedReferenceLinkRepository>();
             services.AddScoped<IFeatureFlagRepository, FeatureFlagRepository>();
+            services.AddScoped<IUserFeatureOverrideRepository, UserFeatureOverrideRepository>();
 
             // One IGradingResultInterpreter per assessment_dimensions.scale_type — GradeSubmissionCommandHandler
             // picks the matching one via DI's IEnumerable<IGradingResultInterpreter>.

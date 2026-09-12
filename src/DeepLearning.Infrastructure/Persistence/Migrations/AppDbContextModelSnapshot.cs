@@ -1838,6 +1838,44 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("DeepLearning.Domain.Entities.UserFeatureOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<string>("FeatureKey")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("feature_key");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_user_feature_overrides");
+
+                    b.HasIndex("UserId", "FeatureKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_user_feature_overrides_user_id_feature_key");
+
+                    b.ToTable("user_feature_overrides", (string)null);
+                });
+
             modelBuilder.Entity("DeepLearning.Domain.Entities.UserKnowledgePointReview", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2845,6 +2883,18 @@ namespace DeepLearning.Infrastructure.Persistence.Migrations
                     b.Navigation("ErrorTaxonomy");
 
                     b.Navigation("Question");
+                });
+
+            modelBuilder.Entity("DeepLearning.Domain.Entities.UserFeatureOverride", b =>
+                {
+                    b.HasOne("DeepLearning.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_user_feature_overrides_users_user_id");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("DeepLearning.Domain.Entities.UserKnowledgePointReview", b =>

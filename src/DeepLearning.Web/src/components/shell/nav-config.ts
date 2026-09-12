@@ -1,4 +1,4 @@
-import { BookOpen, GraduationCap, LibraryBig, LineChart } from "lucide-react";
+import { BookOpen, GraduationCap, LibraryBig, LineChart, ShieldCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { MessageKey } from "@/lib/i18n/messages/en";
 
@@ -10,6 +10,10 @@ import type { MessageKey } from "@/lib/i18n/messages/en";
  *   /admin/exam-types  -> /exam-management(多 tab)
  *   /review-library    -> /review(并入薄弱点 tab)
  * 迁移过去,这里同步改即可,页面组件本身复用。
+ *
+ * adminOnly 项只在当前用户 role=admin 时渲染（AppSidebar 里过滤，见
+ * ref/管理员与用户权限隔离_策划书.md）——真正的门禁在后端 AdminOnly policy，这里只是体验层面
+ * 的隐藏，不是安全边界。
  */
 export type NavItem = {
   kind: "link";
@@ -18,6 +22,7 @@ export type NavItem = {
   href: string;
   icon: LucideIcon;
   match: string;
+  adminOnly?: boolean;
 };
 
 export const NAV_ITEMS: NavItem[] = [
@@ -52,5 +57,14 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/progress",
     icon: LineChart,
     match: "/progress",
+  },
+  {
+    kind: "link",
+    key: "admin",
+    labelKey: "nav.admin",
+    href: "/admin/users",
+    icon: ShieldCheck,
+    match: "/admin",
+    adminOnly: true,
   },
 ];

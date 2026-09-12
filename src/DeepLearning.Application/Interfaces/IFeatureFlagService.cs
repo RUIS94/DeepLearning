@@ -7,7 +7,12 @@ namespace DeepLearning.Application.Interfaces
     /// </summary>
     public interface IFeatureFlagService
     {
-        Task<bool> IsEnabledAsync(string key, CancellationToken cancellationToken = default);
+        /// <summary>
+        /// When <paramref name="userId"/> is given, a matching UserFeatureOverride row wins over
+        /// the global flag (ref/管理员与用户权限隔离_策划书.md A4); omitted, this is the plain
+        /// global check every internal/system caller used before per-user overrides existed.
+        /// </summary>
+        Task<bool> IsEnabledAsync(string key, Guid? userId = null, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Drops the cached value for <paramref name="key"/> so the next read hits the DB — called

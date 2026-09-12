@@ -61,7 +61,9 @@ namespace DeepLearning.Application.Features.Questions.Commands.ImportUserQuestio
                 SourceType = request.IsSeedReference ? SourceType.real_exam : SourceType.user_generated,
                 IsSeedReference = request.IsSeedReference,
                 InBank = false,
-                Visibility = request.Visibility,
+                // Derived, never caller-supplied (ref/管理员与用户权限隔离_策划书.md D2'/A2') — the
+                // only way a question becomes Shared is an admin importing a real-exam seed.
+                Visibility = request.IsSeedReference ? Visibility.Shared : Visibility.Private,
                 CreatedBy = request.CreatedBy,
                 CreatedAt = DateTimeOffset.UtcNow,
                 IsActive = true,

@@ -3,6 +3,7 @@ using DeepLearning.Application.Features.ExamConfig.Commands.CreateAssessmentDime
 using DeepLearning.Application.Features.ExamConfig.Queries.GetAssessmentDimensionsByExamType;
 using DeepLearning.Domain.Enums;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeepLearning.Api.Controllers
@@ -30,6 +31,7 @@ namespace DeepLearning.Api.Controllers
             DateTimeOffset? EffectiveTo,
             string? SourceReference);
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost]
         public async Task<ActionResult<CreateAssessmentDimensionResult>> Create(
             Guid examTypeId, CreateAssessmentDimensionRequest request, CancellationToken cancellationToken)

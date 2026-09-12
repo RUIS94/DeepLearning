@@ -29,6 +29,11 @@ namespace DeepLearning.Application.Features.FollowUpThreads.Queries.GetFollowUpT
             var submission = await _submissionRepository.GetByIdAsync(thread.SubmissionId, cancellationToken)
                 ?? throw new NotFoundException(nameof(Submission), thread.SubmissionId);
 
+            if (submission.UserId != request.RequesterId)
+            {
+                throw new NotFoundException(nameof(FollowUpThread), request.Id);
+            }
+
             var standardOverride = thread.StandardOverrideId is { } overrideId
                 ? await _standardOverrideRepository.GetByIdAsync(overrideId, cancellationToken)
                 : null;

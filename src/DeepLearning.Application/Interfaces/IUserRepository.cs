@@ -13,5 +13,8 @@ namespace DeepLearning.Application.Interfaces
         Task<bool> ExistsAsync(string username, string email, CancellationToken cancellationToken = default);
 
         Task AddAsync(User user, CancellationToken cancellationToken = default);
+
+        /// <summary>Page of users ordered oldest-first, plus the total row count for pagination (A3 User Management).</summary>
+        Task<(List<User> Items, int TotalCount)> ListAsync(int skip, int take, CancellationToken cancellationToken = default);
     }
 }

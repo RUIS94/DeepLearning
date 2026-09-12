@@ -10,6 +10,7 @@ using DeepLearning.Application.Features.LlmProviders.Queries.ListLlmProviderMode
 using DeepLearning.Application.Features.LlmProviders.Queries.ListLlmProviders;
 using DeepLearning.Domain.Enums;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeepLearning.Api.Controllers
@@ -19,9 +20,12 @@ namespace DeepLearning.Api.Controllers
     /// thinking/effort/extra_settings) and llm_provider_models (the catalog of known models per
     /// provider, and which one is current). See AGENTS.md's "AI integration" section for the
     /// full design (why both tables are hand-run SQL rather than an auto-applied migration).
+    /// Admin-only end to end, reads included — a learner never needs to know which AI provider
+    /// their grading ran through.
     /// </summary>
     [ApiController]
     [Route(ApiRoutes.LlmProviderSettings.Base)]
+    [Authorize(Policy = "AdminOnly")]
     public class LlmProviderSettingsController : ControllerBase
     {
         private readonly IMediator _mediator;

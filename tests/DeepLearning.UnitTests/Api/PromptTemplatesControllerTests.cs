@@ -20,7 +20,7 @@ namespace DeepLearning.UnitTests.Api
         [Fact]
         public async Task Create_shared_methodology_template_then_list_round_trips_over_http()
         {
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
 
             var createResponse = await client.PostAsJsonAsync(ApiRoutes.PromptTemplates.Base, new
             {
@@ -41,9 +41,19 @@ namespace DeepLearning.UnitTests.Api
         }
 
         [Fact]
-        public async Task Create_returns_400_when_layer_and_scope_are_inconsistent()
+        public async Task List_returns_403_for_a_non_admin_caller()
         {
             var client = _factory.CreateAuthenticatedClient();
+
+            var response = await client.GetAsync(ApiRoutes.PromptTemplates.Base);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task Create_returns_400_when_layer_and_scope_are_inconsistent()
+        {
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
 
             var response = await client.PostAsJsonAsync(ApiRoutes.PromptTemplates.Base, new
             {

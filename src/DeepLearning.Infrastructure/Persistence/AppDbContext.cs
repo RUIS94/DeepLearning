@@ -48,6 +48,7 @@ namespace DeepLearning.Infrastructure.Persistence
         public DbSet<LlmProviderSettings> LlmProviderSettings => Set<LlmProviderSettings>();
         public DbSet<LlmProviderModel> LlmProviderModels => Set<LlmProviderModel>();
         public DbSet<AiOperationProviderOverride> AiOperationProviderOverrides => Set<AiOperationProviderOverride>();
+        public DbSet<UserFeatureOverride> UserFeatureOverrides => Set<UserFeatureOverride>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

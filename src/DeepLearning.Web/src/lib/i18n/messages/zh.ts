@@ -59,6 +59,7 @@ const zh: Record<MessageKey, string> = {
   "nav.examManagement": "管理",
   "nav.review": "复习",
   "nav.progress": "进度",
+  "nav.admin": "管理员",
 
   // ---- 用户菜单 ----
   "userMenu.profile": "个人资料",
@@ -466,7 +467,7 @@ const zh: Record<MessageKey, string> = {
     "design doc §10.6：无需等待累计确认次数达标，经一次人工复核即可直接生效。",
 
   // ---- 导入题目面板 ----
-  "import.description": "手工录入题目或真题种子。TaskB 需要含错译文并至少标注一条错误。",
+  "import.description": "手工录入你自己的题目。TaskB 需要含错译文并至少标注一条错误。",
   "import.basicInfo": "基本信息",
   "import.titleLabel": "标题",
   "import.titlePh": "社区健康中心疫苗接种通知",
@@ -478,8 +479,6 @@ const zh: Record<MessageKey, string> = {
   "import.categoriesLabel": "题材分类（可选，可多选）",
   "import.categoriesHint": "在「题库」页可按这些分类筛选到本题；分类在「考试管理 · 分类」维护。",
   "import.noCategories": "暂无分类可选。",
-  "import.markSeed": "标记为真题种子",
-  "import.markSeedHint": "供 AI 出题时作为 few-shot 参考样本检索。",
   "import.meaningPoints": "核心意义点（可选）",
   "import.meaningPointPh": "该信息点的具体内容",
   "import.noMeaningPoints": "尚未添加意义点。",
@@ -727,6 +726,35 @@ const zh: Record<MessageKey, string> = {
   "profile.displayName": "显示名称",
   "profile.email": "邮箱",
   "profile.placeholder": "占位页面。",
+
+  // ---- 管理员：用户管理 ----
+  "admin.usersTitle": "用户管理",
+  "admin.usersDescription": "管理角色与按用户的功能访问权限。",
+  "admin.linkAiProviders": "AI 服务商",
+  "admin.linkSeedImport": "导入真题种子",
+  "admin.table.user": "用户",
+  "admin.table.email": "邮箱",
+  "admin.table.role": "角色",
+  "admin.table.lastLogin": "最近登录",
+  "admin.table.joined": "注册时间",
+  "admin.table.features": "功能",
+  "admin.never": "从未",
+  "admin.roleUpdated": "角色已更新",
+  "admin.roleUpdateFailed": "角色更新失败",
+  "admin.featuresButton": "功能",
+  "admin.featuresDialogTitle": "{email} 的功能访问权限",
+  "admin.featuresDialogDescription": "仅覆盖该用户的全局功能开关，不影响其他用户。",
+  "admin.featureInherit": "跟随全局设置",
+  "admin.featureOn": "对该用户始终开启",
+  "admin.featureOff": "对该用户始终关闭",
+  "admin.featureOverrideSaved": "功能设置已保存",
+  "admin.featureOverrideSaveFailed": "功能设置保存失败",
+
+  // ---- 管理员：真题种子导入 ----
+  "admin.seedImport.title": "导入真题种子",
+  "admin.seedImport.description": "仅管理员可用。这是全库里唯一能让题目对所有用户共享的入口——其余情况下题目都只归创建者私有。",
+  "admin.seedImport.submit": "导入种子题目",
+  "admin.seedImport.imported": "真题种子已导入",
 
   // ---- 倒计时组件 ----
   "countdown.duration.75": "75 分钟",

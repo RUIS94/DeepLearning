@@ -4,6 +4,12 @@ import type { Locale } from "@/lib/i18n/config";
 
 const api = createBrowserApiClient();
 
+/** 对应后端 GET /users/me——始终是调用方自己的 profile，替代下面按 id 读取（仅 self 或 admin 可用）。 */
+export async function getCurrentUser(): Promise<UserProfile> {
+  return api<UserProfile>("/users/me");
+}
+
+/** self 或 admin 才能读；读别人会 403。管理员用户列表见 lib/api/admin-users.ts。 */
 export async function getUserById(id: string): Promise<UserProfile> {
   return api<UserProfile>(`/users/${id}`);
 }

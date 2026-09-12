@@ -38,8 +38,11 @@ export const importUserQuestionSchema = z
       .optional(),
     sourceText: z.string().trim().min(1, "v.sourceTextRequired"),
     wordCount: z.number().int().positive().nullable().optional(),
+    // Admin-only field (D2'/A2', ref/管理员与用户权限隔离_策划书.md) — the regular user-facing
+    // import panel never sets this; only the admin seed-import page does. visibility is NOT part
+    // of this schema at all anymore: the backend derives it from isSeedReference and never accepts
+    // a caller-supplied value.
     isSeedReference: z.boolean().optional(),
-    visibility: z.number().int().min(0).max(1).optional(),
     meaningCheckpoints: z.array(meaningCheckpointSchema).optional(),
     taskB: z
       .object({

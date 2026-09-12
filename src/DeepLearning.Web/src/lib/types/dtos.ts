@@ -718,14 +718,13 @@ export interface ImportUserQuestionRequest {
   sourceText: string;
   flawedTranslationText?: string | null;
   wordCount?: number | null;
+  /** Admin-only — the caller must be an admin or the API 403s. Visibility is derived server-side (never accepted from the client). */
   isSeedReference?: boolean;
-  visibility?: number;
-  createdBy?: string | null;
   meaningCheckpoints?: ImportMeaningCheckpointRequest[];
   seededErrors?: ImportSeededErrorRequest[];
 }
 
-/** 对应后端 GetUserByIdResult（GET /users/{id}）。 */
+/** 对应后端 GetUserByIdResult（GET /users/{id} 或 GET /users/me）。 */
 export interface UserProfile {
   id: string;
   username: string;
@@ -733,6 +732,26 @@ export interface UserProfile {
   displayName: string | null;
   /** UI 显示语言偏好："en"（默认）或 "zh"。仅影响前端界面语言，不影响任何存储内容。 */
   languagePreference: string;
+  /** 0 = user, 1 = admin — 与后端 UserRole 枚举顺序一致。 */
+  role: number;
   createdAt: string;
   lastLoginAt: string | null;
+}
+
+/** 对应后端 ListUsersResult（GET /admin/users，admin-only）。 */
+export interface AdminUserListItem {
+  id: string;
+  username: string;
+  email: string;
+  displayName: string | null;
+  role: number;
+  createdAt: string;
+  lastLoginAt: string | null;
+}
+
+export interface AdminUserListResult {
+  items: AdminUserListItem[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
 }

@@ -85,7 +85,7 @@ namespace DeepLearning.Api.Controllers
         public async Task<ActionResult> RegenerateWeakPoints(
             Guid id, RegenerateWeakPointsRequest request, IWeakPointGenerationQueue queue, CancellationToken cancellationToken)
         {
-            var submission = await _mediator.Send(new GetSubmissionByIdQuery(id), cancellationToken);
+            var submission = await _mediator.Send(new GetSubmissionByIdQuery(id, _currentUser.RequiredUserId), cancellationToken);
             // TODO: 与 Submission.IsResultVisible 不一致 —— 缺 regraded。是否该让 score_challenge
             // 改判后的提交也能重新生成薄弱点,是一个需要显式确认的产品决定,不在这次收口里顺手改掉
             // (见 代码复用扫描_07_优化计划.md §1.2)。
@@ -102,7 +102,7 @@ namespace DeepLearning.Api.Controllers
 
         [HttpGet("{id:guid}")]
         public async Task<ActionResult<GetSubmissionByIdResult>> GetById(Guid id, CancellationToken cancellationToken)
-            => Ok(await _mediator.Send(new GetSubmissionByIdQuery(id), cancellationToken));
+            => Ok(await _mediator.Send(new GetSubmissionByIdQuery(id, _currentUser.RequiredUserId), cancellationToken));
 
         [HttpGet]
         public async Task<ActionResult<List<ListSubmissionsResultItem>>> List(

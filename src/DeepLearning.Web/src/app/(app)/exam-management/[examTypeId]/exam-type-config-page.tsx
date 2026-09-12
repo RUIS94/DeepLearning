@@ -17,6 +17,7 @@ import { StandardOverridesPanel } from "@/components/exam-management/standard-ov
 import { WeakPointCatalogPanel } from "@/components/exam-management/weak-point-catalog-panel";
 import { useT } from "@/lib/i18n";
 import { qk } from "@/lib/query-keys";
+import { isAdmin, useCurrentUser } from "@/hooks/use-current-user";
 
 export function ExamTypeConfigPage() {
   const t = useT();
@@ -25,6 +26,8 @@ export function ExamTypeConfigPage() {
     queryKey: qk.adminExamType(examTypeId),
     queryFn: () => getExamTypeById(examTypeId),
   });
+  const { data: currentUser } = useCurrentUser();
+  const admin = isAdmin(currentUser);
 
   // 新建按钮提到 TabsList 同行；文字与动作随当前 Tab 切换。「标准修正」只增审计链、没有新建入口。
   const [tab, setTab] = useState("dimensions");
@@ -33,19 +36,23 @@ export function ExamTypeConfigPage() {
   const categoriesCreate = useRef<CrudCreateHandle>(null);
   const promptCreate = useRef<CrudCreateHandle>(null);
   const weakPointCatalogCreate = useRef<CrudCreateHandle>(null);
+  // 创建动作本身是 AdminOnly 写操作(Phase 2, ref/管理员与用户权限隔离_策划书.md)——非admin
+  // 完全不渲染这个 map,顶部「新建」按钮自然就没有了,不需要挨个改 5 个 panel 组件。
   const createActions: Record<
     string,
     { label: string; ref: React.RefObject<CrudCreateHandle | null> }
-  > = {
-    dimensions: { label: t("examMgmt.add.dimension"), ref: dimensionsCreate },
-    "error-taxonomies": { label: t("examMgmt.add.errorTaxonomy"), ref: taxonomiesCreate },
-    categories: { label: t("examMgmt.add.questionCategory"), ref: categoriesCreate },
-    "prompt-templates": { label: t("examMgmt.add.promptTemplate"), ref: promptCreate },
-    "weak-point-catalog": {
-      label: t("examMgmt.add.weakPointCategory"),
-      ref: weakPointCatalogCreate,
-    },
-  };
+  > = admin
+    ? {
+        dimensions: { label: t("examMgmt.add.dimension"), ref: dimensionsCreate },
+        "error-taxonomies": { label: t("examMgmt.add.errorTaxonomy"), ref: taxonomiesCreate },
+        categories: { label: t("examMgmt.add.questionCategory"), ref: categoriesCreate },
+        "prompt-templates": { label: t("examMgmt.add.promptTemplate"), ref: promptCreate },
+        "weak-point-catalog": {
+          label: t("examMgmt.add.weakPointCategory"),
+          ref: weakPointCatalogCreate,
+        },
+      }
+    : {};
   const activeCreate = createActions[tab];
 
   return (
@@ -71,7 +78,14 @@ export function ExamTypeConfigPage() {
             <TabsTrigger value="dimensions">{t("examMgmt.tab.dimensions")}</TabsTrigger>
             <TabsTrigger value="error-taxonomies">{t("examMgmt.tab.errorTaxonomies")}</TabsTrigger>
             <TabsTrigger value="categories">{t("examMgmt.tab.categories")}</TabsTrigger>
-            <TabsTrigger value="prompt-templates">{t("examMgmt.tab.promptTemplates")}</TabsTrigger>
+            {/* Prompt templates are admin-only end to end, reads included (A2, ref/管理员与用户
+                权限隔离_策划书.md) — unlike the other tabs, a non-admin can't even list them, so
+                the tab has to disappear entirely rather than just lose its "New" button. */}
+            {admin ? (
+              <TabsTrigger value="prompt-templates">
+                {t("examMgmt.tab.promptTemplates")}
+              </TabsTrigger>
+            ) : null}
             <TabsTrigger value="weak-point-catalog">
               {t("examMgmt.tab.weakPointCatalog")}
             </TabsTrigger>
@@ -96,9 +110,11 @@ export function ExamTypeConfigPage() {
         <TabsContent value="categories" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
           <CategoriesPanel examTypeId={examTypeId} createRef={categoriesCreate} />
         </TabsContent>
-        <TabsContent value="prompt-templates" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
-          <PromptTemplatesPanel examTypeId={examTypeId} createRef={promptCreate} />
-        </TabsContent>
+        {admin ? (
+          <TabsContent value="prompt-templates" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
+            <PromptTemplatesPanel examTypeId={examTypeId} createRef={promptCreate} />
+          </TabsContent>
+        ) : null}
         <TabsContent value="weak-point-catalog" className="mt-0 min-h-0 flex-1 lg:overflow-y-auto">
           <WeakPointCatalogPanel createRef={weakPointCatalogCreate} />
         </TabsContent>

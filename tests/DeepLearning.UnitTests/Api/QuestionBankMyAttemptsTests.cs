@@ -73,13 +73,12 @@ namespace DeepLearning.UnitTests.Api
             Assert.Equal(2, row.MyAttemptCount);
             Assert.Contains(row.MyLatestSubmissionId, new[] { (Guid?)firstId, secondId });
 
-            // A different authenticated caller has never attempted this question — isolation, not
-            // just "no query param passed".
+            // A different authenticated caller can't even see this question — it's private to its
+            // creator (U4, ref/管理员与用户权限隔离_策划书.md), a stronger isolation guarantee than
+            // "no attempts recorded".
             var otherClient = _factory.CreateAuthenticatedClient();
             var otherList = await otherClient.GetFromJsonAsync<List<ListQuestionsResultItem>>(ApiRoutes.Questions.Base);
-            var otherRow = Assert.Single(otherList!, q => q.Id == questionId);
-            Assert.Equal(0, otherRow.MyAttemptCount);
-            Assert.Null(otherRow.MyLatestSubmissionId);
+            Assert.DoesNotContain(otherList!, q => q.Id == questionId);
         }
 
         [Fact]

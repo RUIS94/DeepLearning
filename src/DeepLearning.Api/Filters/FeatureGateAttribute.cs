@@ -20,22 +20,30 @@ namespace DeepLearning.Api.Filters
         public bool IsReusable => false;
 
         public IFilterMetadata CreateInstance(IServiceProvider serviceProvider)
-            => new FeatureGateFilter(_key, serviceProvider.GetRequiredService<IFeatureFlagService>());
+            => new FeatureGateFilter(
+                _key,
+                serviceProvider.GetRequiredService<IFeatureFlagService>(),
+                serviceProvider.GetRequiredService<ICurrentUserService>());
 
         private sealed class FeatureGateFilter : IAsyncActionFilter
         {
             private readonly string _key;
             private readonly IFeatureFlagService _flags;
+            private readonly ICurrentUserService _currentUser;
 
-            public FeatureGateFilter(string key, IFeatureFlagService flags)
+            public FeatureGateFilter(string key, IFeatureFlagService flags, ICurrentUserService currentUser)
             {
                 _key = key;
                 _flags = flags;
+                _currentUser = currentUser;
             }
 
             public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
             {
-                if (!await _flags.IsEnabledAsync(_key, context.HttpContext.RequestAborted))
+                // A per-user override (A4) wins over the global flag — the global filter has
+                // already authenticated the caller by the time an action filter runs, so
+                // _currentUser.UserId is populated for any request that reaches here.
+                if (!await _flags.IsEnabledAsync(_key, _currentUser.UserId, context.HttpContext.RequestAborted))
                 {
                     context.Result = new ObjectResult(new ProblemDetails
                     {

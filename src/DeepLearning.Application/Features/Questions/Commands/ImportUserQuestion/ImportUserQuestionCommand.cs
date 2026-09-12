@@ -19,10 +19,13 @@ namespace DeepLearning.Application.Features.Questions.Commands.ImportUserQuestio
     /// own output with IsSeedReference=false. When true, the handler also sets
     /// Origin=real_exam_seed/SourceType=real_exam instead of the usual user_uploaded/
     /// user_generated pair, since a question imported this way is meant to represent an actual
-    /// exam sample, not an ordinary user-authored one. There is no auth/role system anywhere in
-    /// this codebase (out of scope, same as login/JWT generally) — like every other
-    /// caller-supplied field here (Visibility, CreatedBy), this is trust-based, not gated behind
-    /// an admin check that doesn't exist.
+    /// exam sample, not an ordinary user-authored one.
+    ///
+    /// Visibility is NOT a caller-supplied field (ref/管理员与用户权限隔离_策划书.md D2'/A2') — the
+    /// handler derives it from IsSeedReference: true → Shared, false → Private. The only path
+    /// that can produce a Shared question at all is QuestionsController.Import gating
+    /// IsSeedReference=true behind AdminOnly, matching GenerateQuestionCommandHandler's own
+    /// hardcoded Visibility=Private for AI-generated questions.
     /// </summary>
     public record ImportUserQuestionCommand(
         TaskType TaskType,
@@ -32,7 +35,6 @@ namespace DeepLearning.Application.Features.Questions.Commands.ImportUserQuestio
         string SourceText,
         string? FlawedTranslationText,
         Guid? CreatedBy,
-        Visibility Visibility,
         List<MeaningCheckpointInput> MeaningCheckpoints,
         List<SeededErrorInput> SeededErrors,
         bool IsSeedReference = false) : IRequest<ImportUserQuestionResult>;

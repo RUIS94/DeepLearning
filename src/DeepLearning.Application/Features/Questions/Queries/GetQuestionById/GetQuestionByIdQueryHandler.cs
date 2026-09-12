@@ -19,6 +19,11 @@ namespace DeepLearning.Application.Features.Questions.Queries.GetQuestionById
             var question = await _questionRepository.GetByIdAsync(request.Id, cancellationToken)
                 ?? throw new NotFoundException(nameof(Domain.Entities.Question), request.Id);
 
+            if (question.Visibility != Visibility.Shared && question.CreatedBy != request.RequesterId)
+            {
+                throw new NotFoundException(nameof(Domain.Entities.Question), request.Id);
+            }
+
             var checkpoints = await _questionRepository.GetMeaningCheckpointsAsync(question.Id, cancellationToken);
             var categoryIds = await _questionRepository.ListCategoryIdsAsync(question.Id, cancellationToken);
             var checkpointItems = checkpoints

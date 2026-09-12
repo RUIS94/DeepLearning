@@ -59,7 +59,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Update_with_an_empty_string_clears_name_and_description_while_null_leaves_them_unchanged()
         {
             var id = await SeedCatalogEntryAsync(name: "Original Name", description: "Original description");
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
 
             var response = await client.PutAsJsonAsync(
                 $"{ApiRoutes.WeakPointCatalog.Base}/{id}",
@@ -81,7 +81,7 @@ namespace DeepLearning.UnitTests.Api
         public async Task Update_with_a_non_null_name_sets_it()
         {
             var id = await SeedCatalogEntryAsync(name: "Original Name", description: "Original description");
-            var client = _factory.CreateAuthenticatedClient();
+            var client = await _factory.CreateAuthenticatedAdminClientAsync();
 
             var response = await client.PutAsJsonAsync(
                 $"{ApiRoutes.WeakPointCatalog.Base}/{id}",

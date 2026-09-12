@@ -15,7 +15,6 @@ namespace DeepLearning.UnitTests.Application.Features.Questions
             SourceText: "Some source text long enough to translate.",
             FlawedTranslationText: null,
             CreatedBy: null,
-            Visibility: Visibility.Private,
             MeaningCheckpoints: [],
             SeededErrors: []);
 
@@ -27,7 +26,6 @@ namespace DeepLearning.UnitTests.Application.Features.Questions
             SourceText: "Some source text long enough to translate.",
             FlawedTranslationText: flawedText,
             CreatedBy: null,
-            Visibility: Visibility.Private,
             MeaningCheckpoints: [],
             SeededErrors: seededErrors);
 

@@ -2,6 +2,7 @@ using DeepLearning.Api.Constants;
 using DeepLearning.Application.Features.ExamConfig.Commands.CreateErrorTaxonomy;
 using DeepLearning.Application.Features.ExamConfig.Queries.GetErrorTaxonomiesByExamType;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeepLearning.Api.Controllers
@@ -20,6 +21,7 @@ namespace DeepLearning.Api.Controllers
         public record CreateErrorTaxonomyRequest(
             string CategoryKey, string CategoryName, string? Description, string? ExampleCases);
 
+        [Authorize(Policy = "AdminOnly")]
         [HttpPost]
         public async Task<ActionResult<CreateErrorTaxonomyResult>> Create(
             Guid examTypeId, CreateErrorTaxonomyRequest request, CancellationToken cancellationToken)

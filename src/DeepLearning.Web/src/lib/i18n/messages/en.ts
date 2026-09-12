@@ -61,6 +61,7 @@ const en = {
   "nav.examManagement": "Management",
   "nav.review": "Review",
   "nav.progress": "Progress",
+  "nav.admin": "Admin",
 
   // ---- 用户菜单 ----
   "userMenu.profile": "Profile",
@@ -491,7 +492,7 @@ const en = {
 
   // ---- 导入题目面板 ----
   "import.description":
-    "Manually enter a question or real-exam seed. TaskB needs a flawed translation and at least one annotated error.",
+    "Manually enter a question of your own. TaskB needs a flawed translation and at least one annotated error.",
   "import.basicInfo": "Basic info",
   "import.titleLabel": "Title",
   "import.titlePh": "Community health centre vaccination notice",
@@ -504,9 +505,6 @@ const en = {
   "import.categoriesHint":
     "Filter by these on the Question Bank page; categories are maintained under Management · Categories.",
   "import.noCategories": "No categories available.",
-  "import.markSeed": "Mark as real-exam seed",
-  "import.markSeedHint":
-    "Retrieved as a few-shot reference sample when the AI generates questions.",
   "import.meaningPoints": "Core meaning points (optional)",
   "import.meaningPointPh": "The specific content of this point",
   "import.noMeaningPoints": "No meaning points added yet.",
@@ -769,6 +767,36 @@ const en = {
   "profile.displayName": "Display Name",
   "profile.email": "Email",
   "profile.placeholder": "Placeholder page.",
+
+  // ---- 管理员：用户管理 ----
+  "admin.usersTitle": "User Management",
+  "admin.usersDescription": "Manage roles and per-user feature access.",
+  "admin.linkAiProviders": "AI Providers",
+  "admin.linkSeedImport": "Import Real-Exam Seed",
+  "admin.table.user": "User",
+  "admin.table.email": "Email",
+  "admin.table.role": "Role",
+  "admin.table.lastLogin": "Last Login",
+  "admin.table.joined": "Joined",
+  "admin.table.features": "Features",
+  "admin.never": "Never",
+  "admin.roleUpdated": "Role updated",
+  "admin.roleUpdateFailed": "Could not update role",
+  "admin.featuresButton": "Features",
+  "admin.featuresDialogTitle": "Feature access for {email}",
+  "admin.featuresDialogDescription": "Overrides the global feature toggle for this user only.",
+  "admin.featureInherit": "Inherit global setting",
+  "admin.featureOn": "Always on for this user",
+  "admin.featureOff": "Always off for this user",
+  "admin.featureOverrideSaved": "Feature override saved",
+  "admin.featureOverrideSaveFailed": "Could not save feature override",
+
+  // ---- 管理员：真题种子导入 ----
+  "admin.seedImport.title": "Import Real-Exam Seed",
+  "admin.seedImport.description":
+    "Admin-only. This is the only way a question becomes shared across all users — everything else stays private to its creator.",
+  "admin.seedImport.submit": "Import Seed",
+  "admin.seedImport.imported": "Seed question imported",
 
   // ---- 倒计时组件 ----
   "countdown.duration.75": "75 min",
