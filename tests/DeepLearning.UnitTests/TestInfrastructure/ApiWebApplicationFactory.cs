@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Testcontainers.PostgreSql;
 
@@ -115,7 +116,31 @@ namespace DeepLearning.UnitTests.TestInfrastructure
                     sp.GetRequiredService<IUserFeatureOverrideRepository>(),
                     sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(),
                     TimeSpan.Zero));
+
+                // IHostedServices start in DI registration order. Program.cs registers
+                // AdminBootstrapHostedService, which queries `public.users` on startup whenever
+                // Admin:BootstrapEmails is configured — which it always is, via appsettings.json.
+                // Inserting a migration step at the front of the collection here guarantees it
+                // runs (and completes, via StartAsync blocking host startup until it returns)
+                // before that or any other hosted service can touch a not-yet-migrated schema.
+                // Overriding WebApplicationFactory.CreateHost to migrate between Build() and
+                // Start() was tried first and doesn't work: the testing host internally builds
+                // and disposes a throwaway host before the "real" one, so anything resolved from
+                // the returned host in CreateHost sees an already-disposed provider.
+                services.Insert(0, ServiceDescriptor.Singleton<IHostedService, MigrateDatabaseHostedService>());
             });
+        }
+
+        private sealed class MigrateDatabaseHostedService(IServiceProvider services) : IHostedService
+        {
+            public async Task StartAsync(CancellationToken cancellationToken)
+            {
+                using var scope = services.CreateScope();
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                await context.Database.MigrateAsync(cancellationToken);
+            }
+
+            public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         }
 
         public async Task InitializeAsync()
@@ -124,9 +149,10 @@ namespace DeepLearning.UnitTests.TestInfrastructure
 
             Environment.SetEnvironmentVariable(ConnectionStringEnvVar, _container.GetConnectionString());
 
+            // Touching `Services` triggers WebApplicationFactory to build and start the host,
+            // running MigrateDatabaseHostedService (registered above) before any other hosted
+            // service.
             using var scope = Services.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            await context.Database.MigrateAsync();
         }
 
         /// <summary>
