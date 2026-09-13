@@ -86,12 +86,18 @@ export function SubmissionPage() {
     queryFn: () => getQuestionById(submission.data!.questionId),
     enabled: !!submission.data,
   });
-  // 是否该盯着这次批改。以 submission 的真实状态为准；submitted 只有在【本次会话确实入过队】
-  // 时才算——否则一份刚提交、根本没人发起过批改的译文会一进页面就开始等，按钮还被禁用。
+  // 是否该盯着这次批改。以 submission 的真实状态为准；submitted/grading_failed 只有在【本次会话
+  // 确实入过队】时才算——否则一份刚提交、根本没人发起过批改的译文会一进页面就开始等，按钮还被
+  // 禁用。grading_failed 必须和 submitted 一样特判：重新批改时入队请求一返回就 invalidate，
+  // 而 worker 把行状态从 grading_failed 翻成 grading 还要再等一拍——这段窗口期里行上摆的仍是
+  // 上一轮失败的 grading_failed，漏判它会导致点击"重新批改"后 loading 消失、且后端出结果时页面
+  // 也不会自动刷新（要等下一次不相关的重渲染才会看到新状态）。
   const watchedStatus = submission.data?.status;
   const watching =
     watchedStatus === SubmissionStatus.grading ||
-    (enqueuedAt !== null && watchedStatus === SubmissionStatus.submitted);
+    (enqueuedAt !== null &&
+      (watchedStatus === SubmissionStatus.submitted ||
+        watchedStatus === SubmissionStatus.grading_failed));
 
   // 薄弱点生成是评判之后另起的后台任务，评判结果不等它。它自己还在跑的时候，慢速刷一下让标签
   // 能从"正在生成"翻到"已生成/失败"——这条轮询不影响评判结果的显示，所以放得很松。

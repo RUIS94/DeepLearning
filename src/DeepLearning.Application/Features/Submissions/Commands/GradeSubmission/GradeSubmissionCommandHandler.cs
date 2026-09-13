@@ -776,11 +776,14 @@ namespace DeepLearning.Application.Features.Submissions.Commands.GradeSubmission
             return header
                 + previousOutputBlock
                 + "请只修正这一处,其余判断保持不变,然后重新输出【完整】的 JSON。\n"
-                + "两个最常见的原因,请对照检查:\n"
+                + "三个最常见的原因,请对照检查:\n"
                 + "1. errorCategory 与 dimensionKey 是两个不同的字段,取值来自两份不同的清单。"
                 + "errorCategory 只能取错误类别 category_key(如 distortion、unidiomatic_expression、spelling_error),"
                 + "【绝不能】填维度名(如 textual_norms、language_proficiency、meaning_transfer)。\n"
-                + "2. 输出必须是纯 JSON:没有代码块围栏,没有前言,没有推理过程。\n";
+                + "2. 输出必须是纯 JSON:没有代码块围栏,没有前言,没有推理过程。\n"
+                + "3. explanation/suggestion 等字符串字段内部,如果要引用某个词或短语,"
+                + "【禁止使用英文双引号\"\"】——它会提前把这个字符串截断,导致后面的中文被当成非法字符。"
+                + "请改用中文引号「」或『』,或者干脆不加引号直接写。\n";
         }
 
         /// <summary>

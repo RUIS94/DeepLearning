@@ -168,7 +168,9 @@ namespace DeepLearning.Application.Common
             return header
                 + previousOutputBlock
                 + "请只修正上面这处问题涉及的字段,其余内容原样保留,然后重新输出【修正后的完整】JSON:"
-                + "不要使用 markdown 代码块围栏,不要输出任何多余文字。\n";
+                + "不要使用 markdown 代码块围栏,不要输出任何多余文字。\n"
+                + "字符串字段内部如果要引用某个词或短语,【禁止使用英文双引号\"\"】——它会提前把字符串截断,"
+                + "导致后面的内容被当成非法字符。请改用中文引号「」或『』,或者不加引号直接写。\n";
         }
     }
 }

@@ -55,6 +55,13 @@ namespace DeepLearning.Api.Controllers
         public async Task<ActionResult<GradeSubmissionAccepted>> Grade(
             Guid id, GradeSubmissionRequest request, IGradingJobQueue gradingJobs, CancellationToken cancellationToken)
         {
+            // Ownership gate (ref/管理员与用户权限隔离_策划书.md U6 pattern): GradeSubmissionCommand
+            // itself carries no RequesterId and runs off-request in Hangfire, so the check has to
+            // happen here, before the job is queued — otherwise any authenticated user who knows
+            // another user's submissionId could spend four real LLM calls grading someone else's
+            // submission and flip its status. 404s (via GetSubmissionByIdQuery), same as viewing it.
+            await _mediator.Send(new GetSubmissionByIdQuery(id, _currentUser.RequiredUserId), cancellationToken);
+
             await gradingJobs.EnqueueAsync(id, request.ExamTypeId, cancellationToken);
 
             // "grading" is what the client should expect to see next, not necessarily what the
