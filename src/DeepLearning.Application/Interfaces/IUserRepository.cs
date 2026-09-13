@@ -16,5 +16,8 @@ namespace DeepLearning.Application.Interfaces
 
         /// <summary>Page of users ordered oldest-first, plus the total row count for pagination (A3 User Management).</summary>
         Task<(List<User> Items, int TotalCount)> ListAsync(int skip, int take, CancellationToken cancellationToken = default);
+
+        /// <summary>Number of users with the given role — used to guard against demoting the last admin.</summary>
+        Task<int> CountByRoleAsync(Domain.Enums.UserRole role, CancellationToken cancellationToken = default);
     }
 }

@@ -1,4 +1,5 @@
 using DeepLearning.Application.Interfaces;
+using DeepLearning.Domain.Enums;
 using DeepLearning.Domain.Exceptions;
 using MediatR;
 
@@ -19,6 +20,15 @@ namespace DeepLearning.Application.Features.Users.Commands.UpdateUserRole
         {
             var user = await _userRepository.GetByIdAsync(request.Id, cancellationToken)
                 ?? throw new NotFoundException(nameof(Domain.Entities.User), request.Id);
+
+            if (user.Role == UserRole.admin && request.Role != UserRole.admin)
+            {
+                var adminCount = await _userRepository.CountByRoleAsync(UserRole.admin, cancellationToken);
+                if (adminCount <= 1)
+                {
+                    throw new ConflictException("At least one admin is required — cannot demote the only remaining admin.");
+                }
+            }
 
             user.Role = request.Role;
 

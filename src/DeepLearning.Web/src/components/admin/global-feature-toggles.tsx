@@ -37,23 +37,23 @@ export function GlobalFeatureToggles() {
   });
 
   return (
-    <div className="max-w-md space-y-4">
+    <div className="space-y-4">
       <div>
         <h3 className="text-sm font-semibold">{t("settings.features.title")}</h3>
         <p className="text-sm text-muted-foreground">{t("settings.features.description")}</p>
       </div>
 
       {flags.isPending ? (
-        <div className="space-y-3">
-          <Skeleton className="h-12 w-full rounded-lg" />
-          <Skeleton className="h-12 w-full rounded-lg" />
+        <div className="flex flex-wrap gap-3">
+          <Skeleton className="h-16 min-w-64 flex-1 rounded-lg" />
+          <Skeleton className="h-16 min-w-64 flex-1 rounded-lg" />
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="flex flex-wrap gap-3">
           {(flags.data ?? []).map((flag) => (
             <div
               key={flag.key}
-              className="flex items-start justify-between gap-4 rounded-lg border border-border p-3"
+              className="flex min-w-64 flex-1 items-start justify-between gap-4 rounded-lg border border-border p-3"
             >
               <div className="min-w-0">
                 <p className="text-sm font-medium">

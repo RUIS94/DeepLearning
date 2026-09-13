@@ -35,5 +35,8 @@ namespace DeepLearning.Infrastructure.Persistence.Repositories
             var items = await query.Skip(skip).Take(take).ToListAsync(cancellationToken);
             return (items, totalCount);
         }
+
+        public Task<int> CountByRoleAsync(Domain.Enums.UserRole role, CancellationToken cancellationToken = default)
+            => _context.Users.CountAsync(x => x.Role == role, cancellationToken);
     }
 }

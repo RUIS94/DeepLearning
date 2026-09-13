@@ -6,8 +6,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageShell } from "@/components/shell/page-shell";
 import { GlobalFeatureToggles } from "@/components/admin/global-feature-toggles";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ErrorBanner } from "@/components/shared/ai-loading-state";
 import {
   Table,
@@ -46,15 +46,17 @@ import { useEnumLabels } from "@/lib/i18n/enum-labels";
 import { useT } from "@/lib/i18n";
 import { enumOptions } from "@/lib/enum-options";
 import { qk } from "@/lib/query-keys";
+import { cn } from "@/lib/utils";
 
 const OVERRIDE_INHERIT = "inherit";
 const OVERRIDE_ON = "on";
 const OVERRIDE_OFF = "off";
 
-function RoleSelect({ user }: { user: AdminUserListItem }) {
+function RoleSelect({ user, isOnlyAdmin }: { user: AdminUserListItem; isOnlyAdmin: boolean }) {
   const t = useT();
   const { UserRoleLabel } = useEnumLabels();
   const queryClient = useQueryClient();
+  const [pendingRole, setPendingRole] = useState<number | null>(null);
 
   const mutate = useMutation({
     mutationFn: (role: number) => updateUserRole(user.id, role),
@@ -70,23 +72,65 @@ function RoleSelect({ user }: { user: AdminUserListItem }) {
       }),
   });
 
+  function handleValueChange(v: string) {
+    const nextRole = Number(v);
+    if (nextRole === user.role) return;
+
+    if (user.role === UserRole.admin && nextRole === UserRole.user && isOnlyAdmin) {
+      showToast({ title: t("admin.lastAdminError"), variant: "error" });
+      return;
+    }
+
+    setPendingRole(nextRole);
+  }
+
   return (
-    <Select
-      value={String(user.role)}
-      disabled={mutate.isPending}
-      onValueChange={(v) => mutate.mutate(Number(v))}
-    >
-      <SelectTrigger className="w-32">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {enumOptions(UserRoleLabel).map((o) => (
-          <SelectItem key={o.value} value={o.value}>
-            {o.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <>
+      <Select
+        value={String(user.role)}
+        disabled={mutate.isPending}
+        onValueChange={handleValueChange}
+      >
+        <SelectTrigger
+          className={cn(
+            "w-32",
+            user.role === UserRole.admin && "border-primary/40 bg-primary/10 font-medium text-primary",
+          )}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {enumOptions(UserRoleLabel).map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <ConfirmDialog
+        open={pendingRole !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingRole(null);
+        }}
+        tone="question"
+        title={t("admin.roleChangeConfirmTitle")}
+        description={
+          pendingRole !== null
+            ? t("admin.roleChangeConfirmDescription", {
+                email: user.email,
+                from: UserRoleLabel[user.role] ?? "",
+                to: UserRoleLabel[pendingRole] ?? "",
+              })
+            : undefined
+        }
+        onConfirm={async () => {
+          if (pendingRole === null) return;
+          await mutate.mutateAsync(pendingRole);
+          setPendingRole(null);
+        }}
+      />
+    </>
   );
 }
 
@@ -187,8 +231,8 @@ function FeaturesDialog({ user }: { user: AdminUserListItem }) {
 
 export function AdminUsersPage() {
   const t = useT();
-  const { UserRoleLabel } = useEnumLabels();
   const users = useQuery({ queryKey: qk.adminUsers(1, 200), queryFn: () => listUsers(1, 200) });
+  const adminCount = users.data?.items.filter((u) => u.role === UserRole.admin).length ?? 0;
 
   return (
     <PageShell
@@ -237,14 +281,10 @@ export function AdminUsersPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {user.role === UserRole.admin ? (
-                      <div className="flex items-center gap-2">
-                        <Badge>{UserRoleLabel[UserRole.admin]}</Badge>
-                        <RoleSelect user={user} />
-                      </div>
-                    ) : (
-                      <RoleSelect user={user} />
-                    )}
+                    <RoleSelect
+                      user={user}
+                      isOnlyAdmin={user.role === UserRole.admin && adminCount <= 1}
+                    />
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {new Date(user.createdAt).toLocaleDateString()}
