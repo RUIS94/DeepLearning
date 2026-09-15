@@ -7,10 +7,12 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { AuthShell } from "@/components/auth/auth-shell";
+import { TurnstileWidget } from "@/components/auth/turnstile-widget";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { checkAuthGuard } from "@/lib/auth/auth-guard-client";
 import { getSupabaseBrowserClient } from "@/lib/auth/supabase-client";
 import { registerSchema, type RegisterFormInput } from "@/lib/validation/auth";
 import { tFormError, useT } from "@/lib/i18n";
@@ -23,6 +25,10 @@ export function RegisterPage() {
   // signUp 成功但没有立即拿到 session,说明项目开着"Confirm email"——用户还得去邮箱点确认链接
   // （落地在 app/auth/confirm/route.ts），这里只能先提示"去查收邮件"，不能直接放行进应用。
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+  // Turnstile 未配置（NEXT_PUBLIC_TURNSTILE_SITE_KEY 缺失）时 TurnstileWidget 直接渲染成 null，
+  // 永远不会调用 onToken——这里保持 null 也没关系，服务端 checkAuthGuard 同样未配置时会优雅放行。
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileConfigured = Boolean(process.env["NEXT_PUBLIC_TURNSTILE_SITE_KEY"]);
   const form = useForm<RegisterFormInput>({
     resolver: zodResolver(registerSchema),
     defaultValues: { email: "", password: "", confirmPassword: "" },
@@ -35,6 +41,16 @@ export function RegisterPage() {
     if (!supabase) {
       // 与登录页一致的原型态占位行为：Supabase 没配置时不做真实注册,直接放进应用。
       setTimeout(() => router.push("/practice"), 500);
+      return;
+    }
+
+    const guard = await checkAuthGuard("register", turnstileToken ?? undefined);
+    if (!guard.ok) {
+      setSubmitError(
+        guard.reason === "rate_limited"
+          ? t("authGuard.rateLimited")
+          : t("authGuard.turnstileFailed"),
+      );
       return;
     }
 
@@ -102,12 +118,17 @@ export function RegisterPage() {
             </p>
           ) : null}
         </div>
+        <TurnstileWidget onToken={setTurnstileToken} />
         {submitError ? (
           <Alert variant="destructive">
             <AlertDescription>{submitError}</AlertDescription>
           </Alert>
         ) : null}
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={isSubmitting || (turnstileConfigured && !turnstileToken)}
+        >
           {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
           {isSubmitting ? t("register.submitting") : t("register.submit")}
         </Button>

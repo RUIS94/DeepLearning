@@ -8,6 +8,7 @@ using DeepLearning.Application.Interfaces;
 using DeepLearning.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace DeepLearning.Api.Controllers
 {
@@ -52,6 +53,7 @@ namespace DeepLearning.Api.Controllers
         /// </summary>
         [HttpPost("{id:guid}/grade")]
         [ProducesResponseType(typeof(GradeSubmissionAccepted), StatusCodes.Status202Accepted)]
+        [EnableRateLimiting("ai-grading")]
         public async Task<ActionResult<GradeSubmissionAccepted>> Grade(
             Guid id, GradeSubmissionRequest request, IGradingJobQueue gradingJobs, CancellationToken cancellationToken)
         {
@@ -89,6 +91,7 @@ namespace DeepLearning.Api.Controllers
         /// </summary>
         [HttpPost("{id:guid}/weak-points/regenerate")]
         [ProducesResponseType(StatusCodes.Status202Accepted)]
+        [EnableRateLimiting("ai-weak-point-regen")]
         public async Task<ActionResult> RegenerateWeakPoints(
             Guid id, RegenerateWeakPointsRequest request, IWeakPointGenerationQueue queue, CancellationToken cancellationToken)
         {

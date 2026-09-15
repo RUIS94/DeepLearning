@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { checkAuthGuard } from "@/lib/auth/auth-guard-client";
 import { getSupabaseBrowserClient } from "@/lib/auth/supabase-client";
 import { forgotPasswordSchema, type ForgotPasswordFormInput } from "@/lib/validation/auth";
 import { tFormError, useT } from "@/lib/i18n";
@@ -31,6 +32,16 @@ export function ForgotPasswordPage() {
     if (!supabase) {
       // Supabase 没配置——原型阶段没有真实账户体系可重置，直接给出和真实流程一致的成功提示。
       setSent(true);
+      return;
+    }
+
+    const guard = await checkAuthGuard("forgotPassword");
+    if (!guard.ok) {
+      setSubmitError(
+        guard.reason === "rate_limited"
+          ? t("authGuard.rateLimited")
+          : t("authGuard.turnstileFailed"),
+      );
       return;
     }
 

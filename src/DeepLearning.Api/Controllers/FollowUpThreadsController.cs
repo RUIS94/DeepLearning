@@ -9,6 +9,7 @@ using DeepLearning.Application.Features.FollowUpThreads.Queries.PreviewFollowUpC
 using DeepLearning.Application.Interfaces;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace DeepLearning.Api.Controllers
 {
@@ -34,6 +35,7 @@ namespace DeepLearning.Api.Controllers
             Guid? DimensionId = null);
 
         [HttpPost]
+        [EnableRateLimiting("ai-follow-up")]
         public async Task<ActionResult<FollowUpThreadResult>> Create(CreateFollowUpThreadRequest request, CancellationToken cancellationToken)
         {
             var result = await _mediator.Send(
@@ -47,6 +49,7 @@ namespace DeepLearning.Api.Controllers
         public record AddFollowUpMessageRequest(string QuestionText);
 
         [HttpPost("{id:guid}/messages")]
+        [EnableRateLimiting("ai-follow-up")]
         public async Task<ActionResult<FollowUpThreadResult>> AddMessage(Guid id, AddFollowUpMessageRequest request, CancellationToken cancellationToken)
         {
             var result = await _mediator.Send(new AddFollowUpMessageCommand(id, _currentUser.RequiredUserId, request.QuestionText), cancellationToken);
@@ -55,6 +58,7 @@ namespace DeepLearning.Api.Controllers
 
         /// <summary>Draft the closing summary (AI call) without committing — thread stays open.</summary>
         [HttpPost("{id:guid}/close/preview")]
+        [EnableRateLimiting("ai-follow-up-preview")]
         public async Task<ActionResult<FollowUpClosePreview>> PreviewClose(Guid id, CancellationToken cancellationToken)
         {
             var result = await _mediator.Send(new PreviewFollowUpCloseQuery(id, _currentUser.RequiredUserId), cancellationToken);
@@ -64,6 +68,7 @@ namespace DeepLearning.Api.Controllers
         public record CloseFollowUpThreadRequest(FollowUpCloseInput? Input = null, bool SkipSummary = false);
 
         [HttpPost("{id:guid}/close")]
+        [EnableRateLimiting("ai-follow-up")]
         public async Task<ActionResult<FollowUpThreadResult>> Close(Guid id, CloseFollowUpThreadRequest request, CancellationToken cancellationToken)
         {
             var result = await _mediator.Send(new CloseFollowUpThreadCommand(id, _currentUser.RequiredUserId, request.Input, request.SkipSummary), cancellationToken);

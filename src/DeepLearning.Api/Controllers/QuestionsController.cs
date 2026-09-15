@@ -11,6 +11,7 @@ using DeepLearning.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace DeepLearning.Api.Controllers
 {
@@ -71,6 +72,7 @@ namespace DeepLearning.Api.Controllers
             bool TargetWeakPoints = false);
 
         [HttpPost("generate")]
+        [EnableRateLimiting("ai-question-generate")]
         public async Task<ActionResult<GenerateQuestionResult>> Generate(GenerateQuestionRequest request, CancellationToken cancellationToken)
         {
             var result = await _mediator.Send(
@@ -102,6 +104,7 @@ namespace DeepLearning.Api.Controllers
         public record GenerateDeepLearningContentRequest(Guid ExamTypeId);
 
         [HttpPost("{id:guid}/deep-learning")]
+        [EnableRateLimiting("ai-deep-learning")]
         public async Task<ActionResult<GenerateDeepLearningContentResult>> GenerateDeepLearningContent(
             Guid id, GenerateDeepLearningContentRequest request, CancellationToken cancellationToken)
             => Ok(await _mediator.Send(new GenerateDeepLearningContentCommand(id, request.ExamTypeId, _currentUser.RequiredUserId), cancellationToken));

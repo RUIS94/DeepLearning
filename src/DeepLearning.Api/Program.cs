@@ -9,10 +9,12 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
 using Serilog.Events;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -92,6 +94,58 @@ builder.Services.AddHostedService<AdminBootstrapHostedService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IFeatureFlagService, DeepLearning.Api.Services.FeatureFlagService>();
 
+// AI-call rate limiting — every LLM-triggering endpoint's limit lives here, in one place, so the
+// per-feature numbers are easy to find and retune together (grading is the biggest single-endpoint
+// cost at ~4 LLM calls/hit; follow-up close/preview costs nothing state-wise so it's otherwise free
+// to hammer purely to burn provider spend). In-memory, not Redis-backed: this API runs as a single
+// container instance (see docker-compose.prod.yml), so there is no second instance for a shared
+// store to coordinate with. Partitioned per authenticated user (the JWT "sub" claim — every
+// controller action requires auth, see the AddControllers filter above), falling back to the
+// caller's IP only if that claim is somehow missing, so one user hammering many different
+// resources still gets caught, not just per-resource abuse.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    static string UserOrIpKey(HttpContext context) =>
+        context.User.FindFirst("sub")?.Value
+        ?? context.Connection.RemoteIpAddress?.ToString()
+        ?? "unknown";
+
+    static RateLimitPartition<string> FixedWindowPerUser(HttpContext context, int permitLimit, TimeSpan window) =>
+        RateLimitPartition.GetFixedWindowLimiter(UserOrIpKey(context), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = permitLimit,
+            Window = window,
+            QueueLimit = 0, // fail fast with 429 rather than queueing — no reason to make an over-limit caller wait.
+        });
+
+    // SubmissionsController.Grade — four LLM calls per hit, the heaviest single endpoint.
+    options.AddPolicy("ai-grading", ctx => FixedWindowPerUser(ctx, permitLimit: 10, window: TimeSpan.FromHours(1)));
+
+    // SubmissionsController.RegenerateWeakPoints — NOT a single LLM call: GenerateWeakPointsCommandHandler
+    // chains IWeakPointClassifier (per error), IWeakPointDetectionCriteriaGenerator (when a weak point
+    // crosses its activation threshold) and a batched IWeakPointRecheckService call, so one trigger can
+    // cost several — same tier as grading, not the lighter one-call endpoints below. Freely
+    // re-triggerable on any already-graded submission, with no cap otherwise on how many times.
+    options.AddPolicy("ai-weak-point-regen", ctx => FixedWindowPerUser(ctx, permitLimit: 10, window: TimeSpan.FromHours(1)));
+
+    // QuestionsController.Generate — one LLM call.
+    options.AddPolicy("ai-question-generate", ctx => FixedWindowPerUser(ctx, permitLimit: 30, window: TimeSpan.FromHours(1)));
+
+    // QuestionsController.GenerateDeepLearningContent — compound cost: one direct LLM call plus a
+    // queued vocab semantic-drift analysis pass per generated vocab item.
+    options.AddPolicy("ai-deep-learning", ctx => FixedWindowPerUser(ctx, permitLimit: 15, window: TimeSpan.FromHours(1)));
+
+    // FollowUpThreadsController: Create/AddMessage/Close — a multi-turn conversation, so this
+    // needs more headroom than the single-shot policies above.
+    options.AddPolicy("ai-follow-up", ctx => FixedWindowPerUser(ctx, permitLimit: 60, window: TimeSpan.FromHours(1)));
+
+    // FollowUpThreadsController.PreviewClose — drafts a closing summary (AI call) with zero
+    // commit side-effect, so nothing else stops it being called purely to burn provider spend.
+    options.AddPolicy("ai-follow-up-preview", ctx => FixedWindowPerUser(ctx, permitLimit: 30, window: TimeSpan.FromHours(1)));
+});
+
 var app = builder.Build();
 
 // Which database this process is actually attached to, first thing in the log. AddInfrastructure has
@@ -170,6 +224,10 @@ app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseMiddleware<EnsureUserProfileMiddleware>();
 app.UseAuthorization();
+
+// After auth, not before: the named policies above partition by the JWT "sub" claim, which only
+// exists on HttpContext.User once UseAuthentication has run.
+app.UseRateLimiter();
 
 app.MapControllers();
 app.MapHealthChecks("/health");

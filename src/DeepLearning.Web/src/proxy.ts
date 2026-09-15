@@ -4,7 +4,11 @@ import { NextResponse, type NextRequest } from "next/server";
 /**
  * Supabase session 刷新 + 登录态保护（方案 §4.5）。"/" 就是登录页本身（app/page.tsx → LoginPage），
  * 不是单独的 /login 路由；/api/backend/** 是代理层，不需要在这里拦截（它自己会转发未认证请求，
- * 后端 JWT 本来就是可选携带的）。
+ * 后端 JWT 本来就是可选携带的）；/api/health 是后端在线状态探针（hooks/use-backend-status.ts
+ * 轮询），同样必须匿名可访问——漏排除过一次，生产环境下匿名请求被当成"未登录访问页面"弹回
+ * "/"，离线横幅全站失效，从 X-Vercel-Id 的真实响应头里才发现；/api/auth-guard/** 是登录/注册/
+ * 忘记密码自己的限流+Turnstile 前置校验（lib/rate-limit/*、app/api/auth-guard/[action]/route.ts），
+ * 顾名思义就是给"还没登录的人"挡门用的，必须匿名可访问，吸取上一条的教训这次直接一起写了。
  *
  * Next.js 16 把 `middleware.ts` 约定改名为 `proxy.ts`、导出函数 `middleware` → `proxy`
  * （旧名仍可用但会告警）。行为、`config.matcher`、运行环境都不变。
@@ -73,6 +77,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|api/backend|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|api/backend|api/health|api/auth-guard|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

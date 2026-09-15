@@ -812,6 +812,10 @@ const en = {
 
   // ---- 后端离线提示条 ----
   "backend.offline": "Can't reach the server right now. Some features may not work — please try again shortly.",
+
+  // ---- 登录/注册/忘记密码 前置校验 ----
+  "authGuard.rateLimited": "Too many attempts. Please wait a while before trying again.",
+  "authGuard.turnstileFailed": "Verification failed. Please try again.",
 } as const;
 
 export type MessageKey = keyof typeof en;

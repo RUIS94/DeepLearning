@@ -770,6 +770,10 @@ const zh: Record<MessageKey, string> = {
 
   // ---- 后端离线提示条 ----
   "backend.offline": "暂时无法连接服务器，部分功能可能无法使用，请稍后再试。",
+
+  // ---- 登录/注册/忘记密码 前置校验 ----
+  "authGuard.rateLimited": "尝试次数过多，请稍后再试。",
+  "authGuard.turnstileFailed": "人机校验失败，请重试。",
 };
 
 export default zh;

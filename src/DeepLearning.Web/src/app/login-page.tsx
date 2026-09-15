@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AuthLoading, AuthShell } from "@/components/auth/auth-shell";
+import { checkAuthGuard } from "@/lib/auth/auth-guard-client";
 import { getSupabaseBrowserClient } from "@/lib/auth/supabase-client";
 import { useT } from "@/lib/i18n";
 
@@ -59,6 +60,17 @@ export function LoginPage() {
       // Supabase 还没配置（NEXT_PUBLIC_SUPABASE_ANON_KEY 缺失）——保留原型阶段的占位行为，
       // 之后各页面会用 FALLBACK_USER_ID（见 hooks/use-current-user.ts）当作当前用户。
       setTimeout(() => router.push("/practice"), 500);
+      return;
+    }
+
+    const guard = await checkAuthGuard("login");
+    if (!guard.ok) {
+      setPending(false);
+      setError(
+        guard.reason === "rate_limited"
+          ? t("authGuard.rateLimited")
+          : t("authGuard.turnstileFailed"),
+      );
       return;
     }
 
