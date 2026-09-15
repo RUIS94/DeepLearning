@@ -7,6 +7,7 @@ using DeepLearning.Infrastructure.BackgroundJobs;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
@@ -122,6 +123,27 @@ if (args is ["prompt-regression", ..])
 }
 
 // Configure the HTTP request pipeline.
+
+// Must run before every other middleware — anything downstream that reads the client IP
+// (rate limiting), the request scheme (absolute URL generation, secure-cookie decisions), or logs
+// either one (CorrelationIdMiddleware, Serilog request logging) otherwise sees cloudflared's
+// container IP and "http", not the real client and "https". Cloudflare terminates TLS at its edge
+// and cloudflared forwards plain HTTP to this container carrying X-Forwarded-For/-Proto for the
+// original request — same shape in local dev if a reverse proxy is ever put in front there too.
+//
+// KnownIPNetworks/KnownProxies cleared (not left at their loopback-only default): the immediate hop
+// is the cloudflared container over the compose network, whose IP isn't fixed (it's not published
+// to the host — see docker-compose.prod.yml — so it's the only thing that can even reach this
+// port), so there is no fixed proxy IP to pin. Safe to trust unconditionally because nothing else
+// can reach this container's 8080 at all, in or out of the compose network.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+};
+forwardedHeadersOptions.KnownIPNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
@@ -136,13 +158,15 @@ if (app.Environment.IsDevelopment())
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseExceptionHandler();
 
-// Server-to-server callers in local dev (Next.js proxy, Server Components) hit http://localhost:5255
-// and cannot accept ASP.NET's dev self-signed cert when this middleware redirects them to https://7046.
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
-
+// No UseHttpsRedirection anywhere, in any environment: Kestrel never terminates TLS for this app.
+// Local dev's server-to-server callers (Next.js proxy, Server Components) hit plain
+// http://localhost:5255. In production the container's ASPNETCORE_URLS is http://+:8080 only
+// (see Dockerfile) — TLS is terminated at Cloudflare's edge, and cloudflared forwards plain HTTP
+// to this container over the compose network, by design. Kestrel has no HTTPS endpoint in either
+// case, so UseHttpsRedirection can never resolve a target port; it used to be gated to
+// Production-only, silently logging "Failed to determine the https port for redirect" and passing
+// the request through — one Kestrel config change away from actually emitting a 307 back through
+// the tunnel to itself, an infinite redirect loop.
 app.UseAuthentication();
 app.UseMiddleware<EnsureUserProfileMiddleware>();
 app.UseAuthorization();
