@@ -37,11 +37,25 @@ async function proxy(req: NextRequest, path: string[]): Promise<NextResponse> {
   if (incomingCorrelationId) headers.set("X-Correlation-Id", incomingCorrelationId);
 
   const hasBody = !["GET", "HEAD"].includes(req.method);
-  const upstream = await fetch(targetUrl, {
-    method: req.method,
-    headers,
-    body: hasBody ? await req.text() : null,
-  });
+  let upstream: Response;
+  try {
+    // 后端跑在用户家里的 Docker 上，经 Cloudflare Tunnel 才能被 Vercel 上的这个函数连到——比
+    // 同机房调用更容易挂/更容易慢，10s 超时避免请求把 Vercel serverless 函数配额耗在干等上。
+    // 网络层失败（拒连/DNS/超时）在这里 catch 住，返回一个前端能识别的 503，而不是让这个
+    // Route Handler 直接 500——`type: "backend_unreachable"` 是 apiErrorMessage / 离线横幅
+    // 用来跟"后端正常返回的业务错误"区分开的标记（见 lib/api/fetcher.ts、hooks/use-backend-status.ts）。
+    upstream = await fetch(targetUrl, {
+      method: req.method,
+      headers,
+      body: hasBody ? await req.text() : null,
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    return NextResponse.json(
+      { status: 503, title: "Backend is unreachable.", type: "backend_unreachable" },
+      { status: 503 },
+    );
+  }
 
   const responseHeaders = new Headers();
   const responseContentType = upstream.headers.get("content-type");

@@ -767,6 +767,9 @@ const zh: Record<MessageKey, string> = {
   "countdown.pause": "暂停",
   "countdown.reset": "重置",
   "countdown.finished": "时间到！",
+
+  // ---- 后端离线提示条 ----
+  "backend.offline": "暂时无法连接服务器，部分功能可能无法使用，请稍后再试。",
 };
 
 export default zh;

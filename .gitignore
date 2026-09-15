@@ -373,3 +373,7 @@ FodyWeavers.xsd
 .codegraph/
 
 ref/
+
+# docker-compose.prod.yml's real secrets (Supabase DB password, LLM API keys, Cloudflare Tunnel
+# token) — .env.prod.example documents the shape, this file holds the actual values.
+.env.prod

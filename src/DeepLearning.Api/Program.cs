@@ -169,7 +169,18 @@ app.MapGet("/health/db", (DeepLearning.Infrastructure.Persistence.DatabaseTarget
 // weekly (matches §10.6's own "建议每周" precedent for the calibration report Step 10 will add
 // alongside this). Registering here (not inside AddInfrastructure) mirrors this codebase's own
 // "Program.cs wires concrete app behavior, DependencyInjection.cs only wires services" split.
-RecurringJob.AddOrUpdate<ProgressSnapshotJob>(
+//
+// Uses the DI-resolved IRecurringJobManager, not the static Hangfire.RecurringJob class — the
+// static class reads the legacy global JobStorage.Current, which services.AddHangfire(...) (the
+// DI-based registration in DependencyInjection.cs) never sets. Locally this went unnoticed because
+// app.UseHangfireDashboard() above is Development-only and, as a side effect, happens to populate
+// that same static — so in Development the static API silently worked. The first real Production
+// run (ASPNETCORE_ENVIRONMENT=Production, no dashboard registered) crashed at startup with
+// "Current JobStorage instance has not been initialized yet" — exactly the failure Hangfire's own
+// exception message tells you to fix this way.
+var recurringJobManager = app.Services.GetRequiredService<IRecurringJobManager>();
+
+recurringJobManager.AddOrUpdate<ProgressSnapshotJob>(
     "progress-snapshot-weekly",
     job => job.RunAsync(CancellationToken.None),
     Cron.Weekly);
@@ -180,7 +191,7 @@ RecurringJob.AddOrUpdate<ProgressSnapshotJob>(
 // StrandedGradingReclaimJob for the two incidents that motivated it. Hourly is frequent enough
 // that a stranded submission is never stuck for long, and cheap enough to ignore (one indexed
 // query that usually matches nothing).
-RecurringJob.AddOrUpdate<StrandedGradingReclaimJob>(
+recurringJobManager.AddOrUpdate<StrandedGradingReclaimJob>(
     "reclaim-stranded-grading-hourly",
     job => job.RunAsync(CancellationToken.None),
     Cron.Hourly);
@@ -189,7 +200,7 @@ RecurringJob.AddOrUpdate<StrandedGradingReclaimJob>(
 // standard_overrides that turned active recently, so a reviewer can spot-check them against the
 // official rubric before long-term dispute-driven drift sets in. Skeleton: logs the roll-up
 // today; the AI cross-check is a marked TODO in the job.
-RecurringJob.AddOrUpdate<RubricCalibrationReportJob>(
+recurringJobManager.AddOrUpdate<RubricCalibrationReportJob>(
     "rubric-calibration-weekly",
     job => job.RunAsync(CancellationToken.None),
     Cron.Weekly);

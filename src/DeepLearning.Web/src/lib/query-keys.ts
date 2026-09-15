@@ -86,4 +86,6 @@ export const qk = {
   adminUsers: (page: number, pageSize: number) => ["admin", "users", page, pageSize] as const,
   /** Prefix-only — matches every adminUsers(...) entry regardless of page/pageSize. */
   adminUsersAll: () => ["admin", "users"] as const,
+
+  backendStatus: () => ["backend-status"] as const,
 };

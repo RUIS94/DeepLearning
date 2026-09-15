@@ -809,6 +809,9 @@ const en = {
   "countdown.pause": "Pause",
   "countdown.reset": "Reset",
   "countdown.finished": "Time's up!",
+
+  // ---- 后端离线提示条 ----
+  "backend.offline": "Can't reach the server right now. Some features may not work — please try again shortly.",
 } as const;
 
 export type MessageKey = keyof typeof en;

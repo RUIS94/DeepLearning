@@ -1,0 +1,14 @@
+# Docker build context 是仓库根目录（见 src/DeepLearning.Api/Dockerfile 顶部注释）。不排除
+# bin/obj 的话，本机 Windows 生成的 obj/*.nuget.g.props（里面硬编码了本机 NuGet 包路径，比如
+# F:\Microsoft Visual Studio\Shared\NuGetPackages）会把 COPY 进镜像、盖掉容器里刚 restore 出来的
+# 那份，导致 dotnet publish 在 Linux 容器里找不到这个 Windows-only 路径而失败。
+
+**/bin/
+**/obj/
+**/node_modules/
+**/.next/
+.git/
+.vs/
+.codegraph/
+logs/
+ref/

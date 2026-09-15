@@ -1,0 +1,48 @@
+# 生产环境：本机 Docker 常驻跑后端 API，Cloudflare Tunnel 把它接到公网，供 Vercel 上的前端访问。
+# 不连本文件顶层的 docker-compose.yml（那个是本地开发用的 Postgres/Redis），后端始终连线上
+# Supabase Postgres —— 生产环境不需要本地数据库。
+#
+# 首次使用：
+#   1. 复制 .env.prod.example 为 .env.prod，填入 Supabase 数据库账密、各 LLM API Key、
+#      Cloudflare Tunnel Token（见该文件内注释，去哪里拿）。
+#   2. docker compose -f docker-compose.prod.yml up -d --build
+#
+# 开机即用：Docker Desktop 设置里勾选「Start Docker Desktop when you sign in」。容器的
+# restart: unless-stopped 会在 Docker daemon 启动时自动把它们拉起来，不需要每次开机手动
+# 再跑一遍 up —— 除非手动 docker compose down 过，那样就是"你明确要求它停下"，不会自动恢复。
+#
+# 更新代码后重新部署：
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# 看日志 / 确认在跑：
+#   docker compose -f docker-compose.prod.yml logs -f api
+#   curl http://localhost:8080/health   ← 仅本机可访问（端口未发布到宿主机以外）
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: src/DeepLearning.Api/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      DB_PROFILE: Supabase
+    # 不用 ports: 发布到宿主机 —— 只有同一个 compose 网络里的 cloudflared 能连到它，
+    # 宿主机公网 IP 和路由器完全不需要开放任何端口。
+    expose:
+      - "8080"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    # env_file (not `environment: ${TUNNEL_TOKEN}`) — that `${...}` form is compose's own variable
+    # substitution, which only reads the shell env or a file literally named `.env`, never an
+    # env_file: entry. env_file here just hands .env.prod's TUNNEL_TOKEN line straight to the
+    # container, same as the api service above.
+    env_file:
+      - .env.prod
+    depends_on:
+      - api

@@ -3,6 +3,8 @@
 export interface ProblemDetails {
   status: number;
   title: string;
+  /** 目前只有 /api/backend 代理层自己造的 "backend_unreachable" 会用到（后端离线/连不上时）。 */
+  type?: string;
   correlationId?: string;
   errors?: Record<string, string[]>;
 }

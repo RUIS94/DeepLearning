@@ -131,16 +131,19 @@ namespace DeepLearning.UnitTests.Infrastructure
         }
 
         /// <summary>
-        /// appsettings.Development.json is committed, which is only safe while it stays free of
-        /// credentials. Every secret belongs in .NET User Secrets (secrets.json, outside the repo) —
-        /// the Supabase database login under <c>Supabase:Username</c>/<c>Supabase:Password</c>, the LLM
-        /// keys under <c>Llm:*:ApiKey</c>. This test is what lets that file be in git at all: put a
-        /// credential back and the build fails before the commit lands.
+        /// appsettings.Development.json and appsettings.Production.json are both committed, which is
+        /// only safe while they stay free of credentials. Every secret belongs in .NET User Secrets
+        /// (dev) or .env.prod (production, gitignored) — the Supabase database login under
+        /// <c>Supabase:Username</c>/<c>Supabase:Password</c>, the LLM keys under <c>Llm:*:ApiKey</c>.
+        /// This test is what lets these files be in git at all: put a credential back and the build
+        /// fails before the commit lands.
         /// </summary>
-        [Fact]
-        public void The_committed_dev_settings_file_contains_no_credentials()
+        [Theory]
+        [InlineData("appsettings.Development.json")]
+        [InlineData("appsettings.Production.json")]
+        public void The_committed_settings_files_contain_no_credentials(string fileName)
         {
-            var path = Path.Combine(RepoRoot, "src", "DeepLearning.Api", "appsettings.Development.json");
+            var path = Path.Combine(RepoRoot, "src", "DeepLearning.Api", fileName);
             Assert.True(File.Exists(path), $"{path} is missing — it is committed config, not a local-only file.");
 
             var root = JsonDocument.Parse(File.ReadAllText(path)).RootElement;
@@ -163,8 +166,8 @@ namespace DeepLearning.UnitTests.Infrastructure
             var offenders = new List<string>();
             CollectSecretLikeValues(root, string.Empty, offenders);
             Assert.True(offenders.Count == 0,
-                "appsettings.Development.json carries values that look like credentials: " + string.Join(", ", offenders) +
-                ". Move them to User Secrets: dotnet user-secrets set \"<key>\" \"<value>\" --project src/DeepLearning.Api");
+                $"{fileName} carries values that look like credentials: " + string.Join(", ", offenders) +
+                ". Move them to User Secrets (dev) or .env.prod (production): dotnet user-secrets set \"<key>\" \"<value>\" --project src/DeepLearning.Api");
         }
 
         private static void CollectSecretLikeValues(JsonElement element, string path, List<string> offenders)
